@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard — ตัวแทนแผนก{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+{% block sidebar_nav %}
+<a href="{% url 'rep_dashboard' %}" class="nav-item active"><i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard</a>
+{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Dashboard ตัวแทนแผนก</h1></div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <div style="padding:16px 20px;border-bottom:1px solid var(--neutral-300);"><h3 style="margin:0;">คำร้องรอส่งต่อ ({{ to_forward.count }})</h3></div>
+  <table>
+    <thead><tr><th>พนักงาน</th><th>วันที่</th><th>ชั่วโมง</th><th>ค่าตอบแทน</th><th></th></tr></thead>
+    <tbody>
+      {% for ot in to_forward %}
+      <tr>
+        <td>{{ ot.staff.get_full_name }}</td>
+        <td>{{ ot.work_date|date:"j M Y" }}</td>
+        <td>{{ ot.ot_hours }}</td>
+        <td>{{ ot.amount|floatformat:0 }} บาท</td>
+        <td><a href="{% url 'ot_detail' ot.id %}" style="color:var(--tu-red);text-decoration:none;font-size:12px;font-weight:500;">ส่งต่อ →</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่มีคำร้องรอส่งต่อ</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

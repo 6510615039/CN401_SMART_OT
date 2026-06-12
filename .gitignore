@@ -1,0 +1,44 @@
+# ───── Node / Frontend ──────────────────
+node_modules/
+dist/
+.vite/
+*.local
+
+# ───── Python / Django ──────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+build/
+develop-eggs/
+*.egg
+
+# ───── Database ─────────────────────────
+*.sqlite3
+*.db
+
+# ───── Environment / Secrets ────────────
+.env
+.env.*
+!.env.example
+*.key
+
+# ───── IDE ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ───── Logs ─────────────────────────────
+*.log
+logs/
+
+# ───── Archive files (ไม่ต้องขึ้น git) ──
+*.zip
+*.tar.gz
+*.rar

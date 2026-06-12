@@ -1,0 +1,145 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 14px;
+  --font-sans: 'Sarabun', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Inter', monospace;
+
+  --tu-red: #B8001F;
+  --tu-red-dark: #8A0017;
+  --tu-red-soft: #FCE7EB;
+  --tu-yellow: #FFD400;
+  --tu-yellow-soft: #FFF8D6;
+
+  --neutral-black: #1A1A1A;
+  --neutral-700: #404040;
+  --neutral-500: #737373;
+  --neutral-300: #D4D4D4;
+  --neutral-100: #F5F5F5;
+  --neutral-50: #FAFAFA;
+  --neutral-0: #FFFFFF;
+
+  --success: #0A8A44;
+  --warning: #CC8800;
+  --danger: #D32F2F;
+  --info: #1976D2;
+
+  --background: #FFFFFF;
+  --foreground: #1A1A1A;
+  --card: #FFFFFF;
+  --card-foreground: #1A1A1A;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A1A;
+  --primary: #B8001F;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F5F5F5;
+  --secondary-foreground: #1A1A1A;
+  --muted: #F5F5F5;
+  --muted-foreground: #737373;
+  --accent: #FFF8D6;
+  --accent-foreground: #1A1A1A;
+  --destructive: #D32F2F;
+  --destructive-foreground: #FFFFFF;
+  --border: #D4D4D4;
+  --input: transparent;
+  --input-background: #FFFFFF;
+  --switch-background: #D4D4D4;
+  --ring: #FFD400;
+  --radius: 0.75rem;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+
+  --chart-1: #B8001F;
+  --chart-2: #FFD400;
+  --chart-3: #1976D2;
+  --chart-4: #0A8A44;
+  --chart-5: #7B1FA2;
+
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #404040;
+  --sidebar-primary: #B8001F;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FCE7EB;
+  --sidebar-accent-foreground: #B8001F;
+  --sidebar-border: #D4D4D4;
+  --sidebar-ring: #FFD400;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-tu-red: var(--tu-red);
+  --color-tu-red-dark: var(--tu-red-dark);
+  --color-tu-red-soft: var(--tu-red-soft);
+  --color-tu-yellow: var(--tu-yellow);
+  --color-tu-yellow-soft: var(--tu-yellow-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    background: var(--neutral-100);
+  }
+
+  html {
+    font-size: var(--font-size);
+    font-family: var(--font-sans);
+  }
+
+  h1 { font-size: 24px; font-weight: 700; line-height: 32px; color: var(--neutral-black); }
+  h2 { font-size: 20px; font-weight: 600; line-height: 28px; color: var(--neutral-black); }
+  h3 { font-size: 16px; font-weight: 600; line-height: 24px; color: var(--neutral-black); }
+  h4 { font-size: 14px; font-weight: 600; line-height: 20px; color: var(--neutral-black); }
+  label { font-size: 14px; font-weight: 500; line-height: 20px; }
+  button { font-size: 14px; font-weight: 500; line-height: 20px; }
+  input { font-size: 14px; font-weight: 400; line-height: 20px; }
+}
+
+.font-mono, .tabular-nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

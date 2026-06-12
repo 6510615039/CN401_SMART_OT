@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block title %}แก้ไขวันหยุด{% endblock %}
+{% block breadcrumb %}แก้ไขวันหยุด{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>แก้ไขวันหยุด</h1></div>
+<div class="card" style="max-width:480px;">
+  <form method="post">{% csrf_token %}
+    <div style="margin-bottom:16px;"><label>วันที่</label><input type="date" value="{{ h.date|date:'Y-m-d' }}" disabled /></div>
+    <div style="margin-bottom:16px;"><label>ชื่อวันหยุด</label><input type="text" name="name" value="{{ h.name }}" required /></div>
+    <div style="margin-bottom:24px;">
+      <label>ประเภท</label>
+      <select name="holiday_type">
+        <option value="compensation" {% if h.holiday_type == 'compensation' %}selected{% endif %}>วันหยุดชดเชย</option>
+        <option value="special" {% if h.holiday_type == 'special' %}selected{% endif %}>วันหยุดพิเศษ</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <a href="{% url 'admin_holidays' %}" class="btn-outline">ยกเลิก</a>
+      <button type="submit" class="btn-red">บันทึก</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

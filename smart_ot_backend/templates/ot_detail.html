@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+{% block title %}รายละเอียดคำร้อง OT{% endblock %}
+{% block breadcrumb %}รายละเอียดคำร้อง OT{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <a href="javascript:history.back()" style="display:inline-flex;align-items:center;gap:6px;color:var(--neutral-700);text-decoration:none;font-size:14px;">
+    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> กลับ
+  </a>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+  <h1 style="margin:0;">รายละเอียดคำร้อง OT</h1>
+  {% if ot.status == 'submitted' %}<span class="badge-info" style="font-size:14px;padding:6px 16px;">รออนุมัติ</span>
+  {% elif ot.status == 'checker_approved' %}<span class="badge-success" style="font-size:14px;padding:6px 16px;">อนุมัติแล้ว</span>
+  {% elif 'rejected' in ot.status %}<span class="badge-danger" style="font-size:14px;padding:6px 16px;">ถูกตีกลับ</span>
+  {% else %}<span class="badge-neutral" style="font-size:14px;padding:6px 16px;">{{ ot.get_status_display }}</span>{% endif %}
+</div>
+
+<div style="display:grid;grid-template-columns:3fr 2fr;gap:20px;">
+  <!-- Left -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    <div class="card">
+      <h3 style="margin:0 0 16px;">ข้อมูลผู้ยื่นคำขอ</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">ชื่อ-นามสกุล</p><p style="margin:4px 0 0;font-weight:600;">{{ ot.staff.get_full_name }}</p></div>
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">รหัสพนักงาน</p><p style="margin:4px 0 0;font-weight:600;">{{ ot.staff.employee_id }}</p></div>
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">แผนก</p><p style="margin:4px 0 0;font-weight:600;">{{ ot.department }}</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;">รายละเอียดการปฏิบัติงาน OT</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">วันที่</p><p style="margin:4px 0 0;font-weight:600;">{{ ot.work_date|date:"j F Y" }}</p></div>
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">ประเภทวัน</p>
+          <p style="margin:4px 0 0;">{% if ot.day_type == 'holiday' %}<span class="badge-warning">วันหยุด</span>{% else %}<span class="badge-neutral">วันธรรมดา</span>{% endif %}</p></div>
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">เวลา</p><p style="margin:4px 0 0;font-weight:600;">{{ ot.start_time|time:"H:i" }} — {{ ot.end_time|time:"H:i" }}</p></div>
+        <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">จำนวนชั่วโมง</p><p style="margin:4px 0 0;font-weight:600;">{{ ot.ot_hours }} ชม.</p></div>
+      </div>
+      <div><p style="margin:0;font-size:12px;color:var(--neutral-500);">รายละเอียดงาน</p>
+        <p style="margin:4px 0 0;background:var(--neutral-100);padding:12px;border-radius:8px;line-height:1.6;">{{ ot.work_detail }}</p></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;">การคำนวณค่าตอบแทน</h3>
+      <table>
+        <thead><tr><th>ประเภท</th><th>ชั่วโมง</th><th>อัตรา</th><th>รวม</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>{% if ot.day_type == 'holiday' %}วันหยุด{% else %}วันธรรมดา{% endif %}</td>
+            <td>{{ ot.ot_hours }}</td>
+            <td>{% if ot.day_type == 'holiday' %}x 3.0{% else %}x 1.5{% endif %}</td>
+            <td><strong>{{ ot.amount|floatformat:0 }} บาท</strong></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--tu-red-soft);">
+            <td colspan="3" style="font-weight:600;">ยอดรวม</td>
+            <td style="font-weight:700;color:var(--tu-red);font-size:16px;">{{ ot.amount|floatformat:0 }} บาท</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    <div class="card">
+      <h3 style="margin:0 0 20px;">สถานะการอนุมัติ</h3>
+      <!-- Timeline -->
+      {% with steps=approval_steps %}
+      {% for step in steps %}
+      <div style="display:flex;gap:12px;margin-bottom:{% if not forloop.last %}20px{% else %}0{% endif %};">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div style="width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;
+            {% if step.done %}background:#dcfce7;color:var(--success);{% elif step.current %}background:var(--tu-yellow-soft);color:var(--warning);{% else %}background:var(--neutral-100);color:var(--neutral-300);{% endif %}">
+            <i data-lucide="{% if step.done %}check{% elif step.current %}clock{% else %}circle{% endif %}" style="width:16px;height:16px;"></i>
+          </div>
+          {% if not forloop.last %}<div style="width:2px;flex:1;background:var(--neutral-300);margin:4px 0;min-height:20px;"></div>{% endif %}
+        </div>
+        <div style="padding-top:4px;">
+          <p style="margin:0;font-size:13px;font-weight:600;">{{ step.label }}</p>
+          {% if step.by %}<p style="margin:2px 0 0;font-size:11px;color:var(--neutral-500);">{{ step.by }}{% if step.at %} • {{ step.at }}{% endif %}</p>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endwith %}
+    </div>
+
+    {% if ot.head_note or ot.checker_note %}
+    <div class="card">
+      <h3 style="margin:0 0 12px;">หมายเหตุ</h3>
+      {% if ot.head_note %}<div class="alert-yellow" style="margin-bottom:8px;"><p style="margin:0;font-size:13px;">{{ ot.head_note }}</p></div>{% endif %}
+      {% if ot.checker_note %}<div class="alert-yellow"><p style="margin:0;font-size:13px;">{{ ot.checker_note }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    {% if can_approve %}
+    <div class="card">
+      <h3 style="margin:0 0 16px;">ดำเนินการ</h3>
+      <div style="display:flex;gap:10px;">
+        <form method="post" action="{% url 'ot_approve' ot.id %}" style="flex:1;">
+          {% csrf_token %}
+          <button type="submit" class="btn-red" style="width:100%;justify-content:center;background:var(--success);">
+            <i data-lucide="check" style="width:16px;height:16px;"></i> อนุมัติ
+          </button>
+        </form>
+        <button onclick="openModal('rejectModal')" class="btn-outline" style="flex:1;color:var(--danger);border-color:#fca5a5;">
+          <i data-lucide="x" style="width:16px;height:16px;"></i> ตีกลับ
+        </button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="modal-overlay">
+  <div class="modal">
+    <h2 style="margin:0 0 16px;">ตีกลับคำร้อง</h2>
+    <form method="post" action="{% url 'ot_reject' ot.id %}">
+      {% csrf_token %}
+      <div style="margin-bottom:20px;">
+        <label>เหตุผล (จำเป็น)</label>
+        <textarea name="note" rows="3" placeholder="ระบุเหตุผลที่ตีกลับ..." required></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" class="btn-outline" onclick="closeModal('rejectModal')">ยกเลิก</button>
+        <button type="submit" class="btn-red" style="background:var(--danger);">ยืนยันตีกลับ</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

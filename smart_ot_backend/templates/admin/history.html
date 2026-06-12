@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}ประวัติการนำเข้า{% endblock %}
+{% block breadcrumb %}ประวัติการนำเข้า{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>ประวัติการนำเข้าข้อมูล</h1></div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead><tr><th>ไฟล์</th><th>นำเข้าโดย</th><th>วันที่</th><th>สถานะ</th><th>รายการ</th></tr></thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.filename }}</td>
+        <td>{{ h.imported_by.get_full_name|default:"—" }}</td>
+        <td style="font-size:12px;">{{ h.imported_at|date:"d/m/Y H:i" }}</td>
+        <td>
+          {% if h.status == 'success' %}<span class="badge-success">สำเร็จ</span>
+          {% elif h.status == 'failed' %}<span class="badge-danger">ล้มเหลว</span>
+          {% else %}<span class="badge-warning">บางส่วน</span>{% endif %}
+        </td>
+        <td style="font-size:12px;">{{ h.success_rows }}/{{ h.total_rows }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--neutral-500);">ยังไม่มีประวัติ</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

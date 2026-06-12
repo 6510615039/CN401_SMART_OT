@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard — ผู้บริหาร{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+{% block sidebar_nav %}
+<a href="{% url 'exec_dashboard' %}" class="nav-item active"><i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard</a>
+{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Dashboard ผู้บริหาร</h1></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+  <div class="kpi-card">
+    <div><p class="kpi-label">ค่า OT ที่อนุมัติแล้ว (รวม)</p><p class="kpi-value" style="color:var(--success);">{{ summary.total_amount|floatformat:0|default:"0" }}</p><p class="kpi-label">บาท</p></div>
+    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);"><i data-lucide="banknote" style="width:24px;height:24px;"></i></div>
+  </div>
+  <div class="kpi-card">
+    <div><p class="kpi-label">ชั่วโมง OT รวม</p><p class="kpi-value" style="color:var(--info);">{{ summary.total_hours|default:"0" }}</p><p class="kpi-label">ชั่วโมง</p></div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);"><i data-lucide="clock" style="width:24px;height:24px;"></i></div>
+  </div>
+  <div class="kpi-card">
+    <div><p class="kpi-label">คำร้องที่อนุมัติแล้ว</p><p class="kpi-value">{{ summary.total_requests|default:"0" }}</p></div>
+    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);"><i data-lucide="check-circle-2" style="width:24px;height:24px;"></i></div>
+  </div>
+</div>
+{% endblock %}

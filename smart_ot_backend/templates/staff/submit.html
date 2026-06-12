@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block title %}ยื่นคำร้อง OT{% endblock %}
+{% block breadcrumb %}ยื่นคำร้อง OT{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>ยื่นคำร้อง OT</h1></div>
+
+<div class="card" style="max-width:640px;">
+  <form method="post" action="{% url 'staff_submit' %}">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label>วันที่ทำงาน OT</label>
+        <input type="date" name="work_date" required />
+      </div>
+      <div>
+        <label>สถานที่</label>
+        <input type="text" name="location" placeholder="เช่น อาคารโดม ชั้น 2" />
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label>เวลาเริ่ม</label>
+        <input type="time" name="start_time" required />
+      </div>
+      <div>
+        <label>เวลาสิ้นสุด</label>
+        <input type="time" name="end_time" required />
+      </div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label>รายละเอียดงาน</label>
+      <textarea name="work_detail" rows="4" placeholder="อธิบายงานที่ทำในช่วง OT..." required></textarea>
+    </div>
+    <div class="alert-yellow" style="margin-bottom:20px;">
+      <i data-lucide="info" style="width:16px;height:16px;color:var(--warning);flex-shrink:0;"></i>
+      <p style="margin:0;font-size:12px;">ระบบจะคำนวณชั่วโมง OT และค่าตอบแทนโดยอัตโนมัติจากเวลาที่กรอก</p>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <a href="{% url 'staff_dashboard' %}" class="btn-outline">ยกเลิก</a>
+      <button type="submit" class="btn-red">
+        <i data-lucide="send" style="width:16px;height:16px;"></i> ยื่นคำร้อง
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

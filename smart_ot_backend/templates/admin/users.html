@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block title %}จัดการผู้ใช้{% endblock %}
+{% block breadcrumb %}จัดการผู้ใช้{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>จัดการผู้ใช้</h1>
+  <button class="btn-red" onclick="openModal('addUserModal')">
+    <i data-lucide="user-plus" style="width:16px;height:16px;"></i> เพิ่มผู้ใช้
+  </button>
+</div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead><tr><th>ชื่อ</th><th>รหัสพนักงาน</th><th>แผนก</th><th>Role</th><th>สถานะ</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--tu-yellow);display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ u.first_name|first }}</div>
+            <div><p style="margin:0;font-weight:500;">{{ u.get_full_name }}</p><p style="margin:0;font-size:12px;color:var(--neutral-500);">{{ u.email }}</p></div>
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--neutral-500);">{{ u.employee_id }}</td>
+        <td>{{ u.department }}</td>
+        <td>
+          {% if u.role == 'admin' %}<span class="badge-danger">ผู้ดูแลระบบ</span>
+          {% elif u.role == 'depthead' %}<span style="background:#fff7ed;color:#c2410c;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">หัวหน้าแผนก</span>
+          {% elif u.role == 'checker' %}<span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">ผู้ตรวจสอบ</span>
+          {% elif u.role == 'executive' %}<span class="badge-success">ผู้บริหาร</span>
+          {% else %}<span class="badge-info">พนักงาน</span>{% endif %}
+        </td>
+        <td><span class="badge-success">ใช้งาน</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

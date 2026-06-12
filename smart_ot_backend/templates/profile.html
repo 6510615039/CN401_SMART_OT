@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block title %}โปรไฟล์{% endblock %}
+{% block breadcrumb %}โปรไฟล์{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>โปรไฟล์ของฉัน</h1></div>
+<div class="card" style="max-width:500px;">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--tu-yellow);display:grid;place-items:center;font-size:24px;font-weight:700;">
+      {{ request.user.first_name|first }}
+    </div>
+    <div>
+      <h2 style="margin:0;">{{ request.user.get_full_name }}</h2>
+      <p style="margin:4px 0 0;color:var(--neutral-500);">{{ request.user.get_role_display }}</p>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--neutral-300);">
+      <span style="color:var(--neutral-500);">Username</span><strong>{{ request.user.username }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--neutral-300);">
+      <span style="color:var(--neutral-500);">รหัสพนักงาน</span><strong>{{ request.user.employee_id }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--neutral-300);">
+      <span style="color:var(--neutral-500);">แผนก</span><strong>{{ request.user.department }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--neutral-300);">
+      <span style="color:var(--neutral-500);">อีเมล</span><strong>{{ request.user.email }}</strong>
+    </div>
+  </div>
+</div>
+{% endblock %}

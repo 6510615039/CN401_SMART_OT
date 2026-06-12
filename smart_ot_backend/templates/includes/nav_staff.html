@@ -1,0 +1,17 @@
+{% with request.resolver_match.url_name as current %}
+<a href="{% url 'staff_dashboard' %}" class="nav-item {% if current == 'staff_dashboard' %}active{% endif %}">
+  <i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard
+</a>
+<a href="{% url 'staff_timelog' %}" class="nav-item {% if current == 'staff_timelog' %}active{% endif %}">
+  <i data-lucide="clock" style="width:20px;height:20px;"></i> เวลาเข้า-ออกของฉัน
+</a>
+<a href="{% url 'staff_submit' %}" class="nav-item {% if current == 'staff_submit' %}active{% endif %}">
+  <i data-lucide="file-plus" style="width:20px;height:20px;"></i> ยื่นคำร้อง OT
+</a>
+<a href="{% url 'staff_status' %}" class="nav-item {% if current == 'staff_status' %}active{% endif %}">
+  <i data-lucide="list-checks" style="width:20px;height:20px;"></i> สถานะคำร้อง
+</a>
+<a href="{% url 'profile' %}" class="nav-item {% if current == 'profile' %}active{% endif %}">
+  <i data-lucide="user-circle" style="width:20px;height:20px;"></i> โปรไฟล์
+</a>
+{% endwith %}

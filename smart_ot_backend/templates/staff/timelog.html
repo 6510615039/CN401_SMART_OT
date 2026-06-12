@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block title %}เวลาเข้า-ออกของฉัน{% endblock %}
+{% block breadcrumb %}เวลาเข้า-ออกของฉัน{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>เวลาเข้า-ออกงานของฉัน</h1></div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead><tr><th>วันที่</th><th>เวลาเข้า</th><th>เวลาออก</th></tr></thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.log_date|date:"j M Y" }}</td>
+        <td>{{ log.check_in|time:"H:i"|default:"—" }}</td>
+        <td>{{ log.check_out|time:"H:i"|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" style="text-align:center;padding:40px;color:var(--neutral-500);">ยังไม่มีข้อมูล</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard — หัวหน้าแผนก{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+{% block sidebar_nav %}
+{% with request.resolver_match.url_name as current %}
+<a href="{% url 'head_dashboard' %}" class="nav-item {% if current == 'head_dashboard' %}active{% endif %}"><i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard</a>
+{% endwith %}
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>สวัสดี, {{ request.user.get_full_name }}</h1>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:24px;">
+  <div class="kpi-card">
+    <div><p class="kpi-label">รออนุมัติ</p><p class="kpi-value" style="color:var(--warning);">{{ pending_count }}</p></div>
+    <div class="kpi-icon" style="background:var(--tu-yellow-soft);color:var(--warning);"><i data-lucide="clock" style="width:24px;height:24px;"></i></div>
+  </div>
+</div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <div style="padding:16px 20px;border-bottom:1px solid var(--neutral-300);"><h3 style="margin:0;">คำร้อง OT รออนุมัติ</h3></div>
+  <table>
+    <thead><tr><th>พนักงาน</th><th>วันที่</th><th>ชั่วโมง</th><th>ค่าตอบแทน</th><th></th></tr></thead>
+    <tbody>
+      {% for ot in pending %}
+      <tr>
+        <td>{{ ot.staff.get_full_name }}</td>
+        <td>{{ ot.work_date|date:"j M Y" }}</td>
+        <td>{{ ot.ot_hours }} ชม.</td>
+        <td>{{ ot.amount|floatformat:0 }} บาท</td>
+        <td><a href="{% url 'ot_detail' ot.id %}" style="color:var(--tu-red);text-decoration:none;font-size:12px;font-weight:500;">ดูรายละเอียด →</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่มีคำร้องรออนุมัติ</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

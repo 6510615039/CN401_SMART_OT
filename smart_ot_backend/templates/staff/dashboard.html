@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard — Staff{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>สวัสดี, {{ request.user.get_full_name }}</h1>
+    <p style="color:var(--neutral-500);margin:4px 0 0;">{{ request.user.department }} • รหัส {{ request.user.employee_id }}</p>
+  </div>
+</div>
+
+<!-- KPI -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:24px;">
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">ชั่วโมง OT เดือนนี้</p>
+      <p class="kpi-value" style="color:var(--tu-red);">{{ ot_hours }}</p>
+      <p class="kpi-label">ชั่วโมง</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);">
+      <i data-lucide="clock" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">ค่า OT คาดว่าจะได้รับ</p>
+      <p class="kpi-value" style="color:var(--success);">{{ ot_amount|floatformat:0 }}</p>
+      <p class="kpi-label">บาท</p>
+    </div>
+    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);">
+      <i data-lucide="banknote" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">สถานะคำร้องเดือนนี้</p>
+      <div style="margin-top:6px;">
+        {% if pending_count > 0 %}
+        <span class="badge-warning">รออนุมัติ {{ pending_count }} รายการ</span>
+        {% else %}
+        <span class="badge-success">ไม่มีค้างอยู่</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-yellow-soft);color:var(--warning);">
+      <i data-lucide="list-checks" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">คำร้องทั้งหมด</p>
+      <p class="kpi-value" style="color:var(--info);">{{ total_requests }}</p>
+    </div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
+      <i data-lucide="file-text" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Alert ถ้ามีคำร้องถูกตีกลับ -->
+{% if rejected_count > 0 %}
+<div class="alert-red" style="margin-bottom:24px;justify-content:space-between;align-items:center;">
+  <div style="display:flex;gap:10px;align-items:center;">
+    <i data-lucide="alert-triangle" style="width:20px;height:20px;color:var(--tu-red);flex-shrink:0;"></i>
+    <p style="margin:0;">คุณมีคำร้อง <strong>{{ rejected_count }} รายการ</strong> ถูกตีกลับ กรุณาแก้ไข</p>
+  </div>
+  <a href="{% url 'staff_status' %}" class="btn-red" style="white-space:nowrap;">ไปแก้ไข →</a>
+</div>
+{% endif %}
+
+<!-- Recent OT Requests -->
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <h3 style="margin:0;">คำร้อง OT ล่าสุด</h3>
+    <a href="{% url 'staff_submit' %}" class="btn-red" style="font-size:13px;padding:6px 14px;">
+      <i data-lucide="plus" style="width:14px;height:14px;"></i> ยื่นคำร้องใหม่
+    </a>
+  </div>
+  <table>
+    <thead><tr><th>วันที่</th><th>ชั่วโมง</th><th>ค่าตอบแทน</th><th>ประเภทวัน</th><th>สถานะ</th></tr></thead>
+    <tbody>
+      {% for ot in recent_requests %}
+      <tr>
+        <td>{{ ot.work_date|date:"j M Y" }}</td>
+        <td>{{ ot.ot_hours }} ชม.</td>
+        <td>{{ ot.amount|floatformat:0 }} บาท</td>
+        <td>
+          {% if ot.day_type == 'holiday' %}<span class="badge-warning">วันหยุด</span>
+          {% else %}<span class="badge-neutral">วันธรรมดา</span>{% endif %}
+        </td>
+        <td>
+          {% if ot.status == 'submitted' %}<span class="badge-info">รออนุมัติ</span>
+          {% elif ot.status == 'head_approved' %}<span class="badge-warning">หัวหน้าอนุมัติ</span>
+          {% elif ot.status == 'checker_approved' %}<span class="badge-success">อนุมัติแล้ว</span>
+          {% elif ot.status == 'head_rejected' or ot.status == 'checker_rejected' %}<span class="badge-danger">ถูกตีกลับ</span>
+          {% else %}<span class="badge-neutral">{{ ot.get_status_display }}</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--neutral-500);padding:40px;">ยังไม่มีคำร้อง OT</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

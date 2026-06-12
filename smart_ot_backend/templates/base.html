@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SMART OT{% endblock %} — สำนักงานทะเบียนนักศึกษา มธ.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --tu-red: #B8001F; --tu-red-dark: #8A0017; --tu-red-soft: #FCE7EB;
+      --tu-yellow: #FFD400; --tu-yellow-soft: #FFF8D6;
+      --neutral-black: #1A1A1A; --neutral-700: #404040; --neutral-500: #737373;
+      --neutral-300: #D4D4D4; --neutral-100: #F5F5F5;
+      --success: #0A8A44; --warning: #CC8800; --danger: #D32F2F; --info: #1976D2;
+    }
+    * { font-family: 'Sarabun', sans-serif; box-sizing: border-box; }
+    body { background: var(--neutral-100); color: var(--neutral-black); font-size: 14px; margin: 0; }
+    h1 { font-size: 24px; font-weight: 700; }
+    h2 { font-size: 20px; font-weight: 600; }
+    h3 { font-size: 16px; font-weight: 600; }
+    .card { background: white; border-radius: 12px; border: 1px solid var(--neutral-300); box-shadow: 0 1px 2px rgba(0,0,0,0.06); padding: 20px; }
+    .btn-red { background: var(--tu-red); color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-red:hover { background: var(--tu-red-dark); }
+    .btn-outline { background: white; color: var(--neutral-700); border: 1px solid var(--neutral-300); border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .badge-success { background: #dcfce7; color: var(--success); padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .badge-warning { background: var(--tu-yellow-soft); color: var(--warning); padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .badge-danger  { background: var(--tu-red-soft); color: var(--danger); padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .badge-info    { background: #dbeafe; color: var(--info); padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .badge-neutral { background: var(--neutral-100); color: var(--neutral-700); padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .badge-lock    { background: var(--neutral-100); color: var(--neutral-500); padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--neutral-100); padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--neutral-500); border-bottom: 1px solid var(--neutral-300); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--neutral-300); font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+    input[type=text],input[type=password],input[type=email],select,textarea {
+      border: 1px solid var(--neutral-300); border-radius: 8px; padding: 9px 12px;
+      font-size: 14px; font-family: 'Sarabun',sans-serif; width: 100%; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--tu-red); box-shadow: 0 0 0 2px rgba(184,0,31,0.1); }
+    label { font-size: 14px; font-weight: 500; display: block; margin-bottom: 6px; }
+    .alert-yellow { background: var(--tu-yellow-soft); border: 1px solid var(--tu-yellow); border-radius: 10px; padding: 14px 16px; display: flex; gap: 10px; align-items: flex-start; }
+    .alert-blue { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 10px; padding: 14px 16px; display: flex; gap: 10px; align-items: flex-start; }
+    .alert-red { background: var(--tu-red-soft); border: 1px solid var(--tu-red); border-radius: 10px; padding: 14px 16px; display: flex; gap: 10px; align-items: flex-start; }
+    .kpi-card { background: white; border-radius: 12px; border: 1px solid var(--neutral-300); padding: 20px; height: 110px; display: flex; align-items: center; justify-content: space-between; }
+    .kpi-icon { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; }
+    .kpi-value { font-size: 32px; font-weight: 700; line-height: 1.2; }
+    .kpi-label { font-size: 12px; color: var(--neutral-500); }
+    .nav-item { height: 44px; padding: 0 20px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--neutral-700); cursor: pointer; text-decoration: none; position: relative; transition: background 0.15s; }
+    .nav-item:hover { background: var(--neutral-100); }
+    .nav-item.active { background: var(--tu-red-soft); color: var(--tu-red); font-weight: 600; }
+    .nav-item.active::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tu-yellow); }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: white; border-radius: 16px; padding: 24px; max-width: 480px; width: 90%; }
+    .divider { border: none; border-top: 1px solid var(--neutral-300); margin: 16px 0; }
+    .tab-btn { padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--neutral-500); }
+    .tab-btn.active { background: var(--tu-red-soft); color: var(--tu-red); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+    .dropdown { position: relative; display: inline-block; }
+    .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid var(--neutral-300); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 200px; z-index: 100; padding: 6px; }
+    .dropdown-menu.open { display: block; }
+    .dropdown-item { padding: 8px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .dropdown-item:hover { background: var(--neutral-100); }
+    .dropdown-item.danger { color: var(--tu-red); }
+    .messages { position: fixed; top: 80px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+    .msg { padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.1); animation: slideIn 0.3s ease; }
+    .msg-success { background: #dcfce7; color: var(--success); border: 1px solid #86efac; }
+    .msg-error   { background: var(--tu-red-soft); color: var(--danger); border: 1px solid #fca5a5; }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+{% block body %}{% endblock %}
+<script>
+  // Init Lucide icons
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
+  });
+  // Dropdown toggle
+  function toggleDropdown(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('open');
+    document.addEventListener('click', function close(e) {
+      if (!el.contains(e.target) && !e.target.closest('[onclick]')) {
+        el.classList.remove('open');
+        document.removeEventListener('click', close);
+      }
+    }, { once: true });
+  }
+  // Modal
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  // Tab switch
+  function switchTab(groupId, tabId) {
+    document.querySelectorAll(`[data-tab-group="${groupId}"]`).forEach(el => {
+      el.style.display = el.dataset.tab === tabId ? '' : 'none';
+    });
+    document.querySelectorAll(`[data-tab-btn-group="${groupId}"]`).forEach(el => {
+      el.classList.toggle('active', el.dataset.tabBtn === tabId);
+    });
+  }
+  // Auto-dismiss messages
+  setTimeout(() => {
+    document.querySelectorAll('.msg').forEach(el => el.remove());
+  }, 4000);
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

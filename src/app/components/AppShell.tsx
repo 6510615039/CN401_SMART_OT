@@ -1,0 +1,201 @@
+import { ReactNode, useState, useEffect } from 'react';
+import { Bell, ChevronDown, LogOut, User as UserIcon } from 'lucide-react';
+import { Role, ROLE_INFO, ROLE_BADGE, TUWordmark } from './shared';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import { cn } from './ui/utils';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+
+export interface NavItem { key: string; label: string; icon: ReactNode; }
+
+interface Props {
+  role: Role;
+  availableRoles: Role[];
+  nav: NavItem[];
+  current: string;
+  onNavigate: (k: string) => void;
+  onLogout: () => void;
+  onSwitchRole: (r: Role) => void;
+  breadcrumb: string;
+  children: ReactNode;
+}
+
+const MOCK_NOTI = [
+  { id: 1, type: 'success', title: 'คำร้องของคุณได้รับการอนุมัติ',      time: '5 นาทีที่แล้ว', unread: true  },
+  { id: 2, type: 'warning', title: 'งบประมาณแผนกประเมินเกินเพดาน',      time: '1 ชม. ที่แล้ว', unread: true  },
+  { id: 3, type: 'info',    title: 'มีการนำเข้าข้อมูลเวลาเดือนใหม่',   time: 'เมื่อวาน',       unread: false },
+];
+
+const ROLE_LABELS: Record<Role, string> = {
+  staff:     'พนักงาน (Staff)',
+  depthead:  'หัวหน้าแผนก',
+  deptrep:   'ตัวแทนแผนก',
+  checker:   'ผู้ตรวจสอบ',
+  executive: 'ผู้บริหาร',
+  admin:     'ผู้ดูแลระบบ',
+};
+
+export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children }: Props) {
+  const fallback = ROLE_INFO[role];
+  const [userInfo, setUserInfo] = useState<{ name: string; dept: string; empId: string } | null>(null);
+  const [unread] = useState(MOCK_NOTI.filter(n => n.unread).length);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    fetch('/api/auth/me/', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) setUserInfo({
+          name: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.username,
+          dept: d.department_name || d.department || fallback.dept,
+          empId: d.employee_id || d.username,
+        });
+      })
+      .catch(() => {});
+  }, [role]);
+
+  const info = userInfo ?? fallback;
+
+  const otherRoles = availableRoles.filter(r => r !== role);
+
+  return (
+    <div className="min-h-screen w-full flex flex-col bg-[var(--neutral-100)]">
+      {/* Top bar */}
+      <header className="h-16 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] flex items-center justify-between px-6 sticky top-0 z-30 border-b border-[var(--neutral-300)]">
+        <div className="flex items-center gap-6">
+          <TUWordmark />
+          <div className="text-[14px] text-[var(--neutral-500)] hidden md:block">
+            <span>หน้าแรก</span> <span className="mx-2">/</span>
+            <span className="text-[var(--neutral-black)] font-medium">{breadcrumb}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Notifications */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="relative size-10 grid place-items-center rounded-full hover:bg-[var(--neutral-100)]">
+                <Bell className="size-5 text-[var(--neutral-700)]" />
+                {unread > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-tu-yellow text-black text-[11px] font-bold grid place-items-center">
+                    {unread}
+                  </span>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[380px] p-0 rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--neutral-300)]">
+                <h3>การแจ้งเตือน</h3>
+                <button className="text-[12px] text-tu-red font-medium">ทำเป็นอ่านแล้วทั้งหมด</button>
+              </div>
+              <div className="max-h-[400px] overflow-y-auto">
+                {MOCK_NOTI.map(n => (
+                  <div key={n.id} className={cn('flex gap-3 p-4 border-b border-[var(--neutral-300)]', n.unread && 'bg-tu-yellow-soft')}>
+                    <div className={cn('size-10 rounded-full grid place-items-center shrink-0',
+                      n.type === 'success' && 'bg-green-100 text-success',
+                      n.type === 'warning' && 'bg-tu-yellow-soft text-[var(--warning)]',
+                      n.type === 'info' && 'bg-blue-100 text-info',
+                    )}>
+                      <Bell className="size-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[14px] text-[var(--neutral-black)]">{n.title}</p>
+                      <p className="text-[12px] text-[var(--neutral-500)] mt-1">{n.time}</p>
+                    </div>
+                    {n.unread && <span className="size-2 rounded-full bg-tu-yellow self-center" />}
+                  </div>
+                ))}
+              </div>
+              <div className="p-3 text-center border-t border-[var(--neutral-300)]">
+                <button className="text-[14px] text-tu-red font-medium">ดูทั้งหมด →</button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* User dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--neutral-100)]">
+                <Avatar className="size-9">
+                  <AvatarFallback className="bg-tu-yellow text-black font-bold">{info.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="text-left hidden md:block">
+                  <p className="text-[13px] font-semibold text-[var(--neutral-black)] leading-tight">{info.name}</p>
+                  <p className="text-[11px] text-[var(--neutral-500)] leading-tight">{info.dept}</p>
+                </div>
+                <ChevronDown className="size-4 text-[var(--neutral-500)]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <p>{info.name}</p>
+                <p className="text-[11px] text-[var(--neutral-500)] font-normal mt-0.5">{info.empId} • {info.dept}</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem><UserIcon className="size-4 mr-2" />โปรไฟล์</DropdownMenuItem>
+              {otherRoles.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[11px] text-[var(--neutral-500)] font-normal">สลับ Role</DropdownMenuLabel>
+                  {otherRoles.map(r => (
+                    <DropdownMenuItem key={r} onClick={() => onSwitchRole(r)} className="gap-2">
+                      <span className={cn('inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold', ROLE_BADGE[r])}>
+                        {ROLE_LABELS[r]}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onLogout} className="text-tu-red">
+                <LogOut className="size-4 mr-2" />ออกจากระบบ
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar */}
+        <aside
+          className="w-[240px] bg-white border-r border-[var(--neutral-300)] py-4 sticky top-16 self-start"
+          style={{ height: 'calc(100vh - 64px)' }}
+        >
+          <nav className="flex flex-col">
+            {nav.map(item => {
+              const active = item.key === current;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => onNavigate(item.key)}
+                  className={cn(
+                    'h-11 px-5 flex items-center gap-3 text-[14px] relative transition-colors',
+                    active
+                      ? 'bg-tu-red-soft text-tu-red font-semibold'
+                      : 'text-[var(--neutral-700)] hover:bg-[var(--neutral-100)]'
+                  )}
+                >
+                  {active && <span className="absolute left-0 top-0 bottom-0 w-1 bg-tu-yellow" />}
+                  <span className={cn('size-5', active && 'text-tu-red')}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        {/* Content */}
+        <main className="flex-1 p-8 overflow-y-auto">
+          <div className="max-w-[1280px] mx-auto">{children}</div>
+          <footer className="h-10 flex items-center justify-center text-[12px] text-[var(--neutral-500)] mt-8">
+            SMART OT v1.0.0 © 2569 สำนักงานทะเบียนนักศึกษา มหาวิทยาลัยธรรมศาสตร์
+          </footer>
+        </main>
+      </div>
+    </div>
+  );
+}

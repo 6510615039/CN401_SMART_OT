@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% block title %}ตั้งค่าระบบ{% endblock %}
+{% block breadcrumb %}ตั้งค่าระบบ{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>ตั้งค่าระบบ</h1></div>
+
+<div class="card" style="max-width:600px;">
+  <div style="display:flex;gap:8px;margin-bottom:24px;">
+    <button class="tab-btn active" data-tab-btn-group="settings" data-tab-btn="ot" onclick="switchTab('settings','ot')">เกณฑ์ OT</button>
+    <button class="tab-btn" data-tab-btn-group="settings" data-tab-btn="notify" onclick="switchTab('settings','notify')">การแจ้งเตือน</button>
+  </div>
+
+  <form method="post">{% csrf_token %}
+    <!-- Tab: เกณฑ์ OT -->
+    <div data-tab-group="settings" data-tab="ot">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+        <div>
+          <label>ชม. OT สูงสุดวันธรรมดา</label>
+          <input type="number" name="max_ot_hours_weekday" value="{{ settings.max_ot_hours_weekday }}" step="0.5" min="0" />
+        </div>
+        <div>
+          <label>ชม. OT สูงสุดวันหยุด</label>
+          <input type="number" name="max_ot_hours_holiday" value="{{ settings.max_ot_hours_holiday }}" step="0.5" min="0" />
+        </div>
+        <div>
+          <label>อัตราคูณวันธรรมดา</label>
+          <input type="number" name="rate_multiplier_weekday" value="{{ settings.rate_multiplier_weekday }}" step="0.1" min="1" />
+        </div>
+        <div>
+          <label>อัตราคูณวันหยุด</label>
+          <input type="number" name="rate_multiplier_holiday" value="{{ settings.rate_multiplier_holiday }}" step="0.1" min="1" />
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <button type="submit" class="btn-red">บันทึกการตั้งค่า</button>
+      </div>
+    </div>
+
+    <!-- Tab: การแจ้งเตือน -->
+    <div data-tab-group="settings" data-tab="notify" style="display:none;">
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <label style="display:flex;align-items:center;gap:12px;font-weight:400;cursor:pointer;">
+          <input type="checkbox" name="notify_on_submit" {% if settings.notify_on_submit %}checked{% endif %} style="width:auto;accent-color:var(--tu-red);">
+          แจ้งเตือนเมื่อมีการยื่นคำร้องใหม่
+        </label>
+        <label style="display:flex;align-items:center;gap:12px;font-weight:400;cursor:pointer;">
+          <input type="checkbox" name="notify_on_approve" {% if settings.notify_on_approve %}checked{% endif %} style="width:auto;accent-color:var(--tu-red);">
+          แจ้งเตือนเมื่อมีการอนุมัติ
+        </label>
+        <label style="display:flex;align-items:center;gap:12px;font-weight:400;cursor:pointer;">
+          <input type="checkbox" name="notify_on_reject" {% if settings.notify_on_reject %}checked{% endif %} style="width:auto;accent-color:var(--tu-red);">
+          แจ้งเตือนเมื่อมีการตีกลับ
+        </label>
+      </div>
+      <div style="text-align:right;margin-top:20px;">
+        <button type="submit" class="btn-red">บันทึก</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
