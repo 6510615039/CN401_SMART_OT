@@ -148,43 +148,6 @@ Query params ที่ใช้บ่อย: `?status=head_approved`, `?month=20
 
 ---
 
-## การแบ่งงานในทีม
-
-> แบ่งตาม feature area เพื่อลด merge conflict
-
-### 👤 คนที่ 1 — Admin & System Settings
-ไฟล์หลัก: `src/app/components/roles/admin.tsx`, `api/views.py` (ส่วน admin)
-- [ ] AdminUsers: bulk edit role / department
-- [ ] ปรับปรุง import Excel (error report ละเอียด)
-- [ ] Audit log UI ให้ filter/search ได้
-
-### 👤 คนที่ 2 — Staff & DeptHead Flow
-ไฟล์หลัก: `roles/staff.tsx`, `roles/depthead.tsx`
-- [ ] HeadReport: export PDF/Excel รายงานประจำเดือน
-- [ ] Email แจ้ง Staff เมื่อถูกอนุมัติ/ตีกลับ
-- [ ] StaffStatus: แสดง timeline การอนุมัติ
-
-### 👤 คนที่ 3 — DepRep & Checker Flow
-ไฟล์หลัก: `roles/deptrep.tsx`, `roles/checker.tsx`
-- [ ] CheckerBudget เชื่อม API จริง (ปัจจุบัน hardcoded)
-- [ ] Email template สวยงาม (HTML email)
-- [ ] RepHistory: filter ตามเดือน + export ประวัติ
-
-### 👤 คนที่ 4 — Backend API & Infrastructure
-ไฟล์หลัก: `api/models.py`, `api/views.py`, `smart_ot/settings.py`
-- [ ] ย้าย DB จาก SQLite → PostgreSQL
-- [ ] Production settings + Docker compose
-- [ ] Unit tests สำหรับ approve/reject/bulk-forward
-- [ ] API rate limiting + logging
-
-### 👤 คนที่ 5 — Executive & Analytics
-ไฟล์หลัก: `roles/executive.tsx`
-- [ ] ExecTrend chart แบบ interactive (drill-down)
-- [ ] Dashboard filter ตามแผนก/ปีงบประมาณ
-- [ ] Export สรุปผู้บริหาร (PDF)
-
----
-
 ## Features สถานะ
 
 ### ✅ พัฒนาแล้ว
