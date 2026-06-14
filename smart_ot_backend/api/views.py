@@ -705,9 +705,10 @@ def import_timelog(request):
         DATE_KEYS   = {'date', 'วันที่', 'วัน/เดือน/ปี'}
         IN_KEYS     = {'in', 'check in', 'เข้า', 'เวลาเข้า', 'check-in', 'time in', 'in time'}
         OUT_KEYS    = {'out', 'check out', 'ออก', 'เวลาออก', 'check-out', 'time out', 'out time'}
-        STATUS_KEYS = {'attendance status', 'status', 'สถานะ', 'attendance', 'หมายเหตุ', 'note', 'remark'}
+        STATUS_KEYS      = {'attendance status', 'status', 'สถานะ', 'attendance', 'หมายเหตุ', 'note', 'remark'}
+        TIME_PERIOD_KEYS = {'time period', 'กะ', 'กะการทำงาน', 'shift', 'period'}
 
-        col_id = col_name = col_date = col_in = col_out = col_status = None
+        col_id = col_name = col_date = col_in = col_out = col_status = col_time_period = None
         data_start_row = 2  # default: start from row 2
 
         all_rows = list(ws.iter_rows(min_row=1, max_row=15, values_only=True))
@@ -715,7 +716,7 @@ def import_timelog(request):
             clean = [str(v).strip().lower() if v is not None else '' for v in row]
             # Check if this row looks like a header row
             matches = 0
-            tmp_id = tmp_name = tmp_date = tmp_in = tmp_out = tmp_status = None
+            tmp_id = tmp_name = tmp_date = tmp_in = tmp_out = tmp_status = tmp_time_period = None
             for ci, cell in enumerate(clean):
                 if cell in ID_KEYS and tmp_id is None:
                     tmp_id = ci; matches += 1
@@ -729,13 +730,16 @@ def import_timelog(request):
                     tmp_out = ci; matches += 1
                 elif cell in STATUS_KEYS and tmp_status is None:
                     tmp_status = ci
+                elif cell in TIME_PERIOD_KEYS and tmp_time_period is None:
+                    tmp_time_period = ci
             if matches >= 2:
-                col_id     = tmp_id
-                col_name   = tmp_name
-                col_date   = tmp_date
-                col_in     = tmp_in
-                col_out    = tmp_out
-                col_status = tmp_status
+                col_id          = tmp_id
+                col_name        = tmp_name
+                col_date        = tmp_date
+                col_in          = tmp_in
+                col_out         = tmp_out
+                col_status      = tmp_status
+                col_time_period = tmp_time_period
                 data_start_row = row_idx + 2  # next row (1-indexed)
                 break
 
@@ -774,7 +778,8 @@ def import_timelog(request):
             date_val    = gcol(col_date)
             check_in    = gcol(col_in)
             check_out   = gcol(col_out)
-            att_status  = str(gcol(col_status) or '').strip()
+            att_status       = str(gcol(col_status) or '').strip()
+            time_period_val  = str(gcol(col_time_period) or '').strip()
 
             # Skip rows where emp_id looks like a header or is empty
             if not looks_like_id(emp_id):
@@ -841,7 +846,8 @@ def import_timelog(request):
             try:
                 TimeLog.objects.update_or_create(
                     user=user, log_date=date_val or date_str,
-                    defaults={'check_in': check_in, 'check_out': check_out, 'source_file': f.name}
+                    defaults={'check_in': check_in, 'check_out': check_out, 'source_file': f.name,
+                              'time_period': time_period_val, 'attendance_status': att_status}
                 )
             except Exception as e:
                 error_lines.append(f'แถว {total}: บันทึก timelog ไม่ได้ — {e}')
