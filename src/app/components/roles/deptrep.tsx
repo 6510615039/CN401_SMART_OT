@@ -60,7 +60,7 @@ function requestsToEmployees(requests: any[]): OTEmployee[] {
     }));
     const weekdayHrs = g.reqs.filter(r => r.day_type === 'weekday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
     const weekendHrs = g.reqs.filter(r => r.day_type === 'holiday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
-    const amount = g.reqs.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+    const amount = g.reqs.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
     return { seq: i + 1, name: g.name, days, weekdayHrs: Math.round(weekdayHrs * 10) / 10, weekendHrs: Math.round(weekendHrs * 10) / 10, amount: Math.round(amount), note: '' };
   });
 }
@@ -194,11 +194,11 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
     }).finally(() => setLoading(false));
   }, []);
 
-  const totalAmt = pending.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+  const totalAmt = pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
   return (
     <>
-      <PageHeader title="Dashboard ตัวแทนแผนก" />
+      <PageHeader title="Dashboard ตัวแทนฝ่าย" />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <div className="bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between">
           <p className="text-[12px] text-[var(--neutral-500)]">พร้อมส่งออก</p>
@@ -217,7 +217,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
           </div>
           <div className="flex-1">
             <h2>มี {pending.length} คำร้องพร้อมส่งออก</h2>
-            <p className="text-[var(--neutral-500)] mt-1">รวมยอด {totalAmt.toLocaleString()} บาท • ผ่านการอนุมัติจากหัวหน้าแผนกแล้วทั้งหมด</p>
+            <p className="text-[var(--neutral-500)] mt-1">รวมยอด {totalAmt.toLocaleString()} บาท • ผ่านการอนุมัติจากหัวหน้างานแล้วทั้งหมด</p>
           </div>
           <Button onClick={onGo} className="bg-tu-red hover:bg-tu-red-dark text-white h-12 px-6">
             ส่งออกเลย <ChevronRight className="size-4 ml-1" />
@@ -236,7 +236,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
                   <CheckCircle2 className="size-4" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-[14px]"><strong>{r.staff_name}</strong> — {parseFloat(r.ot_hours).toFixed(1)} ชม. {parseFloat(r.amount).toLocaleString()} บาท</p>
+                  <p className="text-[14px]"><strong>{r.staff_name}</strong> — {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()} บาท</p>
                   <p className="text-[12px] text-[var(--neutral-500)]">{r.work_date}</p>
                 </div>
                 <StatusChip kind="success">ส่งต่อแล้ว</StatusChip>
@@ -295,7 +295,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
 
   const selRequests = requests.filter(r => selIds.includes(r.id));
   const employees = requestsToEmployees(selRequests);
-  const totalAmt = selRequests.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+  const totalAmt = selRequests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
   const monthLabel = thaiMonthFull(month);
 
   async function forwardAll() {
@@ -368,8 +368,8 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
                       </td>
                       <td className="px-3 py-2">{r.staff_name}</td>
                       <td className="px-3 py-2 text-[var(--neutral-500)]">{r.work_date}</td>
-                      <td className="px-3 py-2 font-mono">{parseFloat(r.ot_hours).toFixed(1)} ชม.</td>
-                      <td className="px-3 py-2 font-mono font-semibold">{parseFloat(r.amount).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))} ชม.</td>
+                      <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                       <td className="px-3 py-2">
                         <StatusChip kind={r.day_type === 'holiday' ? 'warning' : 'info'}>
                           {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
@@ -569,7 +569,7 @@ export function RepMembers() {
   requests.forEach(r => {
     if (!otMap[r.staff]) otMap[r.staff] = { hrs: 0, amt: 0 };
     otMap[r.staff].hrs += parseFloat(r.ot_hours || 0);
-    otMap[r.staff].amt += parseFloat(r.amount || 0);
+    otMap[r.staff].amt += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
   });
 
   return (
@@ -578,7 +578,7 @@ export function RepMembers() {
       <div className="grid grid-cols-4 gap-5 mb-6">
         <KpiCard label="จำนวนสมาชิก" value={members.length.toString()} accent="red" />
         <KpiCard label="ทำ OT เดือนนี้" value={Object.values(otMap).filter(v => v.hrs > 0).length.toString()} accent="yellow" />
-        <KpiCard label="รวมชั่วโมง OT" value={Object.values(otMap).reduce((s,v)=>s+v.hrs,0).toFixed(1)} accent="blue" />
+        <KpiCard label="รวมชั่วโมง OT" value={Math.floor(Object.values(otMap).reduce((s,v)=>s+v.hrs,0)).toString()} accent="blue" />
         <KpiCard label="รวมยอด OT" value={Object.values(otMap).reduce((s,v)=>s+v.amt,0).toLocaleString()} accent="green" />
       </div>
       <div className="grid grid-cols-4 gap-5">
@@ -590,14 +590,14 @@ export function RepMembers() {
                 {(m.full_name || m.username || '?').charAt(0)}
               </div>
               <h4 className="text-[13px] font-semibold leading-tight">{m.full_name || m.username}</h4>
-              <p className="text-[11px] text-[var(--neutral-500)] mt-0.5 mb-2">{m.role === 'depthead' ? 'หัวหน้าแผนก' : 'Staff'}</p>
+              <p className="text-[11px] text-[var(--neutral-500)] mt-0.5 mb-2">{m.role === 'depthead' ? 'หัวหน้างาน' : 'พนักงาน'}</p>
               {ot.hrs > 0 ? (
                 <>
-                  <p className="text-tu-red font-bold text-[14px]">{ot.amt.toLocaleString()} บาท</p>
-                  <p className="text-[11px] text-[var(--neutral-500)]">{ot.hrs.toFixed(1)} ชม. OT</p>
+                  <p className="text-tu-red font-semibold text-[13px]">{Math.floor(ot.hrs)} ชม.</p>
+                  <p className="text-[11px] text-[var(--neutral-500)]">{ot.amt.toLocaleString()} บาท</p>
                 </>
               ) : (
-                <p className="text-[12px] text-[var(--neutral-400)]">ไม่มี OT เดือนนี้</p>
+                <p className="text-[11px] text-[var(--neutral-400)]">ไม่มี OT เดือนนี้</p>
               )}
             </div>
           );
@@ -607,79 +607,49 @@ export function RepMembers() {
   );
 }
 
-const STATUS_LABELS: Record<string, { label: string; kind: string }> = {
-  rep_forwarded:    { label: 'ส่งต่อแล้ว',    kind: 'info' },
-  checker_approved: { label: 'ตรวจผ่าน',       kind: 'success' },
-  checker_rejected: { label: 'ตีกลับ',         kind: 'danger' },
-  completed:        { label: 'เสร็จสิ้น',      kind: 'success' },
-};
-
 export function RepHistory() {
   const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
 
-  function load() {
-    setLoading(true);
-    // ดึงทุก status ที่ส่งต่อแล้ว
-    Promise.all(['rep_forwarded','checker_approved','checker_rejected','completed'].map(s =>
-      fetch(`/api/ot-requests/?status=${s}`, { headers: { Authorization: `Bearer ${token()}` } }).then(r => r.json())
-    )).then(results => {
-      const all = results.flatMap(d => Array.isArray(d) ? d : (d.results || []));
-      all.sort((a, b) => new Date(b.work_date).getTime() - new Date(a.work_date).getTime());
-      setRequests(all);
-    }).finally(() => setLoading(false));
-  }
+  useEffect(() => {
+    fetch('/api/ot-requests/', { headers: { Authorization: `Bearer ${token()}` } })
+      .then(r => r.json())
+      .then(d => setRequests(Array.isArray(d) ? d : (d.results || [])))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  if (loading) return <><PageHeader title="ประวัติคำร้อง" /><p className="text-center py-10">กำลังโหลด...</p></>;
 
   return (
     <>
-      <PageHeader title="ประวัติส่งออก" right={
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw className={`size-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> รีเฟรช
-        </Button>
-      } />
+      <PageHeader title="ประวัติคำร้อง OT" subtitle={`${requests.length} รายการ`} />
       <SectionCard>
-        {loading ? (
-          <p className="text-center py-8">กำลังโหลด...</p>
-        ) : requests.length === 0 ? (
-          <p className="text-center py-8 text-[var(--neutral-500)]">ยังไม่มีประวัติการส่งออก</p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
-            <table className="w-full text-[13px]">
-              <thead className="bg-tu-red text-white">
-                <tr>{['ชื่อพนักงาน','วันที่ทำ OT','ชั่วโมง','จำนวนเงิน','ประเภทวัน','สถานะ'].map(h => (
-                  <th key={h} className="text-left px-3 py-3">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {requests.map(r => {
-                  const s = STATUS_LABELS[r.status] || { label: r.status, kind: 'info' };
-                  return (
-                    <tr key={r.id} className="border-t border-[var(--neutral-300)]">
-                      <td className="px-3 py-2">{r.staff_name}</td>
-                      <td className="px-3 py-2 font-mono">{r.work_date}</td>
-                      <td className="px-3 py-2 font-mono">{parseFloat(r.ot_hours).toFixed(1)}</td>
-                      <td className="px-3 py-2 font-mono">{parseFloat(r.amount).toLocaleString()}</td>
-                      <td className="px-3 py-2">
-                        <StatusChip kind={r.day_type === 'holiday' ? 'warning' : 'info'}>
-                          {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
-                        </StatusChip>
-                      </td>
-                      <td className="px-3 py-2"><StatusChip kind={s.kind as any}>{s.label}</StatusChip></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="bg-tu-red text-white">
+              <th className="px-3 py-2 text-left">วันที่ยื่น</th>
+              <th className="px-3 py-2 text-left">วันที่ OT</th>
+              <th className="px-3 py-2 text-left">ประเภท</th>
+              <th className="px-3 py-2 text-right">ชม.</th>
+              <th className="px-3 py-2 text-right">รวมเงิน</th>
+              <th className="px-3 py-2 text-left">สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map(r => (
+              <tr key={r.id} className="border-b border-[var(--neutral-100)] hover:bg-[var(--neutral-50)]">
+                <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
+                <td className="px-3 py-2">{r.work_date}</td>
+                <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
+                <td className="px-3 py-2 font-mono text-right">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
+                <td className="px-3 py-2 font-mono font-semibold text-right">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
+                <td className="px-3 py-2"><StatusChip kind={r.status === 'completed' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'}>{r.status}</StatusChip></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </SectionCard>
     </>
   );
 }
-
-// Legacy exports (compat)
-export const RepExport = RepExportFlow;
-export const RepPreview = RepExportFlow;
-export const RepForward = RepExportFlow;

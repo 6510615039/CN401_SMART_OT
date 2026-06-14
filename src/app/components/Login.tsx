@@ -176,7 +176,6 @@ export function Login({ onLogin, onForgot }: Props) {
 }
 
 export function ForgotPassword({ onBack }: { onBack: () => void }) {
-  const [sent, setSent] = useState(false);
   return (
     <div className="min-h-screen w-full flex bg-white">
       <div className="hidden md:flex w-[55%] bg-tu-red relative overflow-hidden flex-col items-center justify-center text-center px-12">
@@ -191,27 +190,17 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
       </div>
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-[400px]">
-          <h1 className="mb-2">ลืมรหัสผ่าน</h1>
-          <p className="text-[var(--neutral-500)] mb-8">กรอกอีเมลที่ลงทะเบียนไว้ ระบบจะส่งลิงก์รีเซ็ตให้</p>
-          {sent ? (
-            <div className="p-4 bg-green-50 border border-success rounded-xl text-center">
-              <p className="font-semibold text-success mb-1">ส่งลิงก์เรียบร้อยแล้ว</p>
-              <p className="text-[13px] text-[var(--neutral-500)]">กรุณาตรวจสอบอีเมลของคุณ</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block mb-1.5">อีเมล TU</label>
-                <Input className="h-11" placeholder="username@tu.ac.th" />
-              </div>
-              <Button onClick={() => setSent(true)} className="w-full h-12 bg-tu-red hover:bg-tu-red-dark text-white">
-                ส่งลิงก์รีเซ็ต
-              </Button>
-            </div>
-          )}
-          <button onClick={onBack} className="block w-full text-center text-tu-red font-medium mt-4">← กลับไปเข้าสู่ระบบ</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+          <h1 className="mb-2">ลืมรหัสผ่าน / เปลี่ยนรหัสผ่าน</h1>
+          <p className="text-[var(--neutral-500)] mb-6">
+            ระบบ SMART OT ใช้บัญชี TU Account เดียวกันกับระบบมหาวิทยาลัย
+            กรุณาดำเนินการรีเซ็ตหรือเปลี่ยนรหัสผ่านผ่าน TU IT Center โดยตรง
+          </p>
+          <div className="space-y-3">
+            <a
+              href="https://account.tu.ac.th"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full h-12 rounded-lg bg-tu-red hover:bg-tu-red-dark text-white font-semibold transition-colors no-underline"
+            >
+              ไปยัง TU IT Center (account.tu.ac.th) →
+   

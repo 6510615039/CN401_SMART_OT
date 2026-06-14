@@ -1519,7 +1519,6 @@ export function AdminSettings() {
           <TabsList>
             <TabsTrigger value="rules">เกณฑ์ OT</TabsTrigger>
             <TabsTrigger value="noti">การแจ้งเตือน</TabsTrigger>
-            <TabsTrigger value="tuapi">TU Employee API</TabsTrigger>
           </TabsList>
 
           <TabsContent value="rules" className="mt-6 grid grid-cols-2 gap-6 max-w-2xl">
@@ -1535,51 +1534,6 @@ export function AdminSettings() {
             <label className="flex items-center justify-between"><span>แจ้งเตือนเมื่อตีกลับ</span><Switch checked={!!settings?.notify_on_reject} onCheckedChange={v => set('notify_on_reject', v)} /></label>
           </TabsContent>
 
-          <TabsContent value="tuapi" className="mt-6 space-y-5 max-w-2xl">
-            <div className="flex items-center justify-between p-4 bg-tu-yellow-soft border border-tu-yellow rounded-xl">
-              <div>
-                <p className="font-semibold text-[13px]">เปิดใช้งาน TU Employee API</p>
-                <p className="text-[12px] text-[var(--neutral-500)] mt-0.5">ดึงชื่อ-นามสกุล และแผนกพนักงานจาก TU API อัตโนมัติเมื่อ import Excel</p>
-              </div>
-              <Switch checked={!!settings?.tu_api_enabled} onCheckedChange={v => set('tu_api_enabled', v)} />
-            </div>
-            <div>
-              <label className="text-[13px] font-medium block mb-1">Base URL <span className="text-[var(--neutral-400)] font-normal">(ไม่ต้องมี trailing slash)</span></label>
-              <Input
-                value={settings?.tu_api_url ?? ''}
-                onChange={e => set('tu_api_url', e.target.value)}
-                placeholder="https://api.tu.ac.th/hr/v1"
-              />
-            </div>
-            <div>
-              <label className="text-[13px] font-medium block mb-1">API Key / Bearer Token</label>
-              <Input
-                type="password"
-                value={settings?.tu_api_key ?? ''}
-                onChange={e => set('tu_api_key', e.target.value)}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5..."
-              />
-            </div>
-            <div className="bg-[var(--neutral-50)] border border-[var(--neutral-300)] rounded-xl p-4 text-[13px]">
-              <p className="font-semibold mb-2">Expected API Response (GET /employee/&#123;empId&#125;):</p>
-              <pre className="text-[12px] text-[var(--neutral-600)] font-mono whitespace-pre-wrap">{`{
-  "empId":     "12345",
-  "firstName": "สาริยา",
-  "lastName":  "นวมจิต",
-  "deptName":  "งานทะเบียนนักศึกษา",
-  "deptCode":  "REG",
-  "email":     "sariya@tu.ac.th",
-  "position":  "เจ้าหน้าที่บริหารงานทั่วไป"
-}`}</pre>
-              <p className="text-[11px] text-[var(--neutral-500)] mt-2">ถ้า field names ต่างกัน แก้ได้ใน <code>api/tu_api_service.py → _parse_employee()</code></p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={handleTestTuApi} className="border-tu-red text-tu-red">
-                🔌 ทดสอบการเชื่อมต่อ
-              </Button>
-              {testResult && <p className="text-[13px]">{testResult}</p>}
-            </div>
-          </TabsContent>
         </Tabs>
       </SectionCard>
     </>

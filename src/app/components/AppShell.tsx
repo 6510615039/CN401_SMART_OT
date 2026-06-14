@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, User as UserIcon } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, User as UserIcon, CheckCheck } from 'lucide-react';
 import { Role, ROLE_INFO, ROLE_BADGE, TUWordmark } from './shared';
+import { NotificationItem } from '../App';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from './ui/utils';
 import {
@@ -21,27 +22,42 @@ interface Props {
   onSwitchRole: (r: Role) => void;
   breadcrumb: string;
   children: ReactNode;
+  notifications?: NotificationItem[];
+  onMarkRead?: (ids?: number[]) => void;
 }
 
-const MOCK_NOTI = [
-  { id: 1, type: 'success', title: 'คำร้องของคุณได้รับการอนุมัติ',      time: '5 นาทีที่แล้ว', unread: true  },
-  { id: 2, type: 'warning', title: 'งบประมาณแผนกประเมินเกินเพดาน',      time: '1 ชม. ที่แล้ว', unread: true  },
-  { id: 3, type: 'info',    title: 'มีการนำเข้าข้อมูลเวลาเดือนใหม่',   time: 'เมื่อวาน',       unread: false },
-];
+/** แปลง notif_type → สีวงกลม icon */
+function notifColor(type: string) {
+  if (type.includes('approved'))  return 'bg-green-100 text-green-700';
+  if (type.includes('rejected'))  return 'bg-red-100 text-tu-red';
+  if (type.includes('forwarded')) return 'bg-blue-100 text-blue-700';
+  return 'bg-tu-yellow-soft text-yellow-700';
+}
+
+/** แปลง ISO date → relative time ภาษาไทย */
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min  = Math.floor(diff / 60000);
+  if (min < 1)  return 'เมื่อกี้';
+  if (min < 60) return `${min} นาทีที่แล้ว`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24)  return `${hr} ชม. ที่แล้ว`;
+  return `${Math.floor(hr / 24)} วันที่แล้ว`;
+}
 
 const ROLE_LABELS: Record<Role, string> = {
-  staff:     'พนักงาน (Staff)',
-  depthead:  'หัวหน้าแผนก',
-  deptrep:   'ตัวแทนแผนก',
+  staff:     'พนักงาน',
+  depthead:  'หัวหน้างาน',
+  deptrep:   'ตัวแทนฝ่าย',
   checker:   'ผู้ตรวจสอบ',
   executive: 'ผู้บริหาร',
-  admin:     'ผู้ดูแลระบบ',
+  admin:     'แอดมิน',
 };
 
-export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children }: Props) {
+export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead }: Props) {
   const fallback = ROLE_INFO[role];
   const [userInfo, setUserInfo] = useState<{ name: string; dept: string; empId: string } | null>(null);
-  const [unread] = useState(MOCK_NOTI.filter(n => n.unread).length);
+  const unread = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -89,29 +105,43 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[380px] p-0 rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
               <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--neutral-300)]">
-                <h3>การแจ้งเตือน</h3>
-                <button className="text-[12px] text-tu-red font-medium">ทำเป็นอ่านแล้วทั้งหมด</button>
+                <h3 className="font-semibold text-[14px]">
+                  การแจ้งเตือน {unread > 0 && <span className="ml-1 text-[12px] font-normal text-[var(--neutral-500)]">({unread} ใหม่)</span>}
+                </h3>
+                {unread > 0 && (
+                  <button
+                    onClick={() => onMarkRead?.()}
+                    className="flex items-center gap-1 text-[12px] text-tu-red font-medium hover:underline"
+                  >
+                    <CheckCheck className="size-3.5" /> อ่านแล้วทั้งหมด
+                  </button>
+                )}
               </div>
               <div className="max-h-[400px] overflow-y-auto">
-                {MOCK_NOTI.map(n => (
-                  <div key={n.id} className={cn('flex gap-3 p-4 border-b border-[var(--neutral-300)]', n.unread && 'bg-tu-yellow-soft')}>
-                    <div className={cn('size-10 rounded-full grid place-items-center shrink-0',
-                      n.type === 'success' && 'bg-green-100 text-success',
-                      n.type === 'warning' && 'bg-tu-yellow-soft text-[var(--warning)]',
-                      n.type === 'info' && 'bg-blue-100 text-info',
-                    )}>
-                      <Bell className="size-5" />
+                {notifications.length === 0 ? (
+                  <div className="py-10 text-center text-[13px] text-[var(--neutral-500)]">ไม่มีการแจ้งเตือน</div>
+                ) : notifications.slice(0, 20).map(n => (
+                  <button
+                    key={n.id}
+                    onClick={() => !n.is_read && onMarkRead?.([n.id])}
+                    className={cn(
+                      'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',
+                      !n.is_read ? 'bg-[#fffbe6] hover:bg-[#fff8d6]' : 'hover:bg-[var(--neutral-100)]'
+                    )}
+                  >
+                    <div className={cn('size-9 rounded-full grid place-items-center shrink-0 text-[13px] font-bold', notifColor(n.notif_type))}>
+                      <Bell className="size-4" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-[14px] text-[var(--neutral-black)]">{n.title}</p>
-                      <p className="text-[12px] text-[var(--neutral-500)] mt-1">{n.time}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] text-[var(--neutral-black)] leading-snug">{n.message}</p>
+                      {n.ot_request_date && (
+                        <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">วันที่ทำ OT: {n.ot_request_date}</p>
+                      )}
+                      <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">{relativeTime(n.created_at)}</p>
                     </div>
-                    {n.unread && <span className="size-2 rounded-full bg-tu-yellow self-center" />}
-                  </div>
+                    {!n.is_read && <span className="size-2 rounded-full bg-tu-yellow shrink-0 self-center mt-1" />}
+                  </button>
                 ))}
-              </div>
-              <div className="p-3 text-center border-t border-[var(--neutral-300)]">
-                <button className="text-[14px] text-tu-red font-medium">ดูทั้งหมด →</button>
               </div>
             </PopoverContent>
           </Popover>
@@ -152,50 +182,4 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onLogout} className="text-tu-red">
-                <LogOut className="size-4 mr-2" />ออกจากระบบ
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-
-      <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
-        <aside
-          className="w-[240px] bg-white border-r border-[var(--neutral-300)] py-4 sticky top-16 self-start"
-          style={{ height: 'calc(100vh - 64px)' }}
-        >
-          <nav className="flex flex-col">
-            {nav.map(item => {
-              const active = item.key === current;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => onNavigate(item.key)}
-                  className={cn(
-                    'h-11 px-5 flex items-center gap-3 text-[14px] relative transition-colors',
-                    active
-                      ? 'bg-tu-red-soft text-tu-red font-semibold'
-                      : 'text-[var(--neutral-700)] hover:bg-[var(--neutral-100)]'
-                  )}
-                >
-                  {active && <span className="absolute left-0 top-0 bottom-0 w-1 bg-tu-yellow" />}
-                  <span className={cn('size-5', active && 'text-tu-red')}>{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
-
-        {/* Content */}
-        <main className="flex-1 p-8 overflow-y-auto">
-          <div className="max-w-[1280px] mx-auto">{children}</div>
-          <footer className="h-10 flex items-center justify-center text-[12px] text-[var(--neutral-500)] mt-8">
-            SMART OT v1.0.0 © 2569 สำนักงานทะเบียนนักศึกษา มหาวิทยาลัยธรรมศาสตร์
-          </footer>
-        </main>
-      </div>
-    </div>
-  );
-}
+                <LogOut className="s

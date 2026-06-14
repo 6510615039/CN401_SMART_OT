@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   LayoutDashboard, Inbox, History, Users, FileBarChart, ChevronRight,
-  CheckCircle2, X, AlertTriangle, Download,
+  CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
@@ -39,6 +39,23 @@ export const HEAD_NAV: NavItem[] = [
   { key: 'report',    label: 'รายงานแผนก',      icon: <FileBarChart /> },
 ];
 
+function HeadBreadcrumb({ page }: { page: string }) {
+  const labels: Record<string, string> = {
+    dashboard: 'Dashboard',
+    pending:   'คำร้องรออนุมัติ',
+    history:   'ประวัติการอนุมัติ',
+    members:   'สมาชิกในแผนก',
+    report:    'รายงานแผนก',
+  };
+  return (
+    <div className="flex items-center gap-1.5 text-[12px] text-[var(--neutral-500)] mb-4">
+      <span>หัวหน้างาน</span>
+      <ChevronRight className="size-3" />
+      <span className="text-[var(--neutral-800)] font-medium">{labels[page] ?? page}</span>
+    </div>
+  );
+}
+
 const TOP_OT = [
   { name: 'สมชาย', hours: 32 },
   { name: 'มาลี',   hours: 28 },
@@ -67,7 +84,7 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
         const arr: any[] = Array.isArray(d) ? d : (d?.results || []);
         const pending  = arr.filter(r => r.status === 'submitted').length;
         const approved = arr.filter(r => ['head_approved','rep_forwarded','checker_approved','completed'].includes(r.status)).length;
-        const totalBaht = arr.reduce((s: number, r: any) => s + parseFloat(r.amount || 0), 0);
+        const totalBaht = arr.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
         const staffMap: Record<string, number> = {};
         arr.forEach((r: any) => {
           const name = (r.staff_name || 'ไม่ระบุ').split(' ')[0];
@@ -83,7 +100,8 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
 
   return (
     <>
-      <PageHeader title="Dashboard หัวหน้าแผนก" />
+      <HeadBreadcrumb page="dashboard" />
+      <PageHeader title="Dashboard หัวหน้างาน" />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <div className="bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between">
           <p className="text-[12px] text-[var(--neutral-500)]">คำร้องรออนุมัติ</p>
@@ -97,20 +115,26 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
 
       <div className="grid grid-cols-2 gap-5 mb-6">
         <SectionCard title="พนักงานที่ทำ OT สูงสุด 5 อันดับ">
-          <div className="h-[280px]"><ResponsiveContainer>
-            <BarChart data={chartData} layout="vertical" margin={{ left: 30 }}>
+          <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT สะสม <strong>เดือนปัจจุบัน</strong> · หน่วย: ชั่วโมง (ชม.)</p>
+          <div className="h-[260px]"><ResponsiveContainer>
+            <BarChart data={chartData} layout="vertical" margin={{ left: 30, right: 16 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" /><YAxis type="category" dataKey="name" />
-              <Tooltip /><Bar dataKey="hours" fill="#B8001F" radius={[0, 6, 6, 0]} />
+              <XAxis type="number" label={{ value: 'ชม.', position: 'insideRight', offset: -4, style: { fontSize: 11, fill: '#888' } }} />
+              <YAxis type="category" dataKey="name" />
+              <Tooltip formatter={(v: any) => [v + ' ชม.', 'ชั่วโมง OT']} />
+              <Bar dataKey="hours" fill="#B8001F" radius={[0, 6, 6, 0]} />
             </BarChart>
           </ResponsiveContainer></div>
         </SectionCard>
         <SectionCard title="แนวโน้ม OT 6 เดือนย้อนหลัง">
-          <div className="h-[280px]"><ResponsiveContainer>
-            <LineChart data={TREND}>
+          <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT <strong>รายเดือน</strong> (บาท) ย้อนหลัง 6 เดือน</p>
+          <div className="h-[260px]"><ResponsiveContainer>
+            <LineChart data={TREND} margin={{ left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="m" /><YAxis />
-              <Tooltip /><Line type="monotone" dataKey="v" stroke="#B8001F" strokeWidth={3} dot={{ r: 5, fill: '#FFD400' }} />
+              <XAxis dataKey="m" label={{ value: 'เดือน', position: 'insideBottom', offset: -4, style: { fontSize: 11, fill: '#888' } }} />
+              <YAxis tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} label={{ value: 'บาท', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11, fill: '#888' } }} />
+              <Tooltip formatter={(v: any) => [Number(v).toLocaleString() + ' บาท', 'ยอด OT']} />
+              <Line type="monotone" dataKey="v" stroke="#B8001F" strokeWidth={3} dot={{ r: 5, fill: '#FFD400' }} />
             </LineChart>
           </ResponsiveContainer></div>
         </SectionCard>
@@ -154,7 +178,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
     !search || (r.staff_name || '').toLowerCase().includes(search.toLowerCase())
   );
   const all = filtered.length > 0 && sel.length === filtered.length;
-  const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+  const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
   async function handleApprove() {
     const tok = token();
@@ -188,7 +212,12 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
 
   return (
     <>
-      <PageHeader title="คำร้องรออนุมัติ" subtitle={`${filtered.length} รายการ รอการพิจารณา`} />
+      <HeadBreadcrumb page="pending" />
+      <PageHeader
+        title="คำร้องรออนุมัติ"
+        subtitle={`${filtered.length} รายการ รอการพิจารณา`}
+        right={null}
+      />
 
       {actionMsg && (
         <div className={`flex items-center gap-2 p-3 mb-4 rounded-xl border ${actionMsg.kind === 'success' ? 'bg-green-50 border-success text-success' : 'bg-tu-red-soft border-tu-red text-tu-red'}`}>
@@ -238,8 +267,8 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                     </td>
                     <td className="px-3 py-2">{r.work_date}</td>
                     <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
-                    <td className="px-3 py-2 font-mono">{parseFloat(r.ot_hours).toFixed(1)}</td>
-                    <td className="px-3 py-2 font-mono font-semibold">{Math.round(parseFloat(r.amount)).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
+                    <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                     <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
                     <td className="px-3 py-2 flex gap-1">
                       <Button size="sm" className="bg-success text-white h-7" onClick={async () => {
@@ -376,8 +405,8 @@ export function HeadDetail() {
                   <td className="px-3 py-2 font-mono">{r.in}</td>
                   <td className="px-3 py-2 font-mono">{r.out}</td>
                   <td className="px-3 py-2 font-mono">{r.hours}</td>
-                  <td className="px-3 py-2 font-mono">{r.rate}</td>
-                  <td className="px-3 py-2 font-mono">{(r.hours * r.rate * (r.weekend ? 3 : 1.5)).toLocaleString()}</td>
+                  <td className="px-3 py-2 font-mono">{r.weekend ? 70 : 60} บ/ชม.</td>
+                  <td className="px-3 py-2 font-mono">{(Math.floor(r.hours) * (r.weekend ? 70 : 60)).toLocaleString()}</td>
                   <td className="px-3 py-2"><StatusChip kind="warning">รออนุมัติ</StatusChip></td>
                 </tr>
               ))}
@@ -463,6 +492,7 @@ export function HeadHistory() {
 
   return (
     <>
+      <HeadBreadcrumb page="history" />
       <PageHeader title="ประวัติการอนุมัติ" />
       <SectionCard>
         {loading ? (
@@ -492,8 +522,8 @@ export function HeadHistory() {
                       <td className="px-3 py-2 font-medium">{r.staff_name || '—'}</td>
                       <td className="px-3 py-2">{r.work_date}</td>
                       <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
-                      <td className="px-3 py-2 font-mono">{parseFloat(r.ot_hours).toFixed(1)}</td>
-                      <td className="px-3 py-2 font-mono font-semibold">{Math.round(parseFloat(r.amount)).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
+                      <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                       <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
                       <td className="px-3 py-2 text-[var(--neutral-500)] max-w-[160px] truncate" title={note}>{note}</td>
                     </tr>
@@ -543,7 +573,7 @@ export function HeadMembers() {
   }, []);
 
   const totalHours = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + parseFloat(r.ot_hours || 0), 0), 0);
-  const totalAmt   = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + parseFloat(r.amount || 0), 0), 0);
+  const totalAmt   = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0), 0);
   const hasOt      = members.filter(m => (otMap[m.id] || []).length > 0).length;
   const selectedMember = members.find(m => m.id === selected);
   const selectedOtList = selected !== null ? (otMap[selected] || []) : [];
@@ -557,11 +587,12 @@ export function HeadMembers() {
 
   return (
     <>
+      <HeadBreadcrumb page="members" />
       <PageHeader title={`สมาชิกในแผนก${deptName ? ' — ' + deptName : ''}`} />
       <div className="grid grid-cols-4 gap-5 mb-5">
         <KpiCard label="จำนวนสมาชิก" value={members.length.toString()} accent="red" />
         <KpiCard label="ทำ OT แล้ว" value={hasOt.toString()} accent="yellow" />
-        <KpiCard label="รวมชั่วโมง OT" value={totalHours.toFixed(1)} accent="blue" />
+        <KpiCard label="รวมชั่วโมง OT" value={Math.floor(totalHours).toString()} accent="blue" />
         <KpiCard label="รวมยอด OT" value={Math.round(totalAmt).toLocaleString()} accent="green" />
       </div>
       {members.length === 0 ? (
@@ -571,7 +602,7 @@ export function HeadMembers() {
           {members.map(m => {
             const reqs = otMap[m.id] || [];
             const hrs  = reqs.reduce((s: number, r: any) => s + parseFloat(r.ot_hours || 0), 0);
-            const amt  = reqs.reduce((s: number, r: any) => s + parseFloat(r.amount || 0), 0);
+            const amt  = reqs.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
             return (
               <div key={m.id} className={`bg-white border rounded-xl p-5 text-center shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors ${selected === m.id ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)]'}`}>
                 <Avatar className="size-20 mx-auto mb-3">
@@ -580,7 +611,7 @@ export function HeadMembers() {
                 <h4 className="text-[14px] font-semibold">{m.first_name} {m.last_name}</h4>
                 <p className="text-[11px] text-[var(--neutral-500)] mb-0.5">{m.employee_id || m.username}</p>
                 {hrs > 0
-                  ? <p className="text-tu-red font-semibold text-[13px] mb-3">{Math.round(amt).toLocaleString()} บาท ({hrs.toFixed(1)} ชม.)</p>
+                  ? <p className="text-tu-red font-semibold text-[13px] mb-3">{Math.round(amt).toLocaleString()} บาท ({Math.floor(hrs)} ชม.)</p>
                   : <p className="text-[12px] text-[var(--neutral-400)] mb-3">ยังไม่มีคำขอ OT</p>
                 }
                 <Button
@@ -629,9 +660,9 @@ export function HeadMembers() {
                             <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                             <td className="px-3 py-2 font-mono">{r.start_time || '-'}</td>
                             <td className="px-3 py-2 font-mono">{r.end_time || '-'}</td>
-                            <td className="px-3 py-2 font-mono">{hrs.toFixed(1)}</td>
+                            <td className="px-3 py-2 font-mono">{Math.floor(hrs)}</td>
                             <td className="px-3 py-2 font-mono">{rate} บาท/ชม.</td>
-                            <td className="px-3 py-2 font-mono font-semibold text-tu-red">{Math.round(parseFloat(r.amount || 0)).toLocaleString()}</td>
+                            <td className="px-3 py-2 font-mono font-semibold text-tu-red">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                             <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
                           </tr>
                         );
@@ -641,7 +672,7 @@ export function HeadMembers() {
                       <tr className="border-t-2 border-[var(--neutral-300)] bg-[var(--neutral-50)]">
                         <td colSpan={6} className="px-3 py-2 font-semibold text-right">รวมทั้งสิ้น</td>
                         <td className="px-3 py-2 font-bold text-tu-red">
-                          {Math.round(selectedOtList.reduce((s: number, r: any) => s + parseFloat(r.amount || 0), 0)).toLocaleString()} บาท
+                          {selectedOtList.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0).toLocaleString()} บาท
                         </td>
                         <td />
                       </tr>
@@ -657,69 +688,159 @@ export function HeadMembers() {
   );
 }
 
-function generateHeadXlsx(requests: any[], deptName: string, headName: string) {
-  const now = new Date();
-  const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  const month = `${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543}`;
-
-  // Group requests by staff
-  const byStaff: Record<string, { name: string; reqs: any[] }> = {};
-  for (const r of requests) {
-    const key = r.staff || r.staff_name;
-    if (!byStaff[key]) byStaff[key] = { name: r.staff_name || String(key), reqs: [] };
-    byStaff[key].reqs.push(r);
+// แปลงจำนวนเงินเป็นคำอ่านภาษาไทย
+function thaiNumber(n: number): string {
+  if (n === 0) return 'ศูนย์บาทถ้วน';
+  const ones = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+  function below1M(num: number): string {
+    if (num === 0) return '';
+    let s = '';
+    const แสน = Math.floor(num / 100000); if (แสน) s += ones[แสน] + 'แสน'; num %= 100000;
+    const หมื่น = Math.floor(num / 10000);  if (หมื่น) s += ones[หมื่น] + 'หมื่น'; num %= 10000;
+    const พัน  = Math.floor(num / 1000);   if (พัน)  s += ones[พัน]  + 'พัน';  num %= 1000;
+    const ร้อย = Math.floor(num / 100);    if (ร้อย) s += ones[ร้อย] + 'ร้อย'; num %= 100;
+    const สิบ  = Math.floor(num / 10);
+    if (สิบ === 1) s += 'สิบ';
+    else if (สิบ === 2) s += 'ยี่สิบ';
+    else if (สิบ > 2)  s += ones[สิบ] + 'สิบ';
+    const หน่วย = num % 10;
+    if (หน่วย === 1 && สิบ > 0) s += 'เอ็ด';
+    else if (หน่วย > 0) s += ones[หน่วย];
+    return s;
   }
+  const int = Math.floor(n);
+  let result = '';
+  if (int >= 1000000) { result += below1M(Math.floor(int / 1000000)) + 'ล้าน'; result += below1M(int % 1000000); }
+  else result = below1M(int);
+  return result + 'บาทถ้วน';
+}
 
-  const employees = Object.values(byStaff).map((s, idx) => {
-    const weekdayHrs = s.reqs.filter(r => r.day_type !== 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
-    const weekendHrs = s.reqs.filter(r => r.day_type === 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
-    const amount = s.reqs.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
-    return { seq: idx + 1, name: s.name, reqs: s.reqs, weekdayHrs, weekendHrs, amount };
-  });
+function buildOtSheet(
+  wb: XLSX.WorkBook,
+  employees: { seq: number; name: string; reqs: any[]; weekdayHrs: number; weekendHrs: number; amount: number }[],
+  deptName: string,
+  signatoryName: string,
+  month: string,
+  carryover: number,
+  pageIdx: number,
+  totalPages: number,
+  grandTotalAmount: number,
+) {
+  const startDay    = pageIdx * 5;
+  const endDay      = startDay + 5;
+  const isFirstPage = pageIdx === 0;
+  const sheetName   = totalPages > 1 ? `หน้า ${pageIdx + 1}` : 'OT Report';
 
-  const wb = XLSX.utils.book_new();
   const rows: any[][] = [];
   rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ']);
   rows.push([`${deptName}  ประจำเดือน ${month}`]);
+  if (totalPages > 1) rows.push([`(หน้า ${pageIdx + 1} / ${totalPages})`]);
   rows.push([]);
-  rows.push(['ลำดับที่','ชื่อ-สกุล','วันที่ 1','วันที่ 2','วันที่ 3','วันที่ 4','วันที่ 5','วันปกติ(ชม.)','วันหยุด(ชม.)','จำนวนเงิน','ว.ด.ป.ที่รับเงิน','ลายมือชื่อ','หมายเหตุ']);
-
-  const total = employees.reduce((s, e) => s + e.amount, 0);
-  employees.forEach(emp => {
+  if (isFirstPage && carryover > 0) {
+    rows.push(['ยอดยกมาจากเดือนที่แล้ว', '', '', '', '', '', '', '', '', carryover, '', '', '']);
+  }
+  const dayLabels = Array.from({ length: 5 }, (_, i) => `วันที่ ${startDay + i + 1}`);
+  rows.push(['ลำดับที่', 'ชื่อ-สกุล', ...dayLabels, 'วันปกติ(ชม.)', 'วันหยุด(ชม.)', 'จำนวนเงิน', 'ว.ด.ป.ที่รับเงิน', 'ลายมือชื่อ', 'หมายเหตุ']);
+  const empHere = isFirstPage ? employees : employees.filter(e => e.reqs.length > startDay);
+  empHere.forEach(emp => {
     const dr: any[] = [emp.seq, emp.name];
-    for (let i = 0; i < 5; i++) dr.push(emp.reqs[i]?.work_date ?? '');
-    dr.push(emp.weekdayHrs || '', emp.weekendHrs || '', Math.round(emp.amount), '', '', '');
+    for (let i = startDay; i < endDay; i++) dr.push(emp.reqs[i]?.work_date ?? '');
+    if (isFirstPage) dr.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount, '', '', '');
+    else             dr.push('', '', '', '', '', '');
     rows.push(dr);
     const tr: any[] = ['', ''];
-    for (let i = 0; i < 5; i++) {
+    for (let i = startDay; i < endDay; i++) {
       const r = emp.reqs[i];
       tr.push(r ? `${r.start_time || ''}-${r.end_time || ''} น.` : '');
     }
     tr.push('', '', '', '', '', '');
     rows.push(tr);
   });
-
   rows.push([]);
-  rows.push(['','','รวมเงินทั้งสิ้น','','','','','รวมเป็นเงิน','',Math.round(total),'','','']);
+  if (isFirstPage) {
+    rows.push(['', '', 'รวมเงินทั้งสิ้น', '', '', '', '', 'รวมเป็นเงิน', '', grandTotalAmount, '', '', '']);
+    rows.push(['', '', '', '', '', '', '', '', '', `(${thaiNumber(grandTotalAmount)})`, '', '', '']);
+    if (carryover > 0) {
+      rows.push(['', '', '', '', '', '', '', 'ยอดยกมา', '', carryover, '', '', '']);
+      rows.push(['', '', '', '', '', '', '', 'ยอดสุทธิเดือนนี้', '', grandTotalAmount - carryover, '', '', '']);
+    }
+  }
   rows.push([]);
   rows.push(['ขอรับรองว่า ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง']);
   rows.push([]);
-  rows.push(['ลงชื่อ','','','ผู้รับรองการปฏิบัติงาน']);
-  rows.push(['','','',`(${headName})`]);
-  rows.push(['ตำแหน่ง','','',`หัวหน้า${deptName}`]);
-
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน']);
+  rows.push(['', '', '', `(${signatoryName})`]);
+  rows.push(['ตำแหน่ง', '', '', `หัวหน้า${deptName}`]);
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:8},{wch:30},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:18},{wch:12}];
-  ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:12} }, { s:{r:1,c:0}, e:{r:1,c:12} }];
-  XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
+  ws['!cols'] = [{wch:8},{wch:30},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:18},{wch:12}];
+  const merges: any[] = [
+    { s:{r:0,c:0}, e:{r:0,c:12} },
+    { s:{r:1,c:0}, e:{r:1,c:12} },
+  ];
+  if (totalPages > 1) merges.push({ s:{r:2,c:0}, e:{r:2,c:12} });
+  ws['!merges'] = merges;
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+}
+
+function generateHeadXlsx(requests: any[], deptName: string, signatoryName: string, carryover = 0) {
+  const now = new Date();
+  const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const month = `${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543}`;
+  const byStaff: Record<string, { name: string; reqs: any[] }> = {};
+  for (const r of requests) {
+    const key = r.staff || r.staff_name;
+    if (!byStaff[key]) byStaff[key] = { name: r.staff_name || String(key), reqs: [] };
+    byStaff[key].reqs.push(r);
+  }
+  Object.values(byStaff).forEach(s => s.reqs.sort((a, b) => a.work_date.localeCompare(b.work_date)));
+  const employees = Object.values(byStaff).map((s, idx) => {
+    const weekdayHrs = s.reqs.filter(r => r.day_type !== 'holiday')
+      .reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)), 0);
+    const weekendHrs = s.reqs.filter(r => r.day_type === 'holiday')
+      .reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)), 0);
+    const amount = s.reqs.reduce(
+      (sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)) * (r.day_type === 'holiday' ? 70 : 60), 0
+    );
+    return { seq: idx + 1, name: s.name, reqs: s.reqs, weekdayHrs, weekendHrs, amount };
+  });
+  const grandTotalAmount = employees.reduce((s, e) => s + e.amount, 0);
+  const maxDays    = Math.max(...employees.map(e => e.reqs.length), 1);
+  const totalPages = Math.ceil(maxDays / 5);
+  const wb = XLSX.utils.book_new();
+  for (let page = 0; page < totalPages; page++) {
+    buildOtSheet(wb, employees, deptName, signatoryName, month, carryover, page, totalPages, grandTotalAmount);
+  }
   downloadXlsx(wb, `OT-${deptName}-${month}.xlsx`);
 }
 
+const HEAD_REPORT_PERIODS = [
+  { value: 'month',   label: 'รายเดือน' },
+  { value: 'quarter', label: 'ไตรมาส' },
+  { value: 'half',    label: 'ครึ่งปีงบ' },
+  { value: 'year',    label: 'ปีงบประมาณ' },
+];
+const HEAD_REPORT_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
 export function HeadReport() {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [deptName, setDeptName] = useState('');
-  const [headName, setHeadName] = useState('');
-  const [loading, setLoading] = useState(true);
+  const now = new Date();
+  // ปีงบประมาณ: ต.ค. ปีก่อน – ก.ย. ปีนี้ → เดือน ต.ค.(m=9) ขึ้นปีงบใหม่
+  const curThaiYear = now.getFullYear() + 543 + (now.getMonth() >= 9 ? 1 : 0);
+
+  const [requests, setRequests]           = useState<any[]>([]);
+  const [deptName, setDeptName]           = useState('');
+  const [headName, setHeadName]           = useState('');
+  const [loading, setLoading]             = useState(true);
+  const [showExportDlg, setShowExportDlg] = useState(false);
+  const [carryover, setCarryover]         = useState(0);
+  const [signatoryName, setSignatoryName] = useState('');
+  // Period filter state
+  const [period, setPeriod]       = useState('month');
+  const [thaiYear, setThaiYear]   = useState(String(curThaiYear));
+  const [thaiMonth, setThaiMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
+  const _m = now.getMonth() + 1;
+  const curQuarter = _m >= 10 ? '1' : _m <= 3 ? '2' : _m <= 6 ? '3' : '4';
+  const [quarter, setQuarter]     = useState(curQuarter);
+
   const token = () => localStorage.getItem('access_token');
   const h = { 'Authorization': `Bearer ${token()}` };
 
@@ -729,26 +850,56 @@ export function HeadReport() {
       fetch('/api/ot-requests/', { headers: h }).then(r => r.json()),
     ]).then(([me, otData]) => {
       setDeptName(me.department_name || '');
-      setHeadName(`${me.first_name || ''} ${me.last_name || ''}`.trim());
+      const fullName = `${me.first_name || ''} ${me.last_name || ''}`.trim();
+      setHeadName(fullName);
+      setSignatoryName(fullName);
       const all: any[] = Array.isArray(otData) ? otData : (otData.results || []);
-      // แสดงเฉพาะที่ผ่านการอนุมัติจากหัวหน้าแล้ว
       setRequests(all.filter(r => r.status !== 'submitted'));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // Aggregate by staff for charts
+  // ─── Date filter (same logic as CheckerReport) ────────────────────────────
+  function inRange(dateStr: string): boolean {
+    const d = new Date(dateStr);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const gregYear = parseInt(thaiYear) - 543;
+    if (period === 'month') {
+      const monthNum = parseInt(thaiMonth);
+      // ต.ค.-ธ.ค. อยู่ใน greg ปีก่อนของปีงบ
+      const actualGregYear = monthNum >= 10 ? gregYear - 1 : gregYear;
+      return y === actualGregYear && m === monthNum;
+    } else if (period === 'quarter') {
+      const Q_MAP: Record<string, { months: number[]; year: number }[]> = {
+        '1': [{ months: [10,11,12], year: gregYear - 1 }],
+        '2': [{ months: [1,2,3],   year: gregYear }],
+        '3': [{ months: [4,5,6],   year: gregYear }],
+        '4': [{ months: [7,8,9],   year: gregYear }],
+      };
+      return (Q_MAP[quarter] || []).some(({ months, year }) => year === y && months.includes(m));
+    } else if (period === 'half') {
+      const h1 = (y === gregYear - 1 && m >= 10) || (y === gregYear && m <= 3);
+      const h2 = y === gregYear && m >= 4 && m <= 9;
+      return quarter === '1' ? h1 : h2;
+    } else {
+      return (y === gregYear - 1 && m >= 10) || (y === gregYear && m <= 9);
+    }
+  }
+
+  const filtered = requests.filter(r => inRange(r.work_date));
+
   const byStaff: Record<string, { name: string; hours: number; amount: number }> = {};
-  for (const r of requests) {
+  for (const r of filtered) {
     const k = r.staff_name || String(r.staff);
     if (!byStaff[k]) byStaff[k] = { name: k, hours: 0, amount: 0 };
     byStaff[k].hours  += parseFloat(r.ot_hours || 0);
-    byStaff[k].amount += parseFloat(r.amount || 0);
+    byStaff[k].amount += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
   }
-  const chartData = Object.values(byStaff).sort((a, b) => b.hours - a.hours).slice(0, 8);
-  const totalHrs = requests.reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
-  const totalAmt = requests.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
-  const weekdayCount = requests.filter(r => r.day_type !== 'holiday').length;
-  const holidayCount = requests.filter(r => r.day_type === 'holiday').length;
+  const chartData    = Object.values(byStaff).sort((a, b) => b.hours - a.hours).slice(0, 8);
+  const totalHrs     = filtered.reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
+  const totalAmt     = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const weekdayCount = filtered.filter(r => r.day_type !== 'holiday').length;
+  const holidayCount = filtered.filter(r => r.day_type === 'holiday').length;
   const staffCount   = Object.keys(byStaff).length;
   const pieData = [
     { name: 'วันธรรมดา', v: weekdayCount },
@@ -757,16 +908,66 @@ export function HeadReport() {
 
   return (
     <>
+      <HeadBreadcrumb page="report" />
       <PageHeader
         title={`รายงานแผนก${deptName ? ' ' + deptName : ''}`}
         right={
-          <Button
-            onClick={() => generateHeadXlsx(requests, deptName, headName)}
-            className="bg-tu-red hover:bg-tu-red-dark text-white"
-            disabled={loading || requests.length === 0}
-          >
-            <Download className="size-4 mr-1" />Export Excel คำขอเบิก
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Period filter */}
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{HEAD_REPORT_PERIODS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={thaiYear} onValueChange={setThaiYear}>
+              <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[0,1,2].map(d => <SelectItem key={d} value={String(curThaiYear - d)}>ปี {curThaiYear - d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {period === 'month' && (
+              <Select value={thaiMonth} onValueChange={setThaiMonth}>
+                <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{HEAD_REPORT_MONTHS.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+            {(period === 'quarter' || period === 'half') && (
+              <Select value={quarter} onValueChange={setQuarter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {period === 'quarter'
+                    ? ['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)
+                    : [{ v:'1', l:'ครึ่งแรก (ต.ค.–มี.ค.)' },{ v:'2', l:'ครึ่งหลัง (เม.ย.–ก.ย.)' }].map(h => <SelectItem key={h.v} value={h.v}>{h.l}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            )}
+            {/* Export buttons */}
+            <Button
+              onClick={() => setShowExportDlg(true)}
+              className="bg-tu-red hover:bg-tu-red-dark text-white"
+              disabled={loading || filtered.length === 0}
+            >
+              <Download className="size-4 mr-1" />Export Excel
+            </Button>
+            <Button
+              variant="outline"
+              disabled={loading || requests.length === 0}
+              onClick={() => {
+                const tok = localStorage.getItem('access_token');
+                fetch('/api/head/report/pdf/', { headers: { 'Authorization': `Bearer ${tok}` } })
+                  .then(r => r.blob())
+                  .then(blob => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `OT-Report-${deptName}.pdf`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+                  });
+              }}
+            >
+              <Download className="size-4 mr-1" />Export PDF
+            </Button>
+          </div>
         }
       />
       {loading ? (
@@ -777,17 +978,18 @@ export function HeadReport() {
       ) : (
         <>
           <div className="grid grid-cols-3 gap-5 mb-5">
-            <KpiCard label="รวมชั่วโมง OT" value={totalHrs.toFixed(1)} accent="red" />
+            <KpiCard label="รวมชั่วโมง OT" value={Math.floor(totalHrs).toString()} accent="red" />
             <KpiCard label="รวมเงิน (บาท)" value={Math.round(totalAmt).toLocaleString()} accent="green" />
             <KpiCard label="จำนวนคน" value={staffCount.toString()} accent="blue" />
           </div>
           <div className="grid grid-cols-2 gap-5">
             <SectionCard title="OT per พนักงาน">
-              <div className="h-[280px]">
+              <p className="text-[11px] text-[var(--neutral-500)] mb-3">ชั่วโมง OT สะสม <strong>ตามช่วงที่เลือก</strong> · หน่วย: ชั่วโมง (ชม.)</p>
+              <div className="h-[260px]">
                 {chartData.length === 0
                   ? <p className="text-center text-[var(--neutral-500)] pt-20">ยังไม่มีข้อมูล OT</p>
                   : <ResponsiveContainer>
-                      <BarChart data={chartData} layout="vertical">
+                      <BarChart data={chartData} layout="vertical" margin={{ right: 16 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis type="number" />
                         <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
@@ -799,12 +1001,13 @@ export function HeadReport() {
               </div>
             </SectionCard>
             <SectionCard title="สัดส่วนวันธรรมดา vs วันหยุด">
-              <div className="h-[280px]">
+              <p className="text-[11px] text-[var(--neutral-500)] mb-3">สัดส่วนจำนวนรายการ OT <strong>ตามช่วงที่เลือก</strong> · % คำนวณจากจำนวนรายการทั้งหมด</p>
+              <div className="h-[260px]">
                 {weekdayCount + holidayCount === 0
                   ? <p className="text-center text-[var(--neutral-500)] pt-20">ยังไม่มีข้อมูล</p>
                   : <ResponsiveContainer>
                       <PieChart>
-                        <Pie data={pieData} dataKey="v" nameKey="name" outerRadius={100} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`}>
+                        <Pie data={pieData} dataKey="v" nameKey="name" outerRadius={95} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
                           <Cell fill="#B8001F" /><Cell fill="#FFD400" />
                         </Pie>
                         <Tooltip /><Legend />
@@ -816,6 +1019,28 @@ export function HeadReport() {
           </div>
         </>
       )}
+
+      <Dialog open={showExportDlg} onOpenChange={setShowExportDlg}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>ตั้งค่าก่อน Export Excel</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-[13px] font-medium block mb-1">ยอดยกมาจากเดือนที่แล้ว (บาท)</label>
+              <Input type="number" min={0} value={carryover || ''} onChange={e => setCarryover(parseFloat(e.target.value) || 0)} placeholder="0 (ถ้าไม่มีให้เว้นว่าง)" />
+            </div>
+            <div>
+              <label className="text-[13px] font-medium block mb-1">ชื่อผู้รับรองการปฏิบัติงาน</label>
+              <Input value={signatoryName} onChange={e => setSignatoryName(e.target.value)} placeholder="ชื่อ-สกุล หัวหน้า" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDlg(false)}>ยกเลิก</Button>
+            <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={() => { generateHeadXlsx(filtered, deptName, signatoryName || headName, carryover); setShowExportDlg(false); }}>
+              <Download className="size-4 mr-1" />Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -824,97 +1049,36 @@ export function HeadBudgetRequest() {
   const [submitted, setSubmitted] = useState(false);
   const [amount, setAmount] = useState('15000');
   const [reason, setReason] = useState('');
-
-  if (submitted) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="size-20 rounded-full bg-green-100 grid place-items-center">
-          <CheckCircle2 className="size-12 text-success" />
-        </div>
-        <h2>ส่งคำขอเพิ่มงบประมาณแล้ว</h2>
-        <p className="text-[var(--neutral-500)] text-center max-w-[400px]">
-          ระบบได้ส่งคำขอไปยังผู้ตรวจสอบ (พี่ยุ่น) เรียบร้อยแล้ว
-          กรุณารอการอัปเดตเพดานงบประมาณจากผู้ตรวจสอบ แล้วกลับมาส่งรายงานอีกครั้ง
-        </p>
-        <Button onClick={() => setSubmitted(false)} variant="outline">ยื่นคำขอใหม่</Button>
-      </div>
-    );
-  }
-
+  if (submitted) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4">
+      <div className="size-20 rounded-full bg-green-100 grid place-items-center"><CheckCircle2 className="size-12 text-success" /></div>
+      <h2>ส่งคำขอเพิ่มงบประมาณแล้ว</h2>
+      <Button onClick={() => setSubmitted(false)} variant="outline">ยื่นคำขอใหม่</Button>
+    </div>
+  );
   return (
     <>
       <PageHeader title="ขออนุมัติงบประมาณเพิ่มเติม" />
-
-      <div className="flex items-start gap-3 p-4 mb-6 bg-tu-red-soft border border-tu-red rounded-xl">
-        <AlertTriangle className="size-5 text-tu-red shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-tu-red">งบประมาณเดือน พ.ค. 2569 ไม่เพียงพอ</p>
-          <p className="text-[13px] mt-1">
-            ยอด OT สะสม <strong>95,000 บาท</strong> เกินเพดาน <strong>80,000 บาท</strong>{' '}
-            (เกินอยู่ <strong>15,000 บาท</strong>)
-          </p>
-        </div>
-      </div>
-
       <div className="max-w-[600px]">
         <SectionCard title="แบบฟอร์มขออนุมัติงบประมาณเพิ่มเติม">
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4 text-[13px]">
-              <div><p className="text-[var(--neutral-500)]">แผนก</p><p className="font-semibold">งานทะเบียนนักศึกษา — ประเมิน</p></div>
-              <div><p className="text-[var(--neutral-500)]">เดือน</p><p className="font-semibold">พฤษภาคม 2569</p></div>
-              <div><p className="text-[var(--neutral-500)]">เพดานงบเดิม</p><p className="font-semibold">80,000 บาท</p></div>
-              <div><p className="text-[var(--neutral-500)]">ยอด OT ปัจจุบัน</p><p className="font-semibold text-danger">95,000 บาท</p></div>
-            </div>
-
             <div>
               <label className="text-[13px] font-medium block mb-1">จำนวนงบที่ขอเพิ่ม (บาท)</label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="ระบุจำนวนเงิน"
-              />
-              {amount && (
-                <p className="text-[12px] text-[var(--neutral-500)] mt-1">
-                  เพดานใหม่จะเป็น: <strong>{(80000 + Number(amount)).toLocaleString()} บาท</strong>
-                </p>
-              )}
+              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="ระบุจำนวนเงิน" />
             </div>
-
             <div>
               <label className="text-[13px] font-medium block mb-1">เหตุผลในการขอเพิ่มงบประมาณ <span className="text-danger">*</span></label>
-              <Textarea
-                rows={4}
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                placeholder="อธิบายเหตุผลความจำเป็นในการทำ OT เกินงบประมาณ (เช่น ปริมาณงานเพิ่มขึ้นจากการรับสมัครนักศึกษา, งานเร่งด่วนช่วงเปิดเทอม ฯลฯ)"
-              />
-              <p className="text-[12px] text-[var(--neutral-500)] mt-1">{reason.length} / 200 ตัวอักษร</p>
+              <Textarea rows={4} value={reason} onChange={e => setReason(e.target.value)} placeholder="อธิบายเหตุผลความจำเป็น" />
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline">ยกเลิก</Button>
-              <Button
-                className="bg-tu-red hover:bg-tu-red-dark text-white"
-                disabled={!amount || !reason || reason.length < 20}
-                onClick={() => setSubmitted(true)}
-              >
-                <Send className="size-4 mr-2" />
-                ส่งคำขอไปยังผู้ตรวจสอบ
+              <Button className="bg-tu-red hover:bg-tu-red-dark text-white" disabled={!amount || !reason || reason.length < 20} onClick={() => setSubmitted(true)}>
+                <Send className="size-4 mr-2" />ส่งคำขอ
               </Button>
             </div>
           </div>
         </SectionCard>
       </div>
-
-      <div className="mt-4 max-w-[600px] p-4 bg-tu-yellow-soft border border-tu-yellow rounded-xl text-[13px]">
-        <p className="font-semibold mb-1">ขั้นตอนหลังส่งคำขอ</p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>ผู้ตรวจสอบ (พี่ยุ่น) รับคำขอและอัปเดตเพดานงบประมาณในระบบ</li>
-          <li>กลับมาที่หน้า "คำร้องรออนุมัติ" แล้วกดส่งรายงานใหม่อีกครั้ง</li>
-          <li>ผู้บริหารสามารถอนุมัติได้ตามปกติ</li>
-        </ol>
-      </div>
     </>
   );
 }
+

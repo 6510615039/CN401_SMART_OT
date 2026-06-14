@@ -29,12 +29,17 @@ export default defineConfig({
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
-  // Proxy API requests to Django backend
+  // Proxy API + WebSocket to Django backend (Daphne/Channels)
   server: {
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:8000',
+        changeOrigin: true,
+        ws: true,  // ← enable WebSocket proxy
       },
     },
   },
