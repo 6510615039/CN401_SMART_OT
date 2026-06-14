@@ -200,17 +200,4 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
               href="https://account.tu.ac.th"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full h-12 rounded-lg bg-tu-red hover:bg-tu-red-dark text-white font-semibold transition-colors no-underline"
-            >
-              ไปยัง TU IT Center (account.tu.ac.th) →
-            </a>
-            <p className="text-[12px] text-[var(--neutral-500)] text-center">
-              เปิดในแท็บใหม่ · จัดการบัญชี TU Account ของคุณ
-            </p>
-          </div>
-          <button onClick={onBack} className="block w-full text-center text-tu-red font-medium mt-6">← กลับไปเข้าสู่ระบบ</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+              className="flex items-center justify-cente

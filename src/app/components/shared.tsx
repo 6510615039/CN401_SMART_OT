@@ -80,11 +80,4 @@ export function SectionCard({ title, action, children, className }: { title?: st
     <div className={cn('bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] p-5', className)}>
       {(title || action) && (
         <div className="flex items-center justify-between mb-4">
-          {title && <h3>{title}</h3>}
-          {action}
-        </div>
-      )}
-      {children}
-    </div>
-  );
-}
+       

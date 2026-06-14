@@ -50,9 +50,4 @@ urlpatterns = [
 
     # Head Report
     path('head/report/',                    views.head_report_view),
-    path('head/report/pdf/',               views.head_report_pdf_view),
-
->>>>>>> Stashed changes
-    # Router
-    path('', include(router.urls)),
-]
+    path('head/report/pdf/',           
