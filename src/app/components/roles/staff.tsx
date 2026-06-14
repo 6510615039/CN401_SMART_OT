@@ -104,7 +104,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
                   <div className={`size-9 rounded-full grid place-items-center ${k === 'success' ? 'bg-green-100 text-success' : k === 'danger' ? 'bg-tu-red-soft text-danger' : 'bg-blue-100 text-info'}`}><CheckCircle2 className="size-4" /></div>
                   <div className="flex-1">
                     <p className="text-[13px]">{label} — {dateStr}</p>
-                    <p className="text-[11px] text-[var(--neutral-500)]">{parseFloat(r.ot_hours).toFixed(1)} ชม. • {Math.round(parseFloat(r.amount)).toLocaleString()} บาท</p>
+                    <p className="text-[11px] text-[var(--neutral-500)]">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60).toLocaleString()} บาท</p>
                   </div>
                 </div>
               );
@@ -223,7 +223,7 @@ export function StaffTimeLog() {
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 gap-2 text-[var(--neutral-500)]">
             <p>ยังไม่มีข้อมูลสำหรับเดือนนี้</p>
-            <p className="text-[12px]">กรุณานำเข้าข้อมูลจากหน้าผู้ดูแลระบบก่อน</p>
+            <p className="text-[12px]">กรุณานำเข้าข้อมูลจากหน้าแอดมินก่อน</p>
           </div>
         ) : view === 'table' ? (
           <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
@@ -314,7 +314,7 @@ export function StaffSubmit() {
           const otRows = tl.rows.filter((r: any) => parseFloat(r.ot) > 0);
           setRows(otRows);
           const initHours: Record<string,string> = {};
-          otRows.forEach((r: any) => { initHours[r.date] = String(Math.min(parseFloat(r.ot), isWeekend(r.date) ? 7 : 4)); });
+          otRows.forEach((r: any) => { initHours[r.date] = String(Math.min(parseFloat(r.ot), r.day_type === 'holiday' ? 7 : 4)); });
           setHours(initHours);
         }
         if (reqs) {
@@ -342,22 +342,23 @@ export function StaffSubmit() {
     return d === 0 || d === 6;
   }
 
-  function calcAmount(dateStr: string, hrs: string) {
-    const h = parseFloat(hrs) || 0;
-    const rate = isWeekend(dateStr) ? 70 : 60;
-    return Math.round(h * rate);
+  function calcAmount(dayType: string, hrs: string) {
+    const h = Math.floor(parseFloat(hrs) || 0);  // ปัดลงเหลือชั่วโมงเต็ม
+    // dayType จาก API แล้ว ครอบคลุมทั้ง เสาร์-อาทิตย์ และ วันหยุดราชการ
+    const rate = dayType === 'holiday' ? 70 : 60;
+    return h * rate;
   }
 
   // Exclude locked dates from selection (shouldn't be selectable, but guard anyway)
   const selRows = rows.filter(r => selected.includes(r.date) && !existingReqs[r.date]);
-  const total = selRows.reduce((s, r) => s + calcAmount(r.date, hours[r.date] || r.ot), 0);
+  const total = selRows.reduce((s, r) => s + calcAmount(r.day_type || 'weekday', hours[r.date] || r.ot), 0);
 
   async function handleSubmit() {
     setSubmitting(true);
     const token_ = token();
     try {
       for (const r of selRows) {
-        const h = parseFloat(hours[r.date] || r.ot);
+        const h = Math.floor(parseFloat(hours[r.date] || r.ot));  // ปัดลงเหลือชั่วโมงเต็ม
         await fetch('/api/ot-requests/', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token_}`, 'Content-Type': 'application/json' },
@@ -400,7 +401,7 @@ export function StaffSubmit() {
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <CheckCircle2 className="size-16 text-success" />
         <p className="text-[18px] font-semibold">ส่งคำร้องเรียบร้อยแล้ว</p>
-        <p className="text-[var(--neutral-500)]">รอหัวหน้าแผนกพิจารณา</p>
+        <p className="text-[var(--neutral-500)]">รอหัวหน้างานพิจารณา</p>
         <Button onClick={() => setSubmitted(false)} variant="outline">ยื่นเพิ่มเติม</Button>
       </div>
     </>
@@ -463,9 +464,9 @@ export function StaffSubmit() {
                   const isRejected = existing?.status === 'head_rejected' || existing?.status === 'checker_rejected';
                   const isLocked = !!existing && !isRejected; // locked if submitted (not rejected)
                   const isSel = selected.includes(r.date);
-                  const weekend = isWeekend(r.date);
-                  const h = parseFloat(hours[r.date] || r.ot);
-                  const maxH = weekend ? 7 : 4;
+                  const isHoliday = r.day_type === 'holiday';  // ครอบคลุมทั้ง วันหยุดราชการ + เสาร์-อาทิตย์
+                  const h = Math.floor(parseFloat(hours[r.date] || r.ot));  // ปัดลงเหลือชั่วโมงเต็ม
+                  const maxH = isHoliday ? 7 : 4;
                   const overLimit = !isLocked && h > maxH;
 
                   const REQ_STATUS_LABEL: Record<string,string> = {
@@ -495,16 +496,16 @@ export function StaffSubmit() {
                         )}
                       </td>
                       <td className="px-3 py-2 font-medium">{r.date}</td>
-                      <td className="px-3 py-2"><StatusChip kind={weekend ? 'danger' : 'neutral'}>{weekend ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
+                      <td className="px-3 py-2"><StatusChip kind={isHoliday ? 'danger' : 'neutral'}>{isHoliday ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                       <td className="px-3 py-2 font-mono">{r.in || '-'}</td>
                       <td className="px-3 py-2 font-mono">{r.out || '-'}</td>
                       <td className="px-3 py-2">
                         {isLocked ? (
-                          <span className="font-mono text-[var(--neutral-500)]">{parseFloat(r.ot).toFixed(2)}</span>
+                          <span className="font-mono text-[var(--neutral-500)]">{Math.floor(parseFloat(r.ot))}</span>
                         ) : (
                           <>
                             <Input
-                              value={hours[r.date] ?? r.ot}
+                              value={hours[r.date] ?? String(Math.floor(parseFloat(r.ot || '0')))}
                               onChange={e => setHours(prev => ({ ...prev, [r.date]: e.target.value }))}
                               className={`w-20 h-8 font-mono ${overLimit ? 'bg-tu-red-soft border-tu-red' : ''}`}
                             />
@@ -512,11 +513,11 @@ export function StaffSubmit() {
                           </>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono">{weekend ? '70' : '60'} บาท/ชม.</td>
+                      <td className="px-3 py-2 font-mono">{isHoliday ? '70' : '60'} บาท/ชม.</td>
                       <td className="px-3 py-2 font-mono text-success font-semibold">
                         {isLocked ? (
-                          <span className="text-[var(--neutral-400)]">{calcAmount(r.date, r.ot).toLocaleString()}</span>
-                        ) : calcAmount(r.date, hours[r.date] || r.ot).toLocaleString()}
+                          <span className="text-[var(--neutral-400)]">{calcAmount(r.day_type || 'weekday', r.ot).toLocaleString()}</span>
+                        ) : calcAmount(r.day_type || 'weekday', hours[r.date] || r.ot).toLocaleString()}
                       </td>
                       <td className="px-3 py-2">
                         {existing ? (
@@ -656,8 +657,8 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetai
                         <td className="px-3 py-2">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
                         <td className="px-3 py-2">{r.work_date}</td>
                         <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
-                        <td className="px-3 py-2 font-mono">{r.ot_hours}</td>
-                        <td className="px-3 py-2 font-mono">{parseFloat(r.amount).toLocaleString()}</td>
+                        <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
+                        <td className="px-3 py-2 font-mono">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                         <td className="px-3 py-2"><StatusChip kind={STATUS_KIND[r.status] as any}>{STATUS_LABEL[r.status] || r.status}</StatusChip></td>
                         <td className="px-3 py-2">
                           {isRejected(r.status)
@@ -740,62 +741,39 @@ export function StaffProfile() {
                 <span className="font-semibold">{dept}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[var(--neutral-500)]">Role</span>
-                <span className="font-semibold">Staff</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--neutral-500)]">รหัสพนักงาน</span>
-                <span className="font-mono">{empId}</span>
+                <span className="text-[var(--neutral-500)]">บทบาท</span>
+                <span className="font-semibold capitalize">{userInfo?.role || '—'}</span>
               </div>
             </div>
-            <Button variant="outline" className="w-full mt-2">เปลี่ยนรหัสผ่าน</Button>
           </div>
         </SectionCard>
 
-        <SectionCard title="ข้อมูลส่วนตัว" className="col-span-2">
-          <div className="grid grid-cols-2 gap-4">
+        <SectionCard className="col-span-2">
+          <h4 className="font-semibold mb-4">ข้อมูลติดต่อ</h4>
+          <div className="space-y-4">
             <div>
-              <label>ชื่อ-นามสกุล <span className="text-[var(--neutral-500)] text-[11px]">(readonly)</span></label>
-              <Input className="mt-1" value={fullName} readOnly />
-            </div>
-            <div>
-              <label>แผนก <span className="text-[var(--neutral-500)] text-[11px]">(readonly)</span></label>
-              <Input className="mt-1" value={dept} readOnly />
+              <label className="text-[13px] font-medium block mb-1">อีเมล</label>
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
             </div>
             <div>
-              <label>รหัสพนักงาน <span className="text-[var(--neutral-500)] text-[11px]">(readonly)</span></label>
-              <Input className="mt-1" value={empId} readOnly />
+              <label className="text-[13px] font-medium block mb-1">เบอร์โทรศัพท์</label>
+              <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
             </div>
-            <div>
-              <label>อีเมลติดต่อ</label>
-              <Input className="mt-1" value={email} onChange={e => setEmail(e.target.value)} />
+            <div className="flex justify-end">
+              <Button
+                className="bg-tu-red hover:bg-tu-red-dark text-white"
+                onClick={() => {
+                  const token = localStorage.getItem('access_token');
+                  fetch('/api/auth/me/update/', {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, phone }),
+                  }).then(() => { setSaved(true); setTimeout(() => setSaved(false), 3000); }).catch(() => {});
+                }}
+              >
+                บันทึกข้อมูล
+              </Button>
             </div>
-            <div>
-              <label>เบอร์โทร</label>
-              <Input className="mt-1" value={phone} onChange={e => setPhone(e.target.value)} />
-            </div>
-
-            <div className="col-span-2 mt-1 p-4 bg-tu-yellow-soft border border-tu-yellow rounded-xl">
-              <label className="font-semibold block mb-1">อีเมลสำหรับรับแจ้งเตือนเอกสาร OT</label>
-              <p className="text-[12px] text-[var(--neutral-500)] mb-2">
-                ระบบจะส่งแจ้งเตือนให้ที่อีเมลนี้เมื่อเอกสารคำร้องมีความคืบหน้า (อนุมัติ / ตีกลับ)
-              </p>
-              <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="กรอกอีเมลสำหรับรับการแจ้งเตือน" />
-            </div>
-
-            <label className="col-span-2 flex items-center justify-between border border-[var(--neutral-300)] rounded-lg px-4 py-3">
-              <div>
-                <span className="font-medium">เปิดรับการแจ้งเตือนทางอีเมล</span>
-                <p className="text-[12px] text-[var(--neutral-500)] mt-0.5">แจ้งเมื่อมีการอนุมัติ, ตีกลับ หรืออัปเดตสถานะคำร้อง</p>
-              </div>
-              <Switch defaultChecked />
-            </label>
-          </div>
-
-          <div className="flex justify-end mt-5">
-            <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 3000); }}>
-              บันทึกข้อมูล
-            </Button>
           </div>
         </SectionCard>
       </div>

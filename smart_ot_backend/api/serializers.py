@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Department, OTRequest, Holiday, SystemSettings, TimeLog, ImportHistory, AuditLog
+from .models import User, Department, OTRequest, Holiday, SystemSettings, TimeLog, ImportHistory, AuditLog, Notification
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -115,10 +115,15 @@ class ImportHistorySerializer(serializers.ModelSerializer):
             'imported_at', 'status', 'total_rows', 'success_rows', 'error_rows', 'error_detail',
         ]
 
-
 class AuditLogSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
 
     class Meta:
         model = AuditLog
         fields = ['id', 'user', 'user_name', 'action', 'model_name', 'object_id', 'detail', 'ip_address', 'created_at']
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']

@@ -25,6 +25,10 @@ _CACHE: dict = {}  # emp_id → employee dict | None
 
 TU_AUTH_URL = 'https://restapi.tu.ac.th/api/v1/auth/Ad/verify'
 
+# ── ค่า hardcoded (fallback เมื่อ SystemSettings ไม่ได้ตั้งค่าไว้) ──────────
+_DEFAULT_TU_API_URL = 'https://restapi.tu.ac.th'
+_DEFAULT_TU_API_KEY = 'TUb8590160ffd1daf8204412125bd0b06f6e7b4d145e84b460daf36cc32c5f2926e670bd65e8b620fea6ded85f403e06fc'
+
 
 # ---------------------------------------------------------------------------
 # Settings helper
@@ -37,6 +41,24 @@ def _get_settings():
         return SystemSettings.objects.first()
     except Exception:
         return None
+
+
+def _effective_url() -> str:
+    s = _get_settings()
+    return (s.tu_api_url or '').strip() or _DEFAULT_TU_API_URL
+
+
+def _effective_key() -> str:
+    s = _get_settings()
+    return (s.tu_api_key or '').strip() or _DEFAULT_TU_API_KEY
+
+
+def _is_enabled() -> bool:
+    s = _get_settings()
+    # ถ้าไม่มี SystemSettings หรือยังไม่ได้ตั้งค่า ให้ถือว่าเปิดใช้เสมอ
+    if s is None:
+        return True
+    return bool(s.tu_api_enabled)
 
 
 # ---------------------------------------------------------------------------
@@ -60,11 +82,10 @@ def verify_tu_credentials(username: str, password: str) -> dict | None:
       'tu_status':  str,    # student status
     }
     """
-    settings = _get_settings()
-    if not settings or not settings.tu_api_enabled or not settings.tu_api_key:
+    if not _is_enabled():
         return None
 
-    api_key = settings.tu_api_key.strip()
+    api_key = _effective_key()
     body = json.dumps({'UserName': username, 'PassWord': password}).encode()
 
     try:
@@ -137,13 +158,12 @@ def fetch_employee(emp_id: str) -> dict | None:
     if emp_id in _CACHE:
         return _CACHE[emp_id]
 
-    settings = _get_settings()
-    if not settings or not settings.tu_api_enabled or not settings.tu_api_url:
+    if not _is_enabled():
         _CACHE[emp_id] = None
         return None
 
-    base_url = settings.tu_api_url.rstrip('/')
-    api_key  = settings.tu_api_key or ''
+    base_url = _effective_url().rstrip('/')
+    api_key  = _effective_key()
     url = f'{base_url}/employee/{emp_id}'
 
     try:

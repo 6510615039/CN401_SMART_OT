@@ -16,6 +16,7 @@ from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
     OTRequestSerializer, HolidaySerializer, SystemSettingsSerializer,
     TimeLogSerializer, ImportHistorySerializer, AuditLogSerializer,
+    NotificationSerializer,
 )
 
 
@@ -1359,3 +1360,217 @@ def _check_ot_deadline(thai_month: str) -> 'str | None':
     except OTDeadline.DoesNotExist:
         pass
     return None
+
+
+
+# ─── Notification API ──────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notification_list_view(request):
+    notifs = Notification.objects.filter(recipient=request.user).order_by('-created_at')[:50]
+    data = [{
+        'id': n.id,
+        'message': n.message,
+        'notif_type': n.notif_type,
+        'ot_request': n.ot_request_id,
+        'ot_request_date': n.ot_request.work_date.isoformat() if n.ot_request else None,
+        'is_read': n.is_read,
+        'created_at': n.created_at.isoformat(),
+    } for n in notifs]
+    return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def notification_mark_read_view(request):
+    ids = request.data.get('ids', [])
+    qs = Notification.objects.filter(recipient=request.user)
+    if ids:
+        qs = qs.filter(id__in=ids)
+    qs.update(is_read=True)
+    return Response({'status': 'ok'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def notification_mark_all_read_view(request):
+    Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+    return Response({'status': 'ok'})
+
+
+# ─── Checker Budget API ────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def checker_budget_view(request):
+    if request.method == 'GET':
+        depts = Department.objects.all().order_by('name')
+        data = [{'id': d.id, 'name': d.name, 'code': d.code, 'ot_budget': d.ot_budget or 0} for d in depts]
+        return Response(data)
+
+    # POST — อัปเดต budget ของแต่ละแผนก
+    updates = request.data  # [{'id': 1, 'ot_budget': 50000}, ...]
+    if not isinstance(updates, list):
+        return Response({'error': 'expected list'}, status=400)
+    for item in updates:
+        try:
+            dept = Department.objects.get(id=item['id'])
+            dept.ot_budget = item.get('ot_budget', dept.ot_budget)
+            dept.save()
+        except Department.DoesNotExist:
+            pass
+    return Response({'status': 'ok'})
+
+
+# ─── No-OT Departments (Checker) ──────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def no_ot_departments_view(request):
+    import datetime
+    month = request.query_params.get('month')  # YYYY-MM
+    if not month:
+        now = datetime.date.today()
+        month = now.strftime('%Y-%m')
+
+    year, mon = map(int, month.split('-'))
+    depts_with_ot = OTRequest.objects.filter(
+        work_date__year=year,
+        work_date__month=mon,
+    ).values_list('staff__department_id', flat=True).distinct()
+
+    no_ot = Department.objects.exclude(id__in=depts_with_ot).order_by('name')
+    data = [{'id': d.id, 'name': d.name, 'code': d.code} for d in no_ot]
+    return Response({'month': month, 'departments': data})
+
+
+# ─── Head Report ──────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def head_report_view(request):
+    user = request.user
+    dept = getattr(user, 'department', None)
+    if dept is None:
+        return Response({'error': 'ไม่พบแผนก'}, status=400)
+
+    qs = OTRequest.objects.filter(staff__department=dept).order_by('-work_date')
+
+    # filter by month (YYYY-MM)
+    month = request.query_params.get('month')
+    if month:
+        try:
+            year, mon = map(int, month.split('-'))
+            qs = qs.filter(work_date__year=year, work_date__month=mon)
+        except Exception:
+            pass
+
+    data = OTRequestSerializer(qs, many=True).data
+    total_hours = sum(int(float(r.get('ot_hours') or 0)) for r in data)
+    total_amount = sum(
+        int(float(r.get('ot_hours') or 0)) * (70 if r.get('day_type') == 'holiday' else 60)
+        for r in data
+    )
+    return Response({
+        'department': dept.name,
+        'month': month or 'ทั้งหมด',
+        'total_requests': len(data),
+        'total_hours': total_hours,
+        'total_amount': total_amount,
+        'requests': data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def head_report_pdf_view(request):
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from django.http import HttpResponse
+        import io, os, datetime
+
+        user = request.user
+        dept = getattr(user, 'department', None)
+        month = request.query_params.get('month', datetime.date.today().strftime('%Y-%m'))
+
+        qs = OTRequest.objects.filter(staff__department=dept)
+        if month:
+            try:
+                year, mon = map(int, month.split('-'))
+                qs = qs.filter(work_date__year=year, work_date__month=mon)
+            except Exception:
+                pass
+        qs = qs.order_by('work_date')
+
+        buf = io.BytesIO()
+        p = canvas.Canvas(buf, pagesize=A4)
+        w, h = A4
+
+        # หา font Thai
+        font_name = 'Helvetica'
+        for fp in [
+            '/usr/share/fonts/truetype/thai/Sarabun-Regular.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        ]:
+            if os.path.exists(fp):
+                try:
+                    pdfmetrics.registerFont(TTFont('Thai', fp))
+                    font_name = 'Thai'
+                except Exception:
+                    pass
+                break
+
+        p.setFont(font_name, 16)
+        p.drawString(60, h - 60, f'รายงาน OT แผนก {dept.name if dept else ""}')
+        p.setFont(font_name, 12)
+        p.drawString(60, h - 85, f'เดือน: {month}')
+
+        y = h - 120
+        p.setFont(font_name, 10)
+        headers = ['ชื่อ', 'วันที่', 'ประเภท', 'ชม.', 'จำนวนเงิน', 'สถานะ']
+        x_pos  = [60, 180, 280, 340, 390, 460]
+        for i, hdr in enumerate(headers):
+            p.drawString(x_pos[i], y, hdr)
+        y -= 5
+        p.line(60, y, 540, y)
+        y -= 15
+
+        total_amt = 0
+        for r in qs:
+            if y < 60:
+                p.showPage()
+                y = h - 60
+                p.setFont(font_name, 10)
+            hrs = int(float(r.ot_hours or 0))
+            amt = hrs * (70 if r.day_type == 'holiday' else 60)
+            total_amt += amt
+            row = [
+                r.staff.get_full_name()[:12],
+                str(r.work_date),
+                'หยุด' if r.day_type == 'holiday' else 'ธรรมดา',
+                str(hrs),
+                f'{amt:,}',
+                r.status,
+            ]
+            for i, val in enumerate(row):
+                p.drawString(x_pos[i], y, val)
+            y -= 15
+
+        y -= 10
+        p.line(60, y, 540, y)
+        y -= 15
+        p.setFont(font_name, 11)
+        p.drawString(390, y, f'รวม: {total_amt:,} บาท')
+
+        p.save()
+        buf.seek(0)
+        resp = HttpResponse(buf, content_type='application/pdf')
+        resp['Content-Disposition'] = f'attachment; filename="ot_report_{month}.pdf"'
+        return resp
+
+    except ImportError:
+        return Response({'error': 'reportlab ไม่ได้ติดตั้ง: pip install reportlab'}, status=500)

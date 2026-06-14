@@ -10,12 +10,14 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
@@ -100,16 +102,24 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+# ─── Django Channels (WebSocket) ─────────────────────────────────────────────
+ASGI_APPLICATION = 'smart_ot.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
+
 # ─── Email ───────────────────────────────────────────────────────────────────
 import os
-# ระหว่าง dev: พิมพ์อีเมลใน console  |  production: เปลี่ยน EMAIL_BACKEND + ตั้ง SMTP
-EMAIL_BACKEND      = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST         = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT         = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS      = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER    = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_BACKEND       = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST          = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT          = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS       = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'SMART OT <noreply@tu.ac.th>')
+DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', 'SMART OT <noreply@tu.ac.th>')
 
 # Frontend app
 INSTALLED_APPS += ['frontend']

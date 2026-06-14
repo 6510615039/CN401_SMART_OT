@@ -14,9 +14,9 @@ interface Props {
 
 const STEP_LABELS = [
   { label: 'ยื่นคำขอ',            role: 'พนักงาน' },
-  { label: 'หัวหน้าแผนกอนุมัติ', role: 'หัวหน้าแผนก' },
-  { label: 'ตัวแทนแผนกส่งเรื่อง', role: 'ตัวแทนแผนก (Rep)' },
-  { label: 'ผู้ตรวจสอบอนุมัติ',  role: 'Checker' },
+  { label: 'หัวหน้างานอนุมัติ',   role: 'หัวหน้างาน' },
+  { label: 'ตัวแทนฝ่ายส่งเรื่อง', role: 'ตัวแทนฝ่าย' },
+  { label: 'ผู้ตรวจสอบอนุมัติ',  role: 'ผู้ตรวจสอบ' },
 ];
 
 const STATUS_STEP: Record<string, number> = {
@@ -129,7 +129,7 @@ export function OTDetailPage({ onBack, requestId }: Props) {
               {[
                 ['วันที่ปฏิบัติงาน', thaiDate(req.work_date)],
                 ['เวลา', `${req.start_time || '-'} – ${req.end_time || '-'} น.`],
-                ['จำนวนชั่วโมง', `${ot_hours.toFixed(1)} ชั่วโมง`],
+                ['จำนวนชั่วโมง', `${Math.floor(ot_hours)} ชั่วโมง`],
                 ['สถานที่', req.location || '—'],
               ].map(([k, v]) => (
                 <div key={k}>
@@ -159,9 +159,9 @@ export function OTDetailPage({ onBack, requestId }: Props) {
                 <tbody>
                   <tr className="border-t border-[var(--neutral-300)]">
                     <td className="px-4 py-2.5">{req.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</td>
-                    <td className="px-4 py-2.5 font-mono">{ot_hours.toFixed(1)}</td>
+                    <td className="px-4 py-2.5 font-mono">{Math.floor(ot_hours)}</td>
                     <td className="px-4 py-2.5 font-mono">{rate} บาท/ชม.</td>
-                    <td className="px-4 py-2.5 font-mono">{Math.round(ot_hours * rate).toLocaleString()}</td>
+                    <td className="px-4 py-2.5 font-mono">{(Math.floor(ot_hours) * rate).toLocaleString()}</td>
                   </tr>
                   <tr className="border-t-2 border-[var(--neutral-400)] bg-tu-red-soft">
                     <td className="px-4 py-3 font-bold" colSpan={3}>รวมค่าตอบแทนทั้งสิ้น</td>

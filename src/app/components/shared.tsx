@@ -4,12 +4,12 @@ import { cn } from './ui/utils';
 export type Role = 'admin' | 'staff' | 'depthead' | 'deptrep' | 'checker' | 'executive';
 
 export const ROLE_INFO: Record<Role, { label: string; name: string; dept: string; empId: string }> = {
-  admin:     { label: 'ผู้ดูแลระบบ',      name: 'พี่ขวัญ ใจดี',     dept: 'ฝ่ายเทคโนโลยีสารสนเทศ', empId: 'AD-001' },
-  staff:     { label: 'พนักงาน',          name: 'สมชาย สุขใจ',     dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-1024' },
-  depthead:  { label: 'หัวหน้าแผนก',     name: 'อรอนงค์ ใจกล้า',  dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-2001' },
-  deptrep:   { label: 'ตัวแทนแผนก',      name: 'ปนัดดา แสนดี',    dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-2014' },
-  checker:   { label: 'ผู้ตรวจสอบ',       name: 'พี่ยุ่น ตรวจสอบ',  dept: 'สำนักงานทะเบียนกลาง',  empId: 'CHK-001' },
-  executive: { label: 'ผู้บริหาร',         name: 'ดร.วิเชียร ผู้นำ', dept: 'สำนักงานทะเบียนนักศึกษา', empId: 'EXE-001' },
+  admin:     { label: 'แอดมิน',        name: 'พี่ขวัญ ใจดี',     dept: 'ฝ่ายเทคโนโลยีสารสนเทศ', empId: 'AD-001' },
+  staff:     { label: 'พนักงาน',       name: 'สมชาย สุขใจ',     dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-1024' },
+  depthead:  { label: 'หัวหน้างาน',    name: 'อรอนงค์ ใจกล้า',  dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-2001' },
+  deptrep:   { label: 'ตัวแทนฝ่าย',   name: 'ปนัดดา แสนดี',    dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-2014' },
+  checker:   { label: 'ผู้ตรวจสอบ',    name: 'พี่ยุ่น ตรวจสอบ',  dept: 'สำนักงานทะเบียนกลาง',  empId: 'CHK-001' },
+  executive: { label: 'ผู้บริหาร',      name: 'ดร.วิเชียร ผู้นำ', dept: 'สำนักงานทะเบียนนักศึกษา', empId: 'EXE-001' },
 };
 
 export const ROLE_BADGE: Record<Role, string> = {
@@ -63,13 +63,14 @@ export function KpiCard({ label, value, icon, accent, hint }: { label: string; v
   );
 }
 
-export function StatusChip({ kind, children }: { kind: 'success' | 'warning' | 'danger' | 'info' | 'neutral'; children: ReactNode }) {
+export function StatusChip({ kind, children }: { kind: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'orange'; children: ReactNode }) {
   const map = {
     success: 'bg-green-100 text-success',
     warning: 'bg-tu-yellow-soft text-[var(--warning)]',
     danger: 'bg-tu-red-soft text-danger',
     info: 'bg-blue-100 text-info',
     neutral: 'bg-[var(--neutral-100)] text-[var(--neutral-700)]',
+    orange: 'bg-orange-100 text-orange-600',
   }[kind];
   return <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold', map)}>{children}</span>;
 }

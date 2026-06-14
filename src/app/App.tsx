@@ -1,9 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Toaster } from './components/ui/sonner';
 import { Login, ForgotPassword } from './components/Login';
 import { AppShell } from './components/AppShell';
 import { OTDetailPage } from './components/OTDetailPage';
 import { Role } from './components/shared';
+
+export type NotificationItem = {
+  id: number;
+  message: string;
+  notif_type: string;
+  ot_request: number | null;
+  ot_request_date: string | null;
+  is_read: boolean;
+  created_at: string;
+};
 import {
   ADMIN_NAV, AdminDashboard, AdminImport, AdminUsers, AdminDepts,
   AdminSettings, AdminHistory, AdminAudit, AdminHolidays, AdminDeadlines,
@@ -44,6 +54,8 @@ export default function App() {
   const [page, setPage] = useState('dashboard');
   const [checkerOtEmp, setCheckerOtEmp] = useState<{ name: string; dept: string; idx: number } | null>(null);
   const [selectedOTId, setSelectedOTId] = useState<number | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
 
   // Global fetch interceptor — แนบ X-Acting-Role header กับทุก /api/ call อัตโนมัติ
   // ทำให้ backend รู้ว่า user กำลัง act as role อะไร (สำหรับ multi-role users)
@@ -67,6 +79,65 @@ export default function App() {
     };
     return () => { window.fetch = _origFetch; };
   }, []);
+
+  // ─── โหลด notifications เมื่อ login + เชื่อม WebSocket ─────────────────────
+  useEffect(() => {
+    if (screen !== 'app') {
+      // cleanup ws เมื่อ logout
+      wsRef.current?.close();
+      wsRef.current = null;
+      return;
+    }
+
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    // โหลด notifications เดิมจาก API
+    fetch('/api/notifications/', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then((data: NotificationItem[]) => {
+        if (Array.isArray(data)) setNotifications(data);
+      })
+      .catch(() => {});
+
+    // เชื่อม WebSocket
+    const ws = new WebSocket(`/ws/notifications/?token=${token}`);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'notification') {
+          setNotifications(prev => [msg.data as NotificationItem, ...prev]);
+        }
+      } catch {}
+    };
+
+    ws.onerror = () => {}; // fail-silent
+    ws.onclose = () => {};
+
+    return () => {
+      ws.close();
+    };
+  }, [screen]);
+
+  function handleMarkRead(ids?: number[]) {
+    const token = localStorage.getItem('access_token');
+    fetch('/api/notifications/mark-read/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(ids ? { ids } : {}),
+    }).catch(() => {});
+
+    setNotifications(prev =>
+      prev.map(n => (!ids || ids.includes(n.id) ? { ...n, is_read: true } : n))
+    );
+  }
 
   function handleLogin(r: Role) {
     const roles = getStoredAvailableRoles();
@@ -196,6 +267,8 @@ export default function App() {
         onSwitchRole={handleSwitchRole}
         breadcrumb={breadcrumb}
         onLogout={handleLogout}
+        notifications={notifications}
+        onMarkRead={handleMarkRead}
       >
         {renderScreen()}
       </AppShell>
