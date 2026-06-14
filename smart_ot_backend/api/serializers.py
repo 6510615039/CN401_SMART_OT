@@ -121,3 +121,12 @@ class AuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuditLog
         fields = ['id', 'user', 'user_name', 'action', 'model_name', 'object_id', 'detail', 'ip_address', 'created_at']
+<<<<<<< Updated upstream
+=======
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
+>>>>>>> Stashed changes

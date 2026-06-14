@@ -36,6 +36,23 @@ urlpatterns = [
     path('ot-deadline/set/',                views.deadline_upsert_view),
     path('ot-deadline/<int:pk>/delete/',    views.deadline_delete_view),
 
+<<<<<<< Updated upstream
+=======
+
+    # Notifications
+    path('notifications/',                  views.notification_list_view),
+    path('notifications/mark-read/',        views.notification_mark_read_view),
+    path('notifications/mark-all-read/',    views.notification_mark_all_read_view),
+
+    # Checker Budget
+    path('checker/budget/',                 views.checker_budget_view),
+    path('checker/no-ot-departments/',      views.no_ot_departments_view),
+
+    # Head Report
+    path('head/report/',                    views.head_report_view),
+    path('head/report/pdf/',               views.head_report_pdf_view),
+
+>>>>>>> Stashed changes
     # Router
     path('', include(router.urls)),
 ]

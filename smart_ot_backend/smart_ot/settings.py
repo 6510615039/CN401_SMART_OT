@@ -103,6 +103,11 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # ─── Django Channels (WebSocket) ─────────────────────────────────────────────
+<<<<<<< Updated upstream
+=======
+ASGI_APPLICATION = 'smart_ot.asgi.application'
+
+>>>>>>> Stashed changes
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',

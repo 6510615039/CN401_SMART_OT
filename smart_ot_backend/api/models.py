@@ -237,3 +237,31 @@ class OTDeadline(models.Model):
 
     def __str__(self):
         return f'{self.thai_month} → {self.deadline_date}'
+<<<<<<< Updated upstream
+=======
+
+
+class Notification(models.Model):
+    NOTIF_TYPES = [
+        ('ot_submitted',        'ยื่นคำร้อง OT ใหม่'),
+        ('ot_head_approved',    'หัวหน้าอนุมัติ'),
+        ('ot_head_rejected',    'หัวหน้าตีกลับ'),
+        ('ot_rep_forwarded',    'ตัวแทนส่งต่อแล้ว'),
+        ('ot_checker_approved', 'ผู้ตรวจสอบอนุมัติ'),
+        ('ot_checker_rejected', 'ผู้ตรวจสอบตีกลับ'),
+    ]
+
+    recipient  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message    = models.TextField(verbose_name='ข้อความ')
+    notif_type = models.CharField(max_length=30, choices=NOTIF_TYPES)
+    ot_request = models.ForeignKey('OTRequest', on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    is_read    = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'การแจ้งเตือน'
+
+    def __str__(self):
+        return f'{self.recipient} — {self.notif_type}'
+>>>>>>> Stashed changes

@@ -84,4 +84,7 @@ export function SectionCard({ title, action, children, className }: { title?: st
           {action}
         </div>
       )}
-      {c
+      {children}
+    </div>
+  );
+}

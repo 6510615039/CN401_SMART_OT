@@ -187,4 +187,27 @@ def fetch_employee(emp_id: str) -> dict | None:
             logger.error(f'TU API: HTTP {e.code} for {emp_id}')
         _CACHE[emp_id] = None
         return None
-   
+    except Exception as e:
+        logger.error(f'TU API: error for {emp_id} — {e}')
+        _CACHE[emp_id] = None
+        return None
+
+
+def clear_cache():
+    _CACHE.clear()
+
+
+def get_or_create_dept(dept_name: str, dept_code: str = '') -> object | None:
+    if not dept_name:
+        return None
+    try:
+        from .models import Department
+        code = dept_code or dept_name[:10].upper().replace(' ', '_')
+        dept, _ = Department.objects.get_or_create(
+            name=dept_name,
+            defaults={'code': code},
+        )
+        return dept
+    except Exception as e:
+        logger.error(f'get_or_create_dept error: {e}')
+        return None
