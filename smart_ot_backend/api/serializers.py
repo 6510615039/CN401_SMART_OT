@@ -115,5 +115,9 @@ class ImportHistorySerializer(serializers.ModelSerializer):
             'imported_at', 'status', 'total_rows', 'success_rows', 'error_rows', 'error_detail',
         ]
 
+class AuditLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
 
-c
+    class Meta:
+        model = AuditLog
+        fields = ['id', 'user', 'user_name', 'action', 'model_name', 'object_id', 'detail', 'ip_address', 'created_at']

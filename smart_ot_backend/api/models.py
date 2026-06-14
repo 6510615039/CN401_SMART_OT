@@ -166,4 +166,74 @@ class TimeLog(models.Model):
     check_in          = models.TimeField(null=True, blank=True, verbose_name='เวลาเข้า')
     check_out         = models.TimeField(null=True, blank=True, verbose_name='เวลาออก')
     time_period       = models.CharField(max_length=10, choices=TIME_PERIOD_CHOICES, default='normal', verbose_name='กะ')
-    attendance_status = models.CharField(max_length=10, choices=ATTENDANC
+    attendance_status = models.CharField(max_length=10, choices=ATTENDANCE_STATUS_CHOICES, default='normal', verbose_name='สถานะการมา')
+    source_file = models.CharField(max_length=200, blank=True, verbose_name='ไฟล์ต้นทาง')
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-log_date']
+        unique_together = ['user', 'log_date']
+        verbose_name = 'ข้อมูลเวลา'
+
+    def __str__(self):
+        return f'{self.user.get_full_name()} - {self.log_date}'
+
+
+class ImportHistory(models.Model):
+    STATUS_CHOICES = [
+        ('success', 'สำเร็จ'),
+        ('failed',  'ล้มเหลว'),
+        ('partial', 'สำเร็จบางส่วน'),
+    ]
+
+    filename     = models.CharField(max_length=200)
+    imported_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    imported_at  = models.DateTimeField(auto_now_add=True)
+    status       = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    total_rows   = models.IntegerField(default=0)
+    success_rows = models.IntegerField(default=0)
+    error_rows   = models.IntegerField(default=0)
+    error_detail = models.TextField(blank=True)
+    rows_data    = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-imported_at']
+        verbose_name = 'ประวัติการนำเข้า'
+
+
+class AuditLog(models.Model):
+    user       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    action     = models.CharField(max_length=200, verbose_name='การกระทำ')
+    model_name = models.CharField(max_length=100, blank=True)
+    object_id  = models.CharField(max_length=50, blank=True)
+    detail     = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Audit Log'
+
+    def __str__(self):
+        return f'{self.user} - {self.action} ({self.created_at})'
+
+
+class OTDeadline(models.Model):
+    """กำหนดวันปิดรับคำร้อง OT รายเดือน
+    thai_month: รูปแบบ 'YYYY-MM' ปีพุทธศักราช เช่น '2569-06'
+    deadline_date: วันที่ปิดรับ (ปีคริสต์ศักราช) เช่น 2026-06-10
+    """
+    thai_month    = models.CharField(max_length=7, unique=True, verbose_name='เดือน (พ.ศ.)')
+    deadline_date = models.DateField(verbose_name='วันปิดรับ')
+    note          = models.CharField(max_length=200, blank=True, verbose_name='หมายเหตุ')
+    created_by    = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='ot_deadlines_created')
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-thai_month']
+        verbose_name = 'กำหนดวันปิดรับ OT'
+
+    def __str__(self):
+        return f'{self.thai_month} → {self.deadline_date}'
