@@ -1,6 +1,14 @@
 from pathlib import Path
 from datetime import timedelta
 
+# โหลด .env อัตโนมัติ (ถ้ามี)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+except ImportError:
+    pass  # python-dotenv ไม่ได้ติดตั้ง — ใช้ env vars ของ OS แทน
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-smart-ot-dev-key-change-in-production'
@@ -125,12 +133,4 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', 'SMART OT <noreply@tu.ac.th>')
 
 # Frontend app
-INSTALLED_APPS += ['frontend']
-
-# Templates
-TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
-
-# Login redirect
-LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/login/'
+INSTA

@@ -25,9 +25,10 @@ _CACHE: dict = {}  # emp_id → employee dict | None
 
 TU_AUTH_URL = 'https://restapi.tu.ac.th/api/v1/auth/Ad/verify'
 
-# ── ค่า hardcoded (fallback เมื่อ SystemSettings ไม่ได้ตั้งค่าไว้) ──────────
-_DEFAULT_TU_API_URL = 'https://restapi.tu.ac.th'
-_DEFAULT_TU_API_KEY = 'TUb8590160ffd1daf8204412125bd0b06f6e7b4d145e84b460daf36cc32c5f2926e670bd65e8b620fea6ded85f403e06fc'
+import os as _os
+# ── อ่านจาก environment variable (.env) ──────────────────────────────────────
+_DEFAULT_TU_API_URL = _os.environ.get('TU_API_URL', 'https://restapi.tu.ac.th')
+_DEFAULT_TU_API_KEY = _os.environ.get('TU_API_KEY', '')
 
 
 # ---------------------------------------------------------------------------
@@ -182,32 +183,4 @@ def fetch_employee(emp_id: str) -> dict | None:
             return result
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            logger.warning(f'TU API: employee {emp_id} not found')
-        else:
-            logger.error(f'TU API: HTTP {e.code} for {emp_id}')
-        _CACHE[emp_id] = None
-        return None
-    except Exception as e:
-        logger.error(f'TU API: error for {emp_id} — {e}')
-        _CACHE[emp_id] = None
-        return None
-
-
-def clear_cache():
-    _CACHE.clear()
-
-
-def get_or_create_dept(dept_name: str, dept_code: str = '') -> object | None:
-    if not dept_name:
-        return None
-    try:
-        from .models import Department
-        code = dept_code or dept_name[:10].upper().replace(' ', '_')
-        dept, _ = Department.objects.get_or_create(
-            name=dept_name,
-            defaults={'code': code},
-        )
-        return dept
-    except Exception as e:
-        logger.error(f'get_or_create_dept error: {e}')
-        return None
+            lo
