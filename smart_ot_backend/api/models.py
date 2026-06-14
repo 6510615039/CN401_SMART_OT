@@ -152,8 +152,10 @@ class TimeLog(models.Model):
     log_date    = models.DateField(verbose_name='วันที่')
     check_in    = models.TimeField(null=True, blank=True, verbose_name='เวลาเข้า')
     check_out   = models.TimeField(null=True, blank=True, verbose_name='เวลาออก')
-    source_file = models.CharField(max_length=200, blank=True, verbose_name='ไฟล์ต้นทาง')
-    imported_at = models.DateTimeField(auto_now_add=True)
+    source_file       = models.CharField(max_length=200, blank=True, verbose_name='ไฟล์ต้นทาง')
+    time_period       = models.CharField(max_length=10, choices=[('เช้า', 'เช้า'), ('ปกติ', 'ปกติ')], blank=True, verbose_name='กะการทำงาน')
+    attendance_status = models.CharField(max_length=50, blank=True, verbose_name='สถานะเข้างาน')
+    imported_at       = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-log_date']
