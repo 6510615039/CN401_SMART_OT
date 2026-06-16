@@ -93,12 +93,14 @@ def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
     - ถ้ามีอยู่แล้ว: อัปเดตชื่อ/email/dept (คง role เดิม)
     - ถ้าใหม่: สร้างด้วย role='staff' (admin เปลี่ยน role ทีหลังได้)
     """
-    from .tu_api_service import get_or_create_dept
     username = tu_data.get('username', '').strip()
     if not username:
         return None
 
-    dept = get_or_create_dept(tu_data.get('dept_name', ''))
+    dept_name = tu_data.get('dept_name', '')
+    dept = Department.objects.get_or_create(
+        name=dept_name, defaults={'code': dept_name[:15].upper().replace(' ', '_')}
+    )[0] if dept_name else None
     defaults = {
         'first_name': tu_data.get('first_name', ''),
         'last_name':  tu_data.get('last_name', ''),
@@ -797,6 +799,11 @@ def import_timelog(request):
             att_status       = str(gcol(col_status) or '').strip()
             time_period_val  = str(gcol(col_time_period) or '').strip()
 
+            if isinstance(check_in, str) and check_in.strip() in ('-', '--', '', 'None', '-  -'):
+                check_in = None
+            if isinstance(check_out, str) and check_out.strip() in ('-', '--', '', 'None', '-  -'):
+                check_out = None
+
             # Skip rows where emp_id looks like a header or is empty
             if not looks_like_id(emp_id):
                 continue
@@ -807,6 +814,7 @@ def import_timelog(request):
 
             import datetime as _dt
             row_day_type = 'weekday'
+            _d = None
             try:
                 _d = _dt.date.fromisoformat(date_str)
                 if Holiday.objects.filter(date=_d).exists() or _d.weekday() >= 5:
@@ -814,13 +822,17 @@ def import_timelog(request):
             except (ValueError, TypeError):
                 pass
 
+            # วันเสาร์-อาทิตย์ที่ไม่มีการเข้า-ออกงาน ถือว่าปกติ ไม่ใช่ "ขาด"
+            if _d is not None and _d.weekday() >= 5 and not check_in and not check_out:
+                att_status = ''
+
             ot_val = calc_ot(in_str, out_str, time_period_val, row_day_type) if (in_str and out_str) else 0.0
             flag   = not in_str or not out_str or ot_val > 8
 
             total += 1
 
             # ดึงข้อมูลจาก TU API (ถ้าเปิดใช้งาน) หรือใช้จาก Excel
-            from .tu_api_service import fetch_employee, get_or_create_dept
+            from .tu_api_service import fetch_employee
             tu_data = fetch_employee(str(emp_id))  # คืน dict หรือ None
 
             if tu_data:
@@ -828,7 +840,10 @@ def import_timelog(request):
                 first = tu_data['first_name']
                 last  = tu_data['last_name']
                 # dept จาก TU API มีความสำคัญกว่า import_dept ที่ admin เลือก
-                resolved_dept = get_or_create_dept(tu_data['dept_name'], tu_data['dept_code']) or import_dept
+                dept_name = tu_data['dept_name']
+                resolved_dept = Department.objects.get_or_create(
+                    name=dept_name, defaults={'code': dept_name[:15].upper().replace(' ', '_')}
+                )[0] if dept_name else import_dept
             else:
                 # fallback: ใช้ชื่อจาก Excel
                 raw_name = str(excel_name).strip() if excel_name else ''
@@ -895,8 +910,8 @@ def import_timelog(request):
         history.rows_data = rows_out  # persist all rows regardless of user match
         history.save()
 
-        from .tu_api_service import clear_cache
-        clear_cache()
+        from .tu_api_service import _CACHE
+        _CACHE.clear()
 
         log_action(request.user, f'นำเข้าไฟล์ {f.name} ({success}/{total} รายการ)', request=request)
         resp = dict(ImportHistorySerializer(history).data)
@@ -904,8 +919,8 @@ def import_timelog(request):
         return Response(resp)
 
     except Exception as e:
-        from .tu_api_service import clear_cache
-        clear_cache()
+        from .tu_api_service import _CACHE
+        _CACHE.clear()
         history.status = 'failed'
         history.error_detail = str(e)
         history.save()
