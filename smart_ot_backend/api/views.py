@@ -671,12 +671,27 @@ def import_timelog(request):
                 return str(d)
         return str(d).strip()[:10]
 
-    def calc_ot(in_str, out_str):
+    def calc_ot(in_str, out_str, time_period='', day_type='weekday'):
         try:
             ih, im = map(int, in_str.replace('.', ':').split(':')[:2])
             oh, om = map(int, out_str.replace('.', ':').split(':')[:2])
-            ot_mins = max(0, (oh * 60 + om) - 17 * 60)
-            return round(ot_mins / 60, 2)
+            in_mins  = ih * 60 + im
+            out_mins = oh * 60 + om
+
+            if day_type == 'holiday':
+                worked_mins = max(0, out_mins - in_mins)
+                # หักพักเที่ยง: ถ้าช่วงเข้า-ออกทับกับ 12:00-13:00
+                overlap_start = max(in_mins, 12 * 60)
+                overlap_end   = min(out_mins, 13 * 60)
+                overlap = max(0, overlap_end - overlap_start)
+                worked_mins -= overlap
+                ot_hours = min(7, worked_mins // 60)
+                return float(ot_hours)
+            else:
+                ot_start = 16 * 60 if time_period == 'เช้า' else 16 * 60 + 30
+                ot_mins = max(0, out_mins - ot_start)
+                ot_hours = ot_mins // 60
+                return float(ot_hours)
         except Exception:
             return 0.0
 
@@ -789,8 +804,18 @@ def import_timelog(request):
             date_str  = fmt_date(date_val)
             in_str    = fmt_time(check_in)
             out_str   = fmt_time(check_out)
-            ot_val    = calc_ot(in_str, out_str) if (in_str and out_str) else 0.0
-            flag      = not in_str or not out_str or ot_val > 8
+
+            import datetime as _dt
+            row_day_type = 'weekday'
+            try:
+                _d = _dt.date.fromisoformat(date_str)
+                if Holiday.objects.filter(date=_d).exists() or _d.weekday() >= 5:
+                    row_day_type = 'holiday'
+            except (ValueError, TypeError):
+                pass
+
+            ot_val = calc_ot(in_str, out_str, time_period_val, row_day_type) if (in_str and out_str) else 0.0
+            flag   = not in_str or not out_str or ot_val > 8
 
             total += 1
 
@@ -912,21 +937,32 @@ def _thai_to_greg(month_str):
         return None, None
 
 
-def _calc_ot(check_in, check_out):
+def _calc_ot(check_in, check_out, time_period='', day_type='weekday'):
     """Return OT hours (float) from time fields."""
     try:
-        ih = check_in.hour;  im = check_in.minute
-        oh = check_out.hour; om = check_out.minute
-        return max(0.0, round(((oh * 60 + om) - 17 * 60) / 60, 2))
+        in_mins  = check_in.hour * 60 + check_in.minute
+        out_mins = check_out.hour * 60 + check_out.minute
+        if day_type == 'holiday':
+            worked_mins = max(0, out_mins - in_mins)
+            overlap_start = max(in_mins, 12 * 60)
+            overlap_end   = min(out_mins, 13 * 60)
+            overlap = max(0, overlap_end - overlap_start)
+            worked_mins -= overlap
+            return float(min(7, worked_mins // 60))
+        else:
+            ot_start = 16 * 60 if time_period == 'เช้า' else 16 * 60 + 30
+            ot_mins = max(0, out_mins - ot_start)
+            return float(min(4, ot_mins // 60))
     except Exception:
         return 0.0
 
 
 def _row_from_timelog(idx, tl):
-    in_str  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
-    out_str = tl.check_out.strftime('%H:%M') if tl.check_out else ''
-    ot_val  = _calc_ot(tl.check_in, tl.check_out) if (tl.check_in and tl.check_out) else 0.0
-    flag    = not in_str or not out_str or ot_val > 8
+    in_str   = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
+    out_str  = tl.check_out.strftime('%H:%M') if tl.check_out else ''
+    day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or tl.log_date.weekday() >= 5) else 'weekday'
+    ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
+    flag     = not in_str or not out_str or ot_val > 8
     return {
         'id':    idx,
         'date':  str(tl.log_date),
@@ -1013,7 +1049,8 @@ def timelog_my_view(request):
         return d.weekday() >= 5  # Saturday=5, Sunday=6
     total_ot_baht = 0.0
     for tl in qs:
-        ot_val = _calc_ot(tl.check_in, tl.check_out) if (tl.check_in and tl.check_out) else 0.0
+        day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or is_weekend(tl.log_date)) else 'weekday'
+        ot_val = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
         rate = 70 if is_weekend(tl.log_date) else 60
         total_ot_baht += ot_val * rate
     return Response({
@@ -1157,7 +1194,8 @@ def staff_summary_view(request):
 
     total_ot = 0.0
     for tl in tl_qs:
-        total_ot += _calc_ot(tl.check_in, tl.check_out) if (tl.check_in and tl.check_out) else 0.0
+        day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or tl.log_date.weekday() >= 5) else 'weekday'
+        total_ot += _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
 
     # Fallback: use ImportHistory rows_data if no TimeLog entries
     if tl_qs.count() == 0 and greg_year and mon:
