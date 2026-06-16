@@ -489,4 +489,18 @@ export function ExecTrend() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="m" />
                   <YAxis tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
-                  <Tooltip formatter={(v: any, nam
+                  <Tooltip formatter={(v: any, name: any) => [Math.round(v).toLocaleString() + ' บาท', name]} />
+                  <Legend />
+                  {deptNames.map((d, i) => (
+                    <Bar key={d} dataKey={d} stackId="a" fill={COLORS[i % COLORS.length]}
+                      radius={i === deptNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionCard>
+        </>
+      )}
+    </>
+  );
+}

@@ -192,11 +192,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           {hasPending && <StatusChip kind="warning">รอตรวจสอบ</StatusChip>}
                           {isApproved && <StatusChip kind="success">อนุมัติแล้ว</StatusChip>}
                           {isRejected && <StatusChip kind="danger">ตีกลับแล้ว</StatusChip>}
-                          {!hasPending && !isApproved && !isRejected && (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold bg-orange-500 text-white">
-                              ยังไม่ส่งมอบ
-                            </span>
-                          )}
+                          {!hasPending && !isApproved && !isRejected && <StatusChip kind="orange">ยังไม่ส่งมอบ</StatusChip>}
                         </td>
                         <td className="px-3 py-2">
                           {(g.pending.length > 0 || g.approved.length > 0 || g.rejected.length > 0) && (
