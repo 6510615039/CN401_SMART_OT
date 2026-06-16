@@ -645,24 +645,4 @@ export function RepHistory() {
                 <td className="px-3 py-2 font-mono text-right">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
                 <td className="px-3 py-2 font-mono font-semibold text-right">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                 <td className="px-3 py-2"><StatusChip kind={r.status === 'completed' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'}>{r.status}</StatusChip></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </SectionCard>
-    </>
-  );
-}
-
-const STATUS_LABELS: Record<string, { label: string; kind: string }> = {
-  rep_forwarded:    { label: 'ส่งต่อแล้ว',    kind: 'info' },
-  checker_approved: { label: 'ตรวจผ่าน',       kind: 'success' },
-  checker_rejected: { label: 'ตีกลับ',         kind: 'danger' },
-  completed:        { label: 'เสร็จสิ้น',      kind: 'success' },
-};
-
-
-// Legacy exports (compat)
-export const RepExport = RepExportFlow;
-export const RepPreview = RepExportFlow;
-export const RepForward = RepExportFlow;
+              
