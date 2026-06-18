@@ -52,7 +52,7 @@ export function AdminDashboard() {
   const li = summary?.latest_import;
   // แสดงเดือน Thai จาก imported_months[0] แทนชื่อไฟล์
   const importLabel = summary?.imported_months?.[0]
-    ? thaiMonthLabel(summary.imported_months[0])
+    ? thaiMonthLabel(summary.imported_months?.[0] ?? '')
     : (li ? 'นำเข้าแล้ว' : '—');
   const importHint = li ? `${li.total?.toLocaleString()} รายการ` : 'ยังไม่มีการนำเข้า';
 
@@ -63,9 +63,9 @@ export function AdminDashboard() {
     <>
       <PageHeader title="Dashboard ผู้ดูแลระบบ" right={<span className="text-[var(--neutral-500)]">วันที่ {new Date().toLocaleDateString('th-TH', {day:'numeric',month:'long',year:'numeric'})}</span>} />
       <div className="grid grid-cols-4 gap-5 mb-6">
-        <KpiCard label="ผู้ใช้ทั้งหมด" value={summary ? summary.total_users.toString() : '—'} icon={<Users className="size-6" />} accent="red" />
+        <KpiCard label="ผู้ใช้ทั้งหมด" value={summary ? (summary.total_users ?? 0).toString() : '—'} icon={<Users className="size-6" />} accent="red" />
         <KpiCard label="นำเข้าข้อมูลล่าสุด" value={importLabel} icon={<Upload className="size-6" />} accent="yellow" hint={importHint} />
-        <KpiCard label="คำร้องในระบบเดือนนี้" value={summary ? summary.ot_requests.toString() : '—'} icon={<ListChecks className="size-6" />} accent="blue" />
+        <KpiCard label="คำร้องในระบบเดือนนี้" value={summary ? (summary.ot_requests ?? 0).toString() : '—'} icon={<ListChecks className="size-6" />} accent="blue" />
         <KpiCard label="สถานะระบบ" value={<span className="flex items-center gap-2 text-[20px]"><span className="size-3 rounded-full bg-success animate-pulse" />ปกติ</span>} icon={<CheckCircle2 className="size-6" />} accent="green" />
       </div>
 
@@ -121,11 +121,13 @@ type ImportRow = {
   id: number; date: string; empId: string; name: string; dept: string;
   in: string; out: string; ot: string; flag: boolean;
   attendanceStatus?: string;
+  timePeriod?: string;
 };
 
 const PAGE_SIZE = 10;
 
 const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const DAY_ABBR = ['อา','จ','อ','พ','พฤ','ศ','ส']; // อาทิตย์=0 … เสาร์=6
 const CURRENT_THAI_YEAR = new Date().getFullYear() + 543;
 const MONTH_OPTIONS = Array.from({length:12}, (_,i) => ({
   value: `${CURRENT_THAI_YEAR}-${String(i+1).padStart(2,'0')}`,
@@ -133,11 +135,13 @@ const MONTH_OPTIONS = Array.from({length:12}, (_,i) => ({
 }));
 
 function gregToThai(dateStr: string): string {
+  if (!dateStr) return '';
   // "2026-03-01" -> "2569-03"
   const [y, m] = dateStr.split('-');
   return `${parseInt(y) + 543}-${m}`;
 }
 function thaiMonthLabel(monthStr: string): string {
+  if (!monthStr) return '';
   const [y, m] = monthStr.split('-');
   return `${THAI_MONTHS[parseInt(m)-1]} ${y}`;
 }
@@ -376,19 +380,10 @@ export function AdminImport() {
 
 
 function getAttendanceStatus(r: ImportRow): { label: string; kind: 'success' | 'warning' | 'danger' | 'neutral' } {
-  // Use status from Excel if available
   const raw = r.attendanceStatus?.trim();
   if (raw) return { label: raw, kind: 'neutral' };
-  // Otherwise derive from times
-  const inT  = r.in?.trim();
-  const outT = r.out?.trim();
-  if (!inT && !outT) return { label: 'ขาด/ลา', kind: 'danger' };
-  if (!inT)          return { label: 'ไม่มีเวลาเข้า', kind: 'warning' };
-  if (!outT)         return { label: 'ไม่มีเวลาออก', kind: 'warning' };
-  const [ih, im] = inT.split(':').map(Number);
-  const inMins = ih * 60 + im;
-  if (inMins > 8 * 60 + 30) return { label: 'สาย', kind: 'warning' };
-  return { label: 'ปกติ', kind: 'success' };
+  if (r.in?.trim()) return { label: 'ปกติ', kind: 'success' };
+  return { label: '', kind: 'neutral' };
 }
 
 function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRows: React.Dispatch<React.SetStateAction<ImportRow[]>>; month: string }) {
@@ -463,7 +458,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
         <table className="w-full text-[13px]">
           <thead className="bg-tu-red text-white">
             <tr>
-              {['วันที่','รหัส','ชื่อ','แผนก','เข้า','ออก','ชม. OT','สถานะเข้างาน','สถานะข้อมูล','Actions'].map(h => (
+              {['วันที่','วัน','รหัส','ชื่อ','แผนก','เข้า','ออก','กะ','ชม. OT','สถานะเข้างาน','สถานะข้อมูล','Actions'].map(h => (
                 <th key={h} className="text-left px-3 py-3">{h}</th>
               ))}
             </tr>
@@ -472,14 +467,19 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
             {pageRows.map((r, i) => {
               const isEditing = editingId === r.id;
               const justSaved = savedId === r.id;
+              const [ry,rm,rd] = r.date.split('-').map(Number);
+              const dayAbbr = DAY_ABBR[new Date(ry, rm-1, rd).getDay()];
+              const isWeekend = dayAbbr === 'ส' || dayAbbr === 'อา';
               return (
                 <tr key={r.id} className={
                   justSaved ? 'bg-green-50' :
                   isEditing ? 'bg-tu-yellow-soft' :
                   r.flag ? 'bg-tu-red-soft' :
+                  isWeekend ? 'bg-gray-200' :
                   i % 2 === 0 ? 'bg-[var(--neutral-50)]' : 'bg-white'
                 }>
                   <td className="px-3 py-2">{r.date}</td>
+                  <td className="px-3 py-2 text-center">{dayAbbr}</td>
                   <td className="px-3 py-2 font-mono">{r.empId}</td>
                   <td className="px-3 py-2">{r.name}</td>
                   <td className="px-3 py-2">{r.dept}</td>
@@ -495,6 +495,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
                       ? <Input value={draft.out} onChange={e => setDraft(d => ({ ...d, out: e.target.value }))} className="w-24 h-7 font-mono text-[12px]" />
                       : <span className="font-mono">{r.out}</span>}
                   </td>
+                  <td className="px-3 py-2 text-center">{r.timePeriod || ''}</td>
                   <td className="px-3 py-2">
                     {isEditing
                       ? <Input value={draft.ot} onChange={e => setDraft(d => ({ ...d, ot: e.target.value }))} className="w-20 h-7 font-mono text-[12px]" />
@@ -852,18 +853,38 @@ export function AdminUsers() {
 
   const [allUsers, setAllUsers] = useState<ApiUser[]>([]);
 
-  // Load all users (filter client-side)
+  // Load all users (filter client-side) — โหลดทุกหน้าจนครบ (ตาม "next" ของ DRF pagination)
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
     if (filterRole !== 'all') params.set('role', filterRole);
     if (filterDept !== 'all') params.set('department', filterDept);
 
-    fetch(`/api/users/?${params}`, { headers: { 'Authorization': `Bearer ${token()}` } })
-      .then(r => r.ok ? r.json() : [])
-      .then(d => { setAllUsers(Array.isArray(d) ? d : (d?.results || [])); })
+    let cancelled = false;
+
+    async function loadAll() {
+      let url: string | null = `/api/users/?${params}`;
+      let all: ApiUser[] = [];
+      while (url) {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token()}` } });
+        if (!res.ok) break;
+        const d = await res.json();
+        if (Array.isArray(d)) {
+          all = all.concat(d);
+          url = null;
+        } else {
+          all = all.concat(d?.results || []);
+          url = d?.next || null;
+        }
+      }
+      if (!cancelled) setAllUsers(all);
+    }
+
+    loadAll()
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
   }, [filterRole, filterDept, refreshKey]);
 
   // Client-side filter + pagination
@@ -1260,50 +1281,24 @@ function AddUserDialog() {
   );
 }
 
-const DEPT_STAFF: Record<string, { id: string; name: string; role: string }[]> = {
-  'งานทะเบียนนักศึกษา': [
-    { id: 'EMP-1001', name: 'อรอนงค์ ใจกล้า',  role: 'DeptHead' },
-    { id: 'EMP-1014', name: 'ปนัดดา แสนดี',    role: 'DeptRep'  },
-    { id: 'EMP-1024', name: 'สมชาย สุขใจ',     role: 'Staff'    },
-    { id: 'EMP-1031', name: 'มาลี ดีงาม',       role: 'Staff'    },
-    { id: 'EMP-1042', name: 'พิชญ์ เก่ง',       role: 'Staff'    },
-    { id: 'EMP-1055', name: 'กิตติ มากดี',      role: 'Staff'    },
-    { id: 'EMP-1063', name: 'นภา สดใส',         role: 'Staff'    },
-    { id: 'EMP-1078', name: 'วันชัย มั่นคง',    role: 'Staff'    },
-  ],
-  'งานหลักสูตร': [
-    { id: 'EMP-2001', name: 'สมพร เก่งกาจ',    role: 'DeptHead' },
-    { id: 'EMP-2008', name: 'มาลี ดีงาม',       role: 'DeptRep'  },
-    { id: 'EMP-2015', name: 'จันทร์ แสงใส',     role: 'Staff'    },
-    { id: 'EMP-2022', name: 'รัตนา พัฒนา',      role: 'Staff'    },
-  ],
-  'งานประเมินผล': [
-    { id: 'EMP-3001', name: 'จันทร์เพ็ญ งามดี', role: 'DeptHead' },
-    { id: 'EMP-3009', name: 'ปรีชา อิ่มใจ',     role: 'DeptRep'  },
-    { id: 'EMP-3016', name: 'วิภา ฉลาด',        role: 'Staff'    },
-    { id: 'EMP-3023', name: 'ชาญ เชี่ยวชาญ',   role: 'Staff'    },
-  ],
-  'งานสารสนเทศ': [
-    { id: 'EMP-4001', name: 'พี่ขวัญ ใจดี',     role: 'DeptHead' },
-    { id: 'EMP-4007', name: 'นภา สดใส',         role: 'DeptRep'  },
-    { id: 'EMP-4013', name: 'นิรันดร์ ยั่งยืน', role: 'Staff'    },
-  ],
-  'งานการเงิน': [
-    { id: 'EMP-5001', name: 'สุภาพร รักดี',     role: 'DeptHead' },
-    { id: 'EMP-5006', name: 'วันชัย มั่นคง',    role: 'DeptRep'  },
-    { id: 'EMP-5011', name: 'มณี มีค่า',        role: 'Staff'    },
-  ],
-};
+type ApiDept = { id: number; name: string; code: string; member_count: number };
 
 function ChangeRoleDialog({
-  deptName, roleLabel, currentName, onSave,
-}: { deptName: string; roleLabel: string; currentName: string; onSave: (name: string) => void }) {
+  deptName, roleLabel, currentUserId, members, onSave,
+}: { deptName: string; roleLabel: string; currentUserId: number | null; members: ApiUser[]; onSave: (name: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState('');
-  const staff = (DEPT_STAFF[deptName] ?? []).filter(s => s.name !== currentName);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const candidates = members.filter(m => m.id !== currentUserId);
+  const currentUser = members.find(m => m.id === currentUserId);
+  const currentName = currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '—';
+  const selectedUser = candidates.find(m => m.id === selectedId);
 
   function handleSave() {
-    if (selected) { onSave(selected); setOpen(false); setSelected(''); }
+    if (selectedUser) {
+      onSave(`${selectedUser.first_name} ${selectedUser.last_name}`);
+      setOpen(false);
+      setSelectedId(null);
+    }
   }
 
   return (
@@ -1319,29 +1314,35 @@ function ChangeRoleDialog({
           ปัจจุบัน: <strong>{currentName}</strong>
         </p>
         <div className="space-y-2 max-h-[320px] overflow-y-auto">
-          {staff.map(s => (
-            <label
-              key={s.id}
-              className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                selected === s.name ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)] hover:border-tu-red'
-              }`}
-            >
-              <input
-                type="radio" name="pick" className="accent-[var(--tu-red)]"
-                checked={selected === s.name}
-                onChange={() => setSelected(s.name)}
-              />
-              <Avatar className="size-9"><AvatarFallback className="bg-tu-yellow text-black text-[13px]">{s.name.charAt(0)}</AvatarFallback></Avatar>
-              <div>
-                <p className="font-semibold text-[14px]">{s.name}</p>
-                <p className="text-[11px] text-[var(--neutral-500)]">{s.id} • {s.role}</p>
-              </div>
-            </label>
-          ))}
+          {candidates.map(s => {
+            const name = `${s.first_name} ${s.last_name}`;
+            return (
+              <label
+                key={s.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedId === s.id ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)] hover:border-tu-red'
+                }`}
+              >
+                <input
+                  type="radio" name="pick" className="accent-[var(--tu-red)]"
+                  checked={selectedId === s.id}
+                  onChange={() => setSelectedId(s.id)}
+                />
+                <Avatar className="size-9"><AvatarFallback className="bg-tu-yellow text-black text-[13px]">{name.charAt(0)}</AvatarFallback></Avatar>
+                <div>
+                  <p className="font-semibold text-[14px]">{name}</p>
+                  <p className="text-[11px] text-[var(--neutral-500)]">{s.employee_id ?? s.username} • {ROLE_LABEL[s.role] ?? s.role}</p>
+                </div>
+              </label>
+            );
+          })}
+          {candidates.length === 0 && (
+            <p className="text-center text-[var(--neutral-400)] py-4">ไม่มีสมาชิกในแผนก</p>
+          )}
         </div>
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
-          <Button className="bg-tu-red hover:bg-tu-red-dark text-white" disabled={!selected} onClick={handleSave}>
+          <Button className="bg-tu-red hover:bg-tu-red-dark text-white" disabled={!selectedId} onClick={handleSave}>
             ยืนยันเปลี่ยน
           </Button>
         </DialogFooter>
@@ -1350,20 +1351,25 @@ function ChangeRoleDialog({
   );
 }
 
-function ViewMembersDialog({ deptName, memberCount }: { deptName: string; memberCount: number }) {
+function ViewMembersDialog({ deptName, members }: { deptName: string; members: ApiUser[] }) {
   const [open, setOpen] = useState(false);
-  const members = DEPT_STAFF[deptName] ?? [];
+
+  function memberRoleLabel(u: ApiUser) {
+    if (u.role === 'depthead' || u.extra_roles?.includes('depthead')) return 'DeptHead';
+    if (u.role === 'deptrep'  || u.extra_roles?.includes('deptrep'))  return 'DeptRep';
+    return ROLE_LABEL[u.role] ?? u.role;
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="text-tu-red">ดูทั้งหมด ({memberCount} คน) →</Button>
+        <Button size="sm" variant="ghost" className="text-tu-red">ดูทั้งหมด ({members.length} คน) →</Button>
       </DialogTrigger>
       <DialogContent className="max-w-[560px]">
         <DialogHeader>
           <DialogTitle>สมาชิก — {deptName}</DialogTitle>
         </DialogHeader>
-        <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)] mt-2">
+        <div className="overflow-x-auto overflow-y-auto max-h-96 rounded-lg border border-[var(--neutral-300)] mt-2">
           <table className="w-full text-[13px]">
             <thead className="bg-tu-red text-white">
               <tr>
@@ -1373,22 +1379,29 @@ function ViewMembersDialog({ deptName, memberCount }: { deptName: string; member
               </tr>
             </thead>
             <tbody>
-              {members.map((m, i) => (
-                <tr key={m.id} className={`border-t border-[var(--neutral-300)] ${i % 2 === 0 ? 'bg-[var(--neutral-50)]' : 'bg-white'}`}>
-                  <td className="px-3 py-2 w-10">
-                    <Avatar className="size-8"><AvatarFallback className="bg-tu-yellow text-black text-[11px]">{m.name.charAt(0)}</AvatarFallback></Avatar>
-                  </td>
-                  <td className="px-3 py-2 font-medium">{m.name}</td>
-                  <td className="px-3 py-2 font-mono text-[var(--neutral-500)]">{m.id}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                      m.role === 'DeptHead' ? 'bg-orange-100 text-orange-700' :
-                      m.role === 'DeptRep'  ? 'bg-tu-yellow text-black' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>{m.role}</span>
-                  </td>
-                </tr>
-              ))}
+              {members.map((m, i) => {
+                const name = `${m.first_name} ${m.last_name}`;
+                const rl = memberRoleLabel(m);
+                return (
+                  <tr key={m.id} className={`border-t border-[var(--neutral-300)] ${i % 2 === 0 ? 'bg-[var(--neutral-50)]' : 'bg-white'}`}>
+                    <td className="px-3 py-2 w-10">
+                      <Avatar className="size-8"><AvatarFallback className="bg-tu-yellow text-black text-[11px]">{name.charAt(0)}</AvatarFallback></Avatar>
+                    </td>
+                    <td className="px-3 py-2 font-medium">{name}</td>
+                    <td className="px-3 py-2 font-mono text-[var(--neutral-500)]">{m.employee_id ?? m.username}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        rl === 'DeptHead' ? 'bg-orange-100 text-orange-700' :
+                        rl === 'DeptRep'  ? 'bg-tu-yellow text-black' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>{rl}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {members.length === 0 && (
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-[var(--neutral-400)]">ไม่มีสมาชิก</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1401,61 +1414,102 @@ function ViewMembersDialog({ deptName, memberCount }: { deptName: string; member
 }
 
 export function AdminDepts() {
-  type DeptState = { head: string; rep: string };
-  const initialDepts = [
-    { name: 'งานทะเบียนนักศึกษา', members: 32, head: 'อรอนงค์ ใจกล้า', rep: 'ปนัดดา แสนดี' },
-    { name: 'งานหลักสูตร',          members: 18, head: 'สมพร เก่งกาจ',  rep: 'มาลี ดีงาม' },
-    { name: 'งานประเมินผล',         members: 14, head: 'จันทร์เพ็ญ งามดี', rep: 'ปรีชา อิ่มใจ' },
-    { name: 'งานสารสนเทศ',          members: 12, head: 'พี่ขวัญ ใจดี',    rep: 'นภา สดใส' },
-    { name: 'งานการเงิน',            members: 8,  head: 'สุภาพร รักดี',   rep: 'วันชัย มั่นคง' },
-  ];
-  const [depts, setDepts] = useState(initialDepts);
+  const [depts, setDepts] = useState<ApiDept[]>([]);
+  const [allUsers, setAllUsers] = useState<ApiUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [overrides, setOverrides] = useState<Record<number, { head?: string; rep?: string }>>({});
 
-  function changeRole(deptName: string, roleKey: 'head' | 'rep', newName: string) {
-    setDepts(ds => ds.map(d => d.name === deptName ? { ...d, [roleKey]: newName } : d));
+  useEffect(() => {
+    let cancelled = false;
+    const token = localStorage.getItem('access_token');
+    const h = { Authorization: `Bearer ${token}` };
+
+    async function load() {
+      const deptRes = await fetch('/api/departments/', { headers: h });
+      const deptData = await deptRes.json();
+      const deptList: ApiDept[] = Array.isArray(deptData) ? deptData : (deptData.results ?? []);
+
+      const users: ApiUser[] = [];
+      let url: string | null = '/api/users/';
+      while (url) {
+        const res = await fetch(url, { headers: h });
+        const data = await res.json();
+        users.push(...(Array.isArray(data) ? data : (data.results ?? [])));
+        url = data.next ?? null;
+      }
+
+      if (!cancelled) {
+        setDepts(deptList);
+        setAllUsers(users);
+        setLoading(false);
+      }
+    }
+
+    load().catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  function changeRole(deptId: number, roleKey: 'head' | 'rep', newName: string) {
+    setOverrides(ov => ({ ...ov, [deptId]: { ...ov[deptId], [roleKey]: newName } }));
   }
+
+  if (loading) return (
+    <>
+      <PageHeader title="จัดการแผนกและสิทธิ์" />
+      <p className="text-center text-[var(--neutral-500)] py-10">กำลังโหลด...</p>
+    </>
+  );
 
   return (
     <>
       <PageHeader title="จัดการแผนกและสิทธิ์" />
       <div className="grid grid-cols-2 gap-5">
-        {depts.map(d => (
-          <div key={d.name} className="bg-white rounded-xl border border-[var(--neutral-300)] shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
-            <div className="bg-tu-red text-white px-5 py-3 flex items-center justify-between">
-              <h3 className="text-white">{d.name}</h3>
-              <span className="text-[12px]">{d.members} คน</span>
-            </div>
-            <div className="p-5 space-y-4">
-              {([
-                { label: 'หัวหน้าแผนก', roleKey: 'head' as const, name: d.head, badge: null },
-                { label: 'ตัวแทนแผนก (Dept Rep)', roleKey: 'rep' as const, name: d.rep, badge: '1 คน/แผนก' },
-              ]).map(s => (
-                <div key={s.label} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="size-10"><AvatarFallback className="bg-tu-yellow text-black">{s.name.charAt(0)}</AvatarFallback></Avatar>
-                    <div>
-                      <p className="text-[12px] text-[var(--neutral-500)] flex items-center gap-2">
-                        {s.label}
-                        {s.badge && <span className="px-1.5 py-0.5 rounded bg-tu-yellow-soft text-[10px] text-[var(--warning)] font-semibold">{s.badge}</span>}
-                      </p>
-                      <p className="font-semibold text-[14px]">{s.name}</p>
+        {depts.map(d => {
+          const members = allUsers.filter(u => u.department === d.id);
+          const head = members.find(u => u.role === 'depthead' || u.extra_roles?.includes('depthead'));
+          const rep  = members.find(u => u.role === 'deptrep'  || u.extra_roles?.includes('deptrep'));
+          const headName = overrides[d.id]?.head ?? (head ? `${head.first_name} ${head.last_name}` : '—');
+          const repName  = overrides[d.id]?.rep  ?? (rep  ? `${rep.first_name} ${rep.last_name}`   : '—');
+
+          return (
+            <div key={d.id} className="bg-white rounded-xl border border-[var(--neutral-300)] shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
+              <div className="bg-tu-red text-white px-5 py-3 flex items-center justify-between">
+                <h3 className="text-white">{d.name}</h3>
+                <span className="text-[12px]">{d.member_count} คน</span>
+              </div>
+              <div className="p-5 space-y-4">
+                {([
+                  { label: 'หัวหน้าแผนก', roleKey: 'head' as const, name: headName, userId: head?.id ?? null, badge: null },
+                  { label: 'ตัวแทนแผนก (Dept Rep)', roleKey: 'rep' as const, name: repName, userId: rep?.id ?? null, badge: '1 คน/แผนก' },
+                ]).map(s => (
+                  <div key={s.label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="size-10"><AvatarFallback className="bg-tu-yellow text-black">{s.name.charAt(0)}</AvatarFallback></Avatar>
+                      <div>
+                        <p className="text-[12px] text-[var(--neutral-500)] flex items-center gap-2">
+                          {s.label}
+                          {s.badge && <span className="px-1.5 py-0.5 rounded bg-tu-yellow-soft text-[10px] text-[var(--warning)] font-semibold">{s.badge}</span>}
+                        </p>
+                        <p className="font-semibold text-[14px]">{s.name}</p>
+                      </div>
                     </div>
+                    <ChangeRoleDialog
+                      deptName={d.name}
+                      roleLabel={s.label}
+                      currentUserId={s.userId}
+                      members={members}
+                      onSave={name => changeRole(d.id, s.roleKey, name)}
+                    />
                   </div>
-                  <ChangeRoleDialog
-                    deptName={d.name}
-                    roleLabel={s.label}
-                    currentName={s.name}
-                    onSave={name => changeRole(d.name, s.roleKey, name)}
-                  />
+                ))}
+                <div className="flex items-center justify-between pt-2 border-t border-[var(--neutral-300)]">
+                  <p className="text-[13px]">สมาชิก <strong>{d.member_count}</strong> คน</p>
+                  <ViewMembersDialog deptName={d.name} members={members} />
                 </div>
-              ))}
-              <div className="flex items-center justify-between pt-2 border-t border-[var(--neutral-300)]">
-                <p className="text-[13px]">สมาชิก <strong>{d.members}</strong> คน</p>
-                <ViewMembersDialog deptName={d.name} memberCount={d.members} />
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

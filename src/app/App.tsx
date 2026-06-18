@@ -51,11 +51,36 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('login');
   const [role, setRole] = useState<Role>('staff');
   const [availableRoles, setAvailableRoles] = useState<Role[]>(['staff']);
-  const [page, setPage] = useState('dashboard');
+  
+  // เปลี่ยนชื่อ setter เป็น _setPage เพื่อทำ Wrapper Function
+  const [page, _setPage] = useState('dashboard');
+  
   const [checkerOtEmp, setCheckerOtEmp] = useState<{ name: string; dept: string; idx: number } | null>(null);
   const [selectedOTId, setSelectedOTId] = useState<number | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // ─── Wrapper สำหรับ setPage เพื่อให้บันทึกลง localStorage อัตโนมัติทุกครั้ง ───
+  const setPage = (newPage: string) => {
+    _setPage(newPage);
+    localStorage.setItem('current_page', newPage);
+  };
+
+  // ─── เช็ค access_token ใน localStorage ตอน mount ครั้งแรก (คง session ไว้หลัง refresh) ───
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      const activeRole = (localStorage.getItem('active_role') as Role) || 'staff';
+      const roles = getStoredAvailableRoles();
+      setRole(activeRole);
+      setAvailableRoles(roles);
+      setScreen('app');
+
+      // ดึงหน้าล่าสุดที่เคยเข้าไว้กลับมา (หรือค่าเริ่มต้นเป็น dashboard)
+      const savedPage = localStorage.getItem('current_page') || 'dashboard';
+      setPage(savedPage);
+    }
+  }, []);
 
   // Global fetch interceptor — แนบ X-Acting-Role header กับทุก /api/ call อัตโนมัติ
   // ทำให้ backend รู้ว่า user กำลัง act as role อะไร (สำหรับ multi-role users)
@@ -154,6 +179,7 @@ export default function App() {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('active_role');           // ← ล้าง active role
+    localStorage.removeItem('current_page');          // ล้าง current page ทิ้งตอน logout ด้วย
     setScreen('login');
   }
 
