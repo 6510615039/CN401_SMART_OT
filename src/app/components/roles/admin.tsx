@@ -132,10 +132,32 @@ const PAGE_SIZE = 10;
 const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 const DAY_ABBR = ['อา','จ','อ','พ','พฤ','ศ','ส']; // อาทิตย์=0 … เสาร์=6
 const CURRENT_THAI_YEAR = new Date().getFullYear() + 543;
-const MONTH_OPTIONS = Array.from({length:12}, (_,i) => ({
-  value: `${CURRENT_THAI_YEAR}-${String(i+1).padStart(2,'0')}`,
-  label: `${THAI_MONTHS[i]} ${CURRENT_THAI_YEAR}`,
-}));
+
+function MonthYearPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = value.split('-');
+  const year = parts[0] || String(CURRENT_THAI_YEAR);
+  const mon  = parts[1] || String(new Date().getMonth() + 1).padStart(2, '0');
+  return (
+    <div className="flex gap-2">
+      <Select value={mon} onValueChange={m => onChange(`${year}-${m}`)}>
+        <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {THAI_MONTHS.map((label, i) => (
+            <SelectItem key={i} value={String(i + 1).padStart(2, '0')}>{label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        type="number"
+        value={year}
+        onChange={e => { if (e.target.value.length <= 4) onChange(`${e.target.value}-${mon}`); }}
+        className="w-[80px] font-mono text-center"
+        min={2500}
+        max={2600}
+      />
+    </div>
+  );
+}
 
 function gregToThai(dateStr: string): string {
   if (!dateStr) return '';
@@ -156,8 +178,6 @@ export function AdminImport() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-  const [showReimportDialog, setShowReimportDialog] = useState(false);
-  const [reimportConfirmed, setReimportConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const uploaded = rows.length > 0;
@@ -183,7 +203,7 @@ export function AdminImport() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadRows(month); setReimportConfirmed(false); }, [month, loadRows]);
+  useEffect(() => { loadRows(month); }, [month, loadRows]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -215,22 +235,12 @@ export function AdminImport() {
     }
   }
 
-  // Merge available months with default options (deduplicated)
-  const allMonthOptions = [
-    ...availableMonths.filter(m => !MONTH_OPTIONS.find(o => o.value === m)).map(m => ({ value: m, label: thaiMonthLabel(m) })),
-    ...MONTH_OPTIONS,
-  ];
 
   return (
     <>
       <PageHeader title="นำเข้าข้อมูลเวลาเข้า-ออกงาน" right={
         <div className="flex items-center gap-2">
-          <Select value={month} onValueChange={v => { setMonth(v); }}>
-            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {allMonthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <MonthYearPicker value={month} onChange={v => { setMonth(v); }} />
           <Button
             variant="outline"
             className="border-tu-red text-tu-red"
@@ -251,38 +261,6 @@ export function AdminImport() {
         </div>
       )}
 
-      {/* Reimport confirmation dialog */}
-      {showReimportDialog && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="size-11 rounded-full bg-tu-red-soft flex items-center justify-center shrink-0">
-                <AlertTriangle className="size-6 text-danger" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-[15px]">ยืนยันการนำเข้าใหม่</h3>
-                <p className="text-[12px] text-[var(--neutral-500)]">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
-              </div>
-            </div>
-            <div className="bg-tu-yellow-soft border border-tu-yellow rounded-lg p-3 mb-5 text-[13px]">
-              <p>ข้อมูลเดือน <strong>{thaiMonthLabel(month)}</strong> มีอยู่แล้ว <strong>{rows.length.toLocaleString()} รายการ</strong></p>
-              <p className="mt-1 text-danger font-medium">⚠️ การนำเข้าใหม่จะลบและแทนที่ข้อมูลเดิมทั้งหมด</p>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowReimportDialog(false)}
-              >ยกเลิก</Button>
-              <Button
-                className="flex-1 bg-tu-red hover:bg-tu-red-dark text-white"
-                onClick={() => { setReimportConfirmed(true); setRows([]); setShowReimportDialog(false); }}
-              >ยืนยัน นำเข้าใหม่</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <SectionCard><div className="flex items-center justify-center h-40 gap-3 text-[var(--neutral-500)]"><div className="size-8 border-4 border-tu-red border-t-transparent rounded-full animate-spin"/><span>กำลังโหลดข้อมูล...</span></div></SectionCard>
       ) : uploaded ? (
@@ -293,60 +271,9 @@ export function AdminImport() {
               <strong>นำเข้าข้อมูลแล้ว</strong> — {thaiMonthLabel(month)} พบ {rows.length.toLocaleString()} รายการ
               หากต้องการแก้ไขข้อมูลรายคน ให้แก้ไขในตารางด้านล่างแล้วกดบันทึก
             </p>
-            <button
-              className="ml-auto text-[13px] text-tu-red font-medium underline"
-              onClick={() => setShowReimportDialog(true)}
-            >นำเข้าใหม่</button>
           </div>
           <AdminEditableTable rows={rows} setRows={setRows} month={month} />
         </>
-      ) : reimportConfirmed ? (
-        /* ผู้ใช้ confirm แล้ว → แสดง upload zone พร้อม warning */
-        <SectionCard>
-          <div className="flex items-center gap-3 p-3 mb-4 bg-tu-red-soft border border-danger rounded-lg text-[13px]">
-            <AlertTriangle className="size-5 text-danger shrink-0" />
-            <p>โหมดนำเข้าใหม่ — ข้อมูลเดิมของเดือน <strong>{thaiMonthLabel(month)}</strong> จะถูกแทนที่เมื่ออัปโหลดสำเร็จ</p>
-          </div>
-          <div
-            className="border-2 border-dashed border-danger rounded-xl h-[240px] flex flex-col items-center justify-center gap-3 bg-tu-red-soft/30 cursor-pointer"
-            onClick={() => fileRef.current?.click()}
-          >
-            {uploading ? (
-              <>
-                <div className="size-12 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
-                <p className="text-[var(--neutral-700)]">กำลังอ่านไฟล์...</p>
-              </>
-            ) : (
-              <>
-                <CloudUpload className="size-16 text-danger" />
-                <p className="text-[var(--neutral-700)]">ลากไฟล์ .xlsx หรือ .csv มาวางที่นี่ หรือ</p>
-                <Button
-                  className="bg-tu-red hover:bg-tu-red-dark text-white"
-                  onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}
-                  disabled={uploading}
-                >เลือกไฟล์</Button>
-              </>
-            )}
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.csv"
-            className="hidden"
-            onChange={handleFile}
-          />
-          <p className="text-[12px] text-[var(--neutral-500)] mt-3 text-center">
-            รองรับไฟล์จากเครื่องสแกนนิ้ว/ใบหน้า — ขนาดสูงสุด 50MB
-          </p>
-
-          <div className="mt-6 bg-tu-yellow-soft border border-tu-yellow rounded-lg p-4 flex gap-3">
-            <AlertTriangle className="size-5 text-[var(--warning)] shrink-0 mt-0.5" />
-            <p className="text-[13px] text-[var(--neutral-700)]">
-              เมื่อนำเข้าไฟล์แล้ว <strong>ระบบจะไม่อนุญาตให้นำเข้าซ้ำ</strong> — หากต้องการแก้ไขข้อมูล
-              ให้แก้ไขในตารางแทน
-            </p>
-          </div>
-        </SectionCard>
       ) : (
         /* ยังไม่เคยนำเข้า → upload zone ปกติ */
         <SectionCard>
@@ -631,67 +558,16 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   );
 }
 
-const USERS = [
-  { id: 'EMP-1024', name: 'สมชาย สุขใจ',      dept: 'งานทะเบียน',    role: 'Staff',     email: 'somchai@tu.ac.th',  active: true,  roleColor: 'bg-blue-600 text-white' },
-  { id: 'EMP-2001', name: 'อรอนงค์ ใจกล้า',   dept: 'งานทะเบียน',    role: 'DeptHead',  email: 'onanong@tu.ac.th',  active: true,  roleColor: 'bg-orange-500 text-white' },
-  { id: 'EMP-2014', name: 'ปนัดดา แสนดี',     dept: 'งานทะเบียน',    role: 'DeptRep',   email: 'panadda@tu.ac.th',  active: true,  roleColor: 'bg-tu-yellow text-black' },
-  { id: 'CHK-001',  name: 'พี่ยุ่น ตรวจสอบ',     dept: 'สำนักงานกลาง',  role: 'Checker',   email: 'yoon@tu.ac.th',     active: true,  roleColor: 'bg-purple-600 text-white' },
-  { id: 'EXE-001',  name: 'ดร.วิเชียร ผู้นำ',     dept: 'สำนักงานกลาง',  role: 'Executive', email: 'wichian@tu.ac.th',  active: true,  roleColor: 'bg-success text-white' },
-  { id: 'AD-001',   name: 'พี่ขวัญ ใจดี',        dept: 'งานสารสนเทศ',   role: 'Admin',     email: 'khwan@tu.ac.th',    active: true,  roleColor: 'bg-tu-red text-white' },
-  { id: 'EMP-1099', name: 'กิตติ มากดี',        dept: 'งานหลักสูตร',   role: 'Staff',     email: 'kitti@tu.ac.th',    active: false, roleColor: 'bg-blue-600 text-white' },
-];
 
 const ROLE_OPTIONS = [
-  { role: 'Staff',     desc: 'พนักงานทั่วไป',          color: 'bg-blue-600 text-white'    },
-  { role: 'DeptHead',  desc: 'หัวหน้าแผนก',             color: 'bg-orange-500 text-white'  },
-  { role: 'DeptRep',   desc: 'ตัวแทนแผนก (1/แผนก)',     color: 'bg-tu-yellow text-black'   },
-  { role: 'Checker',   desc: 'ผู้ตรวจสอบกลาง',          color: 'bg-purple-600 text-white'  },
-  { role: 'Executive', desc: 'ผู้บริหาร',               color: 'bg-success text-white'     },
-  { role: 'Admin',     desc: 'ผู้ดูแลระบบทั้งหมด',      color: 'bg-tu-red text-white'      },
+  { role: 'staff',     label: 'พนักงาน',      desc: 'พนักงานทั่วไป',       color: 'bg-blue-600 text-white'    },
+  { role: 'depthead',  label: 'หัวหน้างาน',   desc: 'หัวหน้าแผนก/งาน',    color: 'bg-orange-500 text-white'  },
+  { role: 'deptrep',   label: 'ตัวแทนฝ่าย',   desc: 'ตัวแทนฝ่าย (1/แผนก)', color: 'bg-tu-yellow text-black'   },
+  { role: 'checker',   label: 'ผู้ตรวจสอบ',   desc: 'ผู้ตรวจสอบกลาง',      color: 'bg-purple-600 text-white'  },
+  { role: 'executive', label: 'ผู้บริหาร',    desc: 'ผู้บริหาร',            color: 'bg-success text-white'     },
+  { role: 'admin',     label: 'Admin',         desc: 'ผู้ดูแลระบบทั้งหมด',  color: 'bg-tu-red text-white'      },
 ];
 
-type UserRow = typeof USERS[0];
-
-function EditRoleDialog({ user, onSave, onClose }: { user: UserRow; onSave: (id: string, role: string, roleColor: string) => void; onClose: () => void }) {
-  const [selectedRole, setSelectedRole] = useState(user.role);
-
-  function handleSave() {
-    const opt = ROLE_OPTIONS.find(r => r.role === selectedRole);
-    if (opt) { onSave(user.id, opt.role, opt.color); onClose(); }
-  }
-
-  return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle>แก้ไขสิทธิ์ผู้ใช้ — {user.name}</DialogTitle>
-        </DialogHeader>
-        <p className="text-[13px] text-[var(--neutral-500)]">รหัส {user.id} • {user.dept}</p>
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          {ROLE_OPTIONS.map(r => (
-            <label
-              key={r.role}
-              className={`border rounded-lg p-3 flex items-start gap-2 cursor-pointer transition-colors ${selectedRole === r.role ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)] hover:border-tu-red'}`}
-            >
-              <input type="radio" name="edit-role" className="mt-0.5 accent-[var(--tu-red)]" checked={selectedRole === r.role} onChange={() => setSelectedRole(r.role)} />
-              <div>
-                <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 ${r.color}`}>{r.role}</span>
-                <p className="text-[11px] text-[var(--neutral-500)]">{r.desc}</p>
-              </div>
-            </label>
-          ))}
-        </div>
-        <div className="mt-2 p-3 bg-tu-yellow-soft border border-tu-yellow rounded-lg text-[12px]">
-          <strong>หมายเหตุ:</strong> การเปลี่ยน Role จะมีผลทันที ผู้ใช้จะได้รับสิทธิ์ใหม่เมื่อ Login ครั้งถัดไป
-        </div>
-        <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={handleSave}>บันทึกสิทธิ์</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 type ApiUser = {
   id: number;
@@ -717,8 +593,8 @@ const ROLE_COLOR_MAP: Record<string, string> = {
   executive: 'bg-success text-white',
 };
 const ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin', staff: 'Staff', depthead: 'DeptHead',
-  deptrep: 'DeptRep', checker: 'Checker', executive: 'Executive',
+  admin: 'Admin', staff: 'พนักงาน', depthead: 'หัวหน้างาน',
+  deptrep: 'ตัวแทนฝ่าย', checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร',
 };
 
 function EditRoleApiDialog({ user, onSaved, onClose }: {
@@ -760,7 +636,7 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
     setSaving(false);
   }
 
-  const NON_STAFF_ROLES = ROLE_OPTIONS.filter(r => r.role.toLowerCase() !== 'staff');
+  const NON_STAFF_ROLES = ROLE_OPTIONS.filter(r => r.role !== 'staff');
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
@@ -777,7 +653,7 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
             <p className="text-[13px] font-medium mb-2">Role หลัก <span className="text-[11px] text-[var(--neutral-500)] font-normal">(เลือกได้ 1 อย่าง — กำหนดหน้าที่หลักของผู้ใช้)</span></p>
             <div className="grid grid-cols-2 gap-2">
               {ROLE_OPTIONS.map(r => {
-                const rk = r.role.toLowerCase();
+                const rk = r.role;
                 const active = primaryRole === rk;
                 return (
                   <label key={rk}
@@ -791,7 +667,7 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
                         setExtraRoles(prev => prev.filter(x => x !== rk));
                       }} />
                     <div>
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 ${r.color}`}>{r.role}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 ${r.color}`}>{r.label}</span>
                       <p className="text-[11px] text-[var(--neutral-500)]">{r.desc}</p>
                     </div>
                   </label>
@@ -809,13 +685,13 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
               <label className="border rounded-lg p-3 flex items-start gap-2 border-[var(--neutral-200)] bg-[var(--neutral-50)] opacity-70 cursor-not-allowed">
                 <input type="checkbox" className="mt-0.5 accent-[var(--tu-red)]" checked disabled />
                 <div>
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 bg-blue-600 text-white">Staff</span>
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 bg-blue-600 text-white">พนักงาน</span>
                   <p className="text-[11px] text-[var(--neutral-500)]">สิทธิ์พื้นฐาน (ทุกคน)</p>
                 </div>
               </label>
 
               {NON_STAFF_ROLES.map(r => {
-                const rk = r.role.toLowerCase();
+                const rk = r.role;
                 const isPrimary = primaryRole === rk;
                 const isChecked = isPrimary || extraRoles.includes(rk);
                 return (
@@ -827,7 +703,7 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
                       disabled={isPrimary}
                       onChange={() => toggleExtra(rk)} />
                     <div>
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 ${r.color}`}>{r.role}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mb-1 ${r.color}`}>{r.label}</span>
                       {isPrimary
                         ? <p className="text-[11px] text-[var(--neutral-500)]">Role หลัก (รวมอยู่แล้ว)</p>
                         : <p className="text-[11px] text-[var(--neutral-500)]">{r.desc}</p>
@@ -954,7 +830,7 @@ export function AdminUsers() {
       <PageHeader title="จัดการผู้ใช้งาน" right={
         <div className="flex gap-2">
           <ImportStaffDialog onImported={() => setRefreshKey(k => k + 1)} />
-          <AddUserDialog />
+          <AddUserDialog onCreated={() => setRefreshKey(k => k + 1)} />
         </div>
       } />
 
@@ -1260,9 +1136,49 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
   );
 }
 
-function AddUserDialog() {
+function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [depts, setDepts] = useState<{ id: number; name: string }[]>([]);
+  const [form, setForm] = useState({ employee_id: '', prefix: '', first_name: '', last_name: '', email: '', phone: '', department: '', role: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    const tok = localStorage.getItem('access_token');
+    fetch('/api/departments/', { headers: { 'Authorization': `Bearer ${tok}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setDepts(Array.isArray(d) ? d : (d.results || [])); });
+  }, [open]);
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSave() {
+    if (!form.first_name || !form.last_name || !form.role) { setError('กรุณากรอกชื่อ นามสกุล และ Role'); return; }
+    setSaving(true); setError('');
+    const tok = localStorage.getItem('access_token');
+    const username = form.employee_id || form.email.split('@')[0] || `user_${Date.now()}`;
+    const body = {
+      username,
+      password: 'TU@' + (form.employee_id || '1234'),
+      first_name: (form.prefix ? form.prefix + ' ' : '') + form.first_name,
+      last_name: form.last_name,
+      email: form.email,
+      employee_id: form.employee_id,
+      role: form.role,
+      department: form.department || null,
+      phone: form.phone,
+    };
+    try {
+      const res = await fetch('/api/users/', { method: 'POST', headers: { 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) { const e = await res.json(); setError(JSON.stringify(e)); }
+      else { setOpen(false); setForm({ employee_id:'',prefix:'',first_name:'',last_name:'',email:'',phone:'',department:'',role:'' }); onCreated?.(); }
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="bg-tu-red hover:bg-tu-red-dark text-white"><Plus className="size-4 mr-1" />เพิ่มผู้ใช้</Button>
       </DialogTrigger>
@@ -1271,52 +1187,42 @@ function AddUserDialog() {
           <DialogTitle className="text-white">เพิ่มผู้ใช้ใหม่</DialogTitle>
         </div>
         <div className="grid grid-cols-2 gap-4 p-6">
-          <div><label>รหัสพนักงาน</label><Input className="mt-1" /></div>
-          <div><label>คำนำหน้า</label>
-            <Select><SelectTrigger className="mt-1"><SelectValue placeholder="เลือก" /></SelectTrigger>
-              <SelectContent><SelectItem value="m">นาย</SelectItem><SelectItem value="ms">นางสาว</SelectItem><SelectItem value="mrs">นาง</SelectItem></SelectContent>
+          <div><label className="text-[13px] font-medium">รหัสพนักงาน</label><Input className="mt-1" value={form.employee_id} onChange={e => set('employee_id', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">คำนำหน้า</label>
+            <Select value={form.prefix} onValueChange={v => set('prefix', v)}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="เลือก" /></SelectTrigger>
+              <SelectContent><SelectItem value="นาย">นาย</SelectItem><SelectItem value="นางสาว">นางสาว</SelectItem><SelectItem value="นาง">นาง</SelectItem></SelectContent>
             </Select>
           </div>
-          <div><label>ชื่อ</label><Input className="mt-1" /></div>
-          <div><label>นามสกุล</label><Input className="mt-1" /></div>
-          <div><label>อีเมล</label><Input className="mt-1" /></div>
-          <div><label>เบอร์โทร</label><Input className="mt-1" /></div>
-          <div className="col-span-2"><label>แผนก</label>
-            <Select><SelectTrigger className="mt-1"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">งานทะเบียนนักศึกษา</SelectItem>
-                <SelectItem value="2">งานหลักสูตร</SelectItem>
-                <SelectItem value="3">งานประเมินผล</SelectItem>
-                <SelectItem value="4">งานสารสนเทศ</SelectItem>
-                <SelectItem value="5">งานการเงิน</SelectItem>
-              </SelectContent>
+          <div><label className="text-[13px] font-medium">ชื่อ</label><Input className="mt-1" value={form.first_name} onChange={e => set('first_name', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">นามสกุล</label><Input className="mt-1" value={form.last_name} onChange={e => set('last_name', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">อีเมล</label><Input className="mt-1" value={form.email} onChange={e => set('email', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">เบอร์โทร</label><Input className="mt-1" value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
+          <div className="col-span-2"><label className="text-[13px] font-medium">แผนก</label>
+            <Select value={form.department} onValueChange={v => set('department', v)}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
+              <SelectContent>{depts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="col-span-2">
-            <label>Role</label>
+            <label className="text-[13px] font-medium">Role</label>
             <div className="grid grid-cols-2 gap-2 mt-2">
-              {[
-                ['Admin','ผู้ดูแลระบบทั้งหมด'],
-                ['Staff','พนักงานทั่วไป'],
-                ['DeptHead','หัวหน้าแผนก'],
-                ['DeptRep','ตัวแทนแผนก (1/แผนก)'],
-                ['Checker','ผู้ตรวจสอบกลาง'],
-                ['Executive','ผู้บริหาร'],
-              ].map(([r, d]) => (
-                <label key={r} className="border rounded-md p-2 flex items-start gap-2 cursor-pointer hover:border-tu-red">
-                  <input type="radio" name="role" className="mt-1 accent-[var(--tu-red)]" />
+              {ROLE_OPTIONS.map(r => (
+                <label key={r.role} className={`border rounded-md p-2 flex items-start gap-2 cursor-pointer transition-colors ${form.role === r.role ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)] hover:border-tu-red'}`}>
+                  <input type="radio" name="add-role" className="mt-1 accent-[var(--tu-red)]" checked={form.role === r.role} onChange={() => set('role', r.role)} />
                   <div>
-                    <p className="font-semibold text-[13px]">{r}</p>
-                    <p className="text-[11px] text-[var(--neutral-500)]">{d}</p>
+                    <p className="font-semibold text-[13px]">{r.label}</p>
+                    <p className="text-[11px] text-[var(--neutral-500)]">{r.desc}</p>
                   </div>
                 </label>
               ))}
             </div>
           </div>
+          {error && <div className="col-span-2 text-[12px] text-danger bg-tu-red-soft rounded p-2">{error}</div>}
         </div>
         <DialogFooter className="px-6 pb-6">
-          <Button variant="outline">ยกเลิก</Button>
-          <Button className="bg-tu-red hover:bg-tu-red-dark text-white">บันทึก</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+          <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={handleSave} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
