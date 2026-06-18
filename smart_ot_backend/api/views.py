@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from django.utils import timezone
 from django.db.models import Q, Case, When, Value, IntegerField
 from rest_framework import viewsets, status, generics
@@ -539,13 +540,36 @@ def _strip_honorific(name: str):
     return (parts[0] if parts else name), (' '.join(parts[1:]) if len(parts) > 1 else '')
 
 
+def _cell_str(v):
+    if v is None:
+        return ''
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v).strip()
+
+
+def _thai_first_clusters(name, n=3):
+    clusters = []
+    for ch in name:
+        if clusters and unicodedata.category(ch) in ('Mn', 'Mc'):
+            clusters[-1] += ch
+        else:
+            clusters.append(ch)
+    return ''.join(clusters[:n])
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def import_staff_roster(request):
     """
-    Admin อัปโหลด Excel รายชื่อบุคลากร → สร้าง User accounts
-    รูปแบบไฟล์: col A=ลำดับ, col B=ชื่อ-สกุล, col C=ตำแหน่ง
-    แถว section header = col A ว่าง + col B = ชื่องาน
+    Admin อัปโหลด Excel รายชื่อบุคลากร → สร้าง/อัปเดต User accounts
+
+    Format ใหม่ (ตรวจจาก header row):
+        employee_id | ชื่อ (ไฟล์รหัส) | สังกัด | ชื่อ (ไฟล์อีเมล) | email_reg | email_tu | หมายเหตุ
+
+    Format เก่า (backward compatible):
+        col A=ลำดับ, col B=ชื่อ-สกุล, col C=ตำแหน่ง
+        แถว section header = col A ว่าง + col B = ชื่องาน
     """
     if request.user.role != 'admin':
         return Response({'error': 'Permission denied'}, status=403)
@@ -561,70 +585,169 @@ def import_staff_roster(request):
         return Response({'error': f'อ่านไฟล์ไม่ได้: {e}'}, status=400)
 
     ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return Response({'error': 'ไฟล์ไม่มีข้อมูล'}, status=400)
+
+    # ── ตรวจ format จาก header row ──────────────────────────────────────────
+    _NEW_REQUIRED = ['employee_id', 'ชื่อ (ไฟล์รหัส)', 'สังกัด', 'email_reg', 'email_tu']
+    header_row = [_cell_str(c) for c in rows[0]]
+    is_new_format = all(h in header_row for h in _NEW_REQUIRED)
+
     created, skipped, errors = [], [], []
-    current_dept = None
 
-    for row in ws.iter_rows(values_only=True):
-        seq, name_raw, position = (row + (None, None, None))[:3]
-        if not name_raw:
-            continue
-        name_raw = str(name_raw).strip()
-        if name_raw in ('ชื่อ-สกุล',) or 'รายชื่อบุคลากร' in name_raw:
-            continue
+    if is_new_format:
+        # ── New format: employee_id mapping ──────────────────────────────────
+        _ALL_COLS = ['employee_id', 'ชื่อ (ไฟล์รหัส)', 'สังกัด', 'ชื่อ (ไฟล์อีเมล)', 'email_reg', 'email_tu', 'หมายเหตุ']
+        col = {h: header_row.index(h) for h in _ALL_COLS if h in header_row}
+        data_rows = rows[1:]
 
-        # section header
-        if seq is None:
-            existing = Department.objects.filter(name=name_raw).first()
+        # ขั้น 1: รวบรวมชื่อแผนกทั้งหมด แล้ว get_or_create
+        seen_depts = []
+        for row in data_rows:
+            if not any(row):
+                continue
+            dn = _cell_str(row[col['สังกัด']]) if 'สังกัด' in col and col['สังกัด'] < len(row) else ''
+            if dn and dn not in seen_depts:
+                seen_depts.append(dn)
+
+        used_codes = set(Department.objects.values_list('code', flat=True))
+        dept_map = {}
+        for dn in seen_depts:
+            dept = Department.objects.filter(name=dn).first()
+            if not dept:
+                prefix = _thai_first_clusters(dn, 3)
+                n = 1
+                while f'{prefix}_{n}' in used_codes:
+                    n += 1
+                code = f'{prefix}_{n}'
+                used_codes.add(code)
+                dept = Department.objects.create(name=dn, code=code)
+            dept_map[dn] = dept
+
+        # ขั้น 2: สร้าง/อัปเดต User
+        updated = []
+        for row in data_rows:
+            if not any(row):
+                continue
+            emp_id = _cell_str(row[col['employee_id']]) if 'employee_id' in col and col['employee_id'] < len(row) else ''
+            if not emp_id:
+                continue
+
+            full_name = _cell_str(row[col['ชื่อ (ไฟล์รหัส)']]) if 'ชื่อ (ไฟล์รหัส)' in col else ''
+            dept_name = _cell_str(row[col['สังกัด']])           if 'สังกัด' in col else ''
+            email_reg = _cell_str(row[col['email_reg']])        if 'email_reg' in col else ''
+            email_tu  = _cell_str(row[col['email_tu']])         if 'email_tu' in col else ''
+
+            first, last = _strip_honorific(full_name)
+            dept = dept_map.get(dept_name)
+
+            existing = User.objects.filter(employee_id=emp_id).first()
             if existing:
-                current_dept = existing
+                existing.username   = emp_id
+                existing.first_name = first
+                existing.last_name  = last
+                existing.email      = email_tu
+                existing.department = dept
+                if hasattr(existing, 'notify_email'):
+                    existing.notify_email = email_reg
+                existing.save()
+                updated.append({'username': emp_id, 'name': f'{first} {last}', 'department': dept.name if dept else ''})
             else:
-                import time as _time
-                base_code = name_raw[:15].upper().replace(' ', '_')
-                code = base_code
-                if Department.objects.filter(code=code).exists():
-                    code = f'{base_code[:10]}_{int(_time.time()) % 10000}'
-                current_dept = Department.objects.create(name=name_raw, code=code)
-            continue
+                try:
+                    u = User(
+                        username=emp_id,
+                        employee_id=emp_id,
+                        first_name=first,
+                        last_name=last,
+                        email=email_tu,
+                        role=default_role,
+                        department=dept,
+                        is_active=True,
+                    )
+                    if hasattr(u, 'notify_email'):
+                        u.notify_email = email_reg
+                    u.set_password(emp_id)
+                    u.save()
+                    created.append({'username': emp_id, 'name': f'{first} {last}', 'department': dept.name if dept else '', 'email': email_tu})
+                except Exception as e:
+                    errors.append({'name': f'{first} {last}', 'error': str(e)})
 
-        # employee row
-        first, last = _strip_honorific(name_raw)
-        import re as _re
-        clean = _re.sub(r'[^฀-๿a-zA-Z0-9]', '', first)
-        username = f'{clean}_{seq}'
+        log_action(request.user, f'import staff roster (new format): สร้าง {len(created)} อัปเดต {len(updated)} บัญชี', request=request)
+        return Response({
+            'format':        'new',
+            'created':       len(created),
+            'updated':       len(updated),
+            'errors':        len(errors),
+            'users':         created,
+            'updated_users': updated,
+        })
 
-        if User.objects.filter(username=username).exists():
-            skipped.append({'username': username, 'name': f'{first} {last}'})
-            continue
+    else:
+        # ── Old format: ลำดับ | ชื่อ-สกุล | ตำแหน่ง ─────────────────────────
+        current_dept = None
 
-        try:
-            u = User(
-                username=username,
-                first_name=first,
-                last_name=last,
-                email='',
-                role=default_role,
-                department=current_dept,
-                is_active=True,
-            )
-            u.set_password(default_password)
-            u.save()
-            created.append({
-                'username': username,
-                'name': f'{first} {last}',
-                'department': current_dept.name if current_dept else '',
-                'position': str(position or '').strip(),
-            })
-        except Exception as e:
-            errors.append({'name': name_raw, 'error': str(e)})
+        for row in rows:
+            seq, name_raw, position = (row + (None, None, None))[:3]
+            if not name_raw:
+                continue
+            name_raw = str(name_raw).strip()
+            if name_raw in ('ชื่อ-สกุล',) or 'รายชื่อบุคลากร' in name_raw:
+                continue
 
-    log_action(request.user, f'import staff roster: สร้าง {len(created)} บัญชี', request=request)
-    return Response({
-        'created': len(created),
-        'skipped': len(skipped),
-        'errors':  len(errors),
-        'users':   created,
-        'default_password': default_password,
-    })
+            # section header
+            if seq is None:
+                existing = Department.objects.filter(name=name_raw).first()
+                if existing:
+                    current_dept = existing
+                else:
+                    import time as _time
+                    base_code = name_raw[:15].upper().replace(' ', '_')
+                    code = base_code
+                    if Department.objects.filter(code=code).exists():
+                        code = f'{base_code[:10]}_{int(_time.time()) % 10000}'
+                    current_dept = Department.objects.create(name=name_raw, code=code)
+                continue
+
+            # employee row
+            first, last = _strip_honorific(name_raw)
+            clean = re.sub(r'[^฀-๿a-zA-Z0-9]', '', first)
+            username = f'{clean}_{seq}'
+
+            if User.objects.filter(username=username).exists():
+                skipped.append({'username': username, 'name': f'{first} {last}'})
+                continue
+
+            try:
+                u = User(
+                    username=username,
+                    first_name=first,
+                    last_name=last,
+                    email='',
+                    role=default_role,
+                    department=current_dept,
+                    is_active=True,
+                )
+                u.set_password(default_password)
+                u.save()
+                created.append({
+                    'username': username,
+                    'name': f'{first} {last}',
+                    'department': current_dept.name if current_dept else '',
+                    'position': str(position or '').strip(),
+                })
+            except Exception as e:
+                errors.append({'name': name_raw, 'error': str(e)})
+
+        log_action(request.user, f'import staff roster: สร้าง {len(created)} บัญชี', request=request)
+        return Response({
+            'format':           'legacy',
+            'created':          len(created),
+            'skipped':          len(skipped),
+            'errors':           len(errors),
+            'users':            created,
+            'default_password': default_password,
+        })
 
 
 # ─── Time Log Import ──────────────────────────────────────────────────────────
