@@ -1,6 +1,6 @@
 import re
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Case, When, Value, IntegerField
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -220,7 +220,16 @@ def logout_view(request):
 
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    queryset = User.objects.all().order_by('id')
+    queryset = User.objects.all().annotate(
+        dept_order=Case(
+            When(department__name='ผู้บริหาร', then=Value(0)),
+            When(department__name__startswith='งานทะเบียนนักศึกษา', then=Value(1)),
+            When(department__name__startswith='งานเทคโนโลยี', then=Value(2)),
+            When(department__name__startswith='งานยุทธศาสตร์', then=Value(3)),
+            default=Value(9),
+            output_field=IntegerField(),
+        )
+    ).order_by('dept_order', 'department__name', 'employee_id')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -827,7 +836,7 @@ def import_timelog(request):
                 att_status = ''
 
             ot_val = calc_ot(in_str, out_str, time_period_val, row_day_type) if (in_str and out_str) else 0.0
-            flag   = not in_str or not out_str or ot_val > 8
+            flag   = (row_day_type == 'weekday' and (not in_str or not out_str)) or ot_val > 8
 
             total += 1
 
@@ -977,7 +986,7 @@ def _row_from_timelog(idx, tl):
     out_str  = tl.check_out.strftime('%H:%M') if tl.check_out else ''
     day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or tl.log_date.weekday() >= 5) else 'weekday'
     ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
-    flag     = not in_str or not out_str or ot_val > 8
+    flag     = (day_type == 'weekday' and (not in_str or not out_str)) or ot_val > 8
     return {
         'id':    idx,
         'date':  str(tl.log_date),
@@ -986,8 +995,10 @@ def _row_from_timelog(idx, tl):
         'dept':  tl.user.department.name if tl.user.department else 'ไม่ระบุ',
         'in':    in_str,
         'out':   out_str,
-        'ot':    str(ot_val),
-        'flag':  flag,
+        'ot':               str(ot_val),
+        'flag':             flag,
+        'attendanceStatus': tl.attendance_status or '',
+        'timePeriod':       tl.time_period or '',
     }
 
 
@@ -1003,7 +1014,7 @@ def timelog_list_view(request):
     qs = TimeLog.objects.select_related('user', 'user__department')
     if greg_year and mon:
         qs = qs.filter(log_date__year=greg_year, log_date__month=mon)
-    qs = qs.order_by('log_date', 'user__employee_id')
+    qs = qs.order_by('user__employee_id', 'log_date')
 
     rows = [_row_from_timelog(i + 1, tl) for i, tl in enumerate(qs)]
 

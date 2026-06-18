@@ -27,6 +27,21 @@ REQUIRED_HEADERS = [
     'ชื่อ (ไฟล์อีเมล)', 'email_reg', 'email_tu', 'หมายเหตุ',
 ]
 
+# คำนำหน้ายศที่ต้องตัดออกก่อนแยก first_name/last_name
+HONORIFICS = [
+    'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี',
+    'รศ.ดร.', 'ผศ.ดร.', 'รศ.', 'ผศ.', 'ดร.',
+    'นางสาว', 'นาง', 'นาย', 'อาจารย์',
+]
+
+
+def strip_honorific(name):
+    name = name.strip()
+    for h in sorted(HONORIFICS, key=len, reverse=True):
+        if name.startswith(h):
+            return name[len(h):].strip()
+    return name
+
 
 def thai_first_clusters(name, n=3):
     """คืนค่า n grapheme cluster แรกของชื่อ (พยัญชนะไทย + วรรณยุกต์/สระบนล่างที่ติดกัน นับเป็น 1 ตัว)"""
@@ -123,6 +138,7 @@ class Command(BaseCommand):
             email_reg    = cell_str(row[col['email_reg']])        if col['email_reg']        < len(row) else ''
             email_tu     = cell_str(row[col['email_tu']])         if col['email_tu']         < len(row) else ''
 
+            full_name_id = strip_honorific(full_name_id)
             parts = full_name_id.split(' ', 1)
             first_name = parts[0] if parts else ''
             last_name  = parts[1] if len(parts) > 1 else ''
@@ -133,10 +149,11 @@ class Command(BaseCommand):
             if user:
                 if dry_run:
                     self.stdout.write(
-                        f'[DRY-RUN] จะอัปเดต {emp_id}: {first_name} {last_name}, '
+                        f'[DRY-RUN] จะอัปเดต {emp_id}: username={emp_id}, {first_name} {last_name}, '
                         f'email={email_tu}, notify_email={email_reg}, dept={dept_name}'
                     )
                 else:
+                    user.username     = emp_id
                     user.first_name   = first_name
                     user.last_name    = last_name
                     user.email        = email_tu
@@ -146,7 +163,7 @@ class Command(BaseCommand):
                     self.stdout.write(f'  ✓ อัปเดต {emp_id}: {first_name} {last_name}')
                 updated += 1
             else:
-                username = email_tu.split('@')[0] if '@' in email_tu else emp_id
+                username = emp_id
                 if dry_run:
                     self.stdout.write(
                         f'[DRY-RUN] จะสร้างใหม่ {emp_id}: username={username}, '

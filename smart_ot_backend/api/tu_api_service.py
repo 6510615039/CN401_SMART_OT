@@ -28,7 +28,7 @@ TU_AUTH_URL = 'https://restapi.tu.ac.th/api/v1/auth/Ad/verify'
 import os as _os
 # ── อ่านจาก environment variable (.env) ──────────────────────────────────────
 _DEFAULT_TU_API_URL = _os.environ.get('TU_API_URL', 'https://restapi.tu.ac.th')
-_DEFAULT_TU_API_KEY = _os.environ.get('TU_API_KEY', '')
+_DEFAULT_TU_API_KEY = _os.environ.get('TU_API_KEY', 'TUb8590160ffd1daf8204412125bd0b06f6e7b4d145e84b460daf36cc32c5f2926e670bd65e8b620fea6ded85f403e06fc')
 
 
 # ---------------------------------------------------------------------------
