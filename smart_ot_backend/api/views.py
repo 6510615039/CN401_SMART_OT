@@ -788,7 +788,7 @@ def import_timelog(request):
             if col_id is None:
                 col_id = 0; col_name = None; col_date = 2; col_in = 4; col_out = 5; col_status = 7
 
-        total = success = errors = 0
+        total = success = errors = skipped_users = 0
         error_lines = []
         rows_out = []
         row_id = 1
@@ -861,7 +861,7 @@ def import_timelog(request):
                 last  = ' '.join(parts[1:]) if len(parts) > 1 else ''
                 resolved_dept = import_dept
 
-            # Try to match user in DB — auto-create if not found
+            # Try to match user in DB — skip row if not found
             try:
                 user = User.objects.get(employee_id=str(emp_id))
                 # อัปเดตข้อมูลที่อาจเปลี่ยนแปลง (ชื่อ/แผนก)
@@ -877,18 +877,8 @@ def import_timelog(request):
                 if changed:
                     user.save()
             except User.DoesNotExist:
-                user = User.objects.create(
-                    username=str(emp_id),
-                    employee_id=str(emp_id),
-                    first_name=first,
-                    last_name=last,
-                    email=tu_data['email'] if tu_data else '',
-                    role='staff',
-                    department=resolved_dept,
-                    is_active=True,
-                )
-                user.set_password(str(emp_id))  # password เริ่มต้น = รหัสพนักงาน
-                user.save()
+                skipped_users += 1
+                continue
 
             success += 1
             db_name   = (f'{user.first_name} {user.last_name}'.strip()) or user.username
@@ -922,9 +912,10 @@ def import_timelog(request):
         from .tu_api_service import _CACHE
         _CACHE.clear()
 
-        log_action(request.user, f'นำเข้าไฟล์ {f.name} ({success}/{total} รายการ)', request=request)
+        log_action(request.user, f'นำเข้าไฟล์ {f.name} ({success}/{total} รายการ, ข้าม {skipped_users} รหัสไม่พบ)', request=request)
         resp = dict(ImportHistorySerializer(history).data)
         resp['rows'] = rows_out
+        resp['skipped_users'] = skipped_users
         return Response(resp)
 
     except Exception as e:
