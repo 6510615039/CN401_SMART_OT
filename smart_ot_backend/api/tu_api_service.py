@@ -183,4 +183,26 @@ def fetch_employee(emp_id: str) -> dict | None:
             return result
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            lo
+            logger.info(f'TU API: employee {emp_id} not found (404)')
+            _CACHE[emp_id] = None
+            return None
+        logger.error(f'TU API: HTTP {e.code} for {emp_id}')
+        _CACHE[emp_id] = None
+        return None
+    except Exception as e:
+        logger.error(f'TU API: error fetching {emp_id} — {e}')
+        _CACHE[emp_id] = None
+        return None
+
+
+def get_or_create_dept(dept_name: str):
+    dept_name = (dept_name or '').strip()
+    if not dept_name:
+        return None
+    try:
+        from .models import Department
+        dept, _ = Department.objects.get_or_create(name=dept_name)
+        return dept
+    except Exception as e:
+        logger.warning('get_or_create_dept: %s', e)
+        return None

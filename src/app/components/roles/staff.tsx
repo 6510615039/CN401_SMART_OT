@@ -1,4 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+
+function currentThaiMonth(): string {
+  const now = new Date();
+  const thaiYear = now.getFullYear() + 543;
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${thaiYear}-${month}`;
+}
+
+const THAI_MONTHS_LIST = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+function MonthYearPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = value.split('-');
+  const year = parts[0] || String(new Date().getFullYear() + 543);
+  const mon  = parts[1] || String(new Date().getMonth() + 1).padStart(2, '0');
+  return (
+    <div className="flex gap-2">
+      <Select value={mon} onValueChange={m => onChange(`${year}-${m}`)}>
+        <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {THAI_MONTHS_LIST.map((label, i) => (
+            <SelectItem key={i} value={String(i + 1).padStart(2, '0')}>{label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        type="number"
+        value={year}
+        onChange={e => { if (e.target.value.length <= 4) onChange(`${e.target.value}-${mon}`); }}
+        className="w-[80px] font-mono text-center"
+        min={2500}
+        max={2600}
+      />
+    </div>
+  );
+}
 import {
   LayoutDashboard, Clock, FilePlus, ListChecks, UserCircle,
   Calendar as CalendarIcon, AlertTriangle, CheckCircle2, ChevronRight, Lock,
@@ -166,16 +201,10 @@ function MiniCalendar({ month, otDays, totalOT }: { month: string; otDays: numbe
 
 export function StaffTimeLog() {
   const [view, setView] = useState<'table' | 'cal'>('table');
-  const [month, setMonth] = useState('2569-05');
+  const [month, setMonth] = useState(currentThaiMonth);
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-
-  const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  const MONTH_OPTIONS = Array.from({length:12}, (_,i) => ({
-    value: `2569-${String(i+1).padStart(2,'0')}`,
-    label: `${THAI_MONTHS[i]} 2569`,
-  }));
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -194,10 +223,7 @@ export function StaffTimeLog() {
     <>
       <PageHeader title="เวลาเข้า-ออกของฉัน" right={
         <>
-          <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>{MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-          </Select>
+          <MonthYearPicker value={month} onChange={setMonth} />
           <div className="flex border border-[var(--neutral-300)] rounded-lg overflow-hidden">
             <button onClick={() => setView('table')} className={`px-3 py-1.5 text-[13px] ${view === 'table' ? 'bg-tu-red text-white' : ''}`}>ตาราง</button>
             <button onClick={() => setView('cal')} className={`px-3 py-1.5 text-[13px] ${view === 'cal' ? 'bg-tu-red text-white' : ''}`}>ปฏิทิน</button>
@@ -228,17 +254,34 @@ export function StaffTimeLog() {
         ) : view === 'table' ? (
           <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
             <table className="w-full text-[13px]">
-              <thead className="bg-tu-red text-white"><tr>{['วันที่','เวลาเข้า','เวลาออก','ชั่วโมง OT','สถานะ'].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
+              <thead className="bg-tu-red text-white"><tr>{['วันที่','กะ','เวลาเข้า','เวลาออก','ชั่วโมง OT','สถานะเข้างาน'].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
               <tbody>
-                {rows.map((r, i) => (
+                {rows.map((r, i) => {
+                  const attendanceChip = (() => {
+                    if (r.dayType === 'holiday') {
+                      const name = r.holidayName || '';
+                      const htype = r.holidayType || '';
+                      if (htype === 'weekend') return <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--neutral-100)] text-[var(--neutral-600)] border border-[var(--neutral-300)]">{name || 'เสาร์-อาทิตย์'}</span>;
+                      if (htype === 'compensation') return <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-100 text-orange-700 border border-orange-300">{name || 'วันหยุดชดเชย'}</span>;
+                      if (htype === 'special') return <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700 border border-purple-300">{name || 'วันหยุดพิเศษ'}</span>;
+                      return <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">{name || 'วันหยุดราชการ'}</span>;
+                    }
+                    const raw = (r.attendanceStatus || '').trim();
+                    if (raw) return <StatusChip kind={raw === 'สาย' ? 'danger' : raw === 'ปกติ' ? 'success' : 'neutral'}>{raw}</StatusChip>;
+                    if (r.in?.trim()) return <StatusChip kind="success">ปกติ</StatusChip>;
+                    return null;
+                  })();
+                  return (
                   <tr key={i} className="border-t border-[var(--neutral-300)] hover:bg-tu-yellow-soft">
                     <td className="px-3 py-2">{r.date}</td>
+                    <td className="px-3 py-2 text-center text-[12px]">{r.timePeriod || ''}</td>
                     <td className="px-3 py-2 font-mono">{r.in || '-'}</td>
                     <td className="px-3 py-2 font-mono">{r.out || '-'}</td>
                     <td className="px-3 py-2 font-mono">{r.ot}</td>
-                    <td className="px-3 py-2">{r.flag ? <StatusChip kind="danger">ผิดปกติ</StatusChip> : <StatusChip kind="success">ปกติ</StatusChip>}</td>
+                    <td className="px-3 py-2">{attendanceChip ?? (r.flag ? <StatusChip kind="danger">ผิดปกติ</StatusChip> : null)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -266,13 +309,7 @@ function deadlineDateDisplay(iso: string) {
 }
 
 export function StaffSubmit() {
-  const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  const MONTH_OPTIONS = Array.from({length:12}, (_,i) => ({
-    value: `2569-${String(i+1).padStart(2,'0')}`,
-    label: `${THAI_MONTHS[i]} 2569`,
-  }));
-
-  const [month, setMonth] = useState('2569-03');
+  const [month, setMonth] = useState(currentThaiMonth);
   const [rows, setRows] = useState<any[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [hours, setHours] = useState<Record<string, string>>({});
@@ -314,7 +351,7 @@ export function StaffSubmit() {
           const otRows = tl.rows.filter((r: any) => parseFloat(r.ot) > 0);
           setRows(otRows);
           const initHours: Record<string,string> = {};
-          otRows.forEach((r: any) => { initHours[r.date] = String(Math.min(parseFloat(r.ot), r.day_type === 'holiday' ? 7 : 4)); });
+          otRows.forEach((r: any) => { initHours[r.date] = String(Math.min(parseFloat(r.ot), r.dayType === 'holiday' ? 7 : 4)); });
           setHours(initHours);
         }
         if (reqs) {
@@ -351,7 +388,7 @@ export function StaffSubmit() {
 
   // Exclude locked dates from selection (shouldn't be selectable, but guard anyway)
   const selRows = rows.filter(r => selected.includes(r.date) && !existingReqs[r.date]);
-  const total = selRows.reduce((s, r) => s + calcAmount(r.day_type || 'weekday', hours[r.date] || r.ot), 0);
+  const total = selRows.reduce((s, r) => s + calcAmount(r.dayType || 'weekday', hours[r.date] || r.ot), 0);
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -410,10 +447,7 @@ export function StaffSubmit() {
   return (
     <>
       <PageHeader title="ยื่นคำร้องขอเบิกค่า OT" right={
-        <Select value={month} onValueChange={setMonth}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>{MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-        </Select>
+        <MonthYearPicker value={month} onChange={setMonth} />
       } />
       {/* Deadline banner */}
       {deadline?.is_passed ? (
@@ -464,7 +498,7 @@ export function StaffSubmit() {
                   const isRejected = existing?.status === 'head_rejected' || existing?.status === 'checker_rejected';
                   const isLocked = !!existing && !isRejected; // locked if submitted (not rejected)
                   const isSel = selected.includes(r.date);
-                  const isHoliday = r.day_type === 'holiday';  // ครอบคลุมทั้ง วันหยุดราชการ + เสาร์-อาทิตย์
+                  const isHoliday = r.dayType === 'holiday';  // ครอบคลุมทั้ง วันหยุดราชการ + เสาร์-อาทิตย์
                   const h = Math.floor(parseFloat(hours[r.date] || r.ot));  // ปัดลงเหลือชั่วโมงเต็ม
                   const maxH = isHoliday ? 7 : 4;
                   const overLimit = !isLocked && h > maxH;
@@ -516,8 +550,8 @@ export function StaffSubmit() {
                       <td className="px-3 py-2 font-mono">{isHoliday ? '70' : '60'} บาท/ชม.</td>
                       <td className="px-3 py-2 font-mono text-success font-semibold">
                         {isLocked ? (
-                          <span className="text-[var(--neutral-400)]">{calcAmount(r.day_type || 'weekday', r.ot).toLocaleString()}</span>
-                        ) : calcAmount(r.day_type || 'weekday', hours[r.date] || r.ot).toLocaleString()}
+                          <span className="text-[var(--neutral-400)]">{calcAmount(r.dayType || 'weekday', r.ot).toLocaleString()}</span>
+                        ) : calcAmount(r.dayType || 'weekday', hours[r.date] || r.ot).toLocaleString()}
                       </td>
                       <td className="px-3 py-2">
                         {existing ? (

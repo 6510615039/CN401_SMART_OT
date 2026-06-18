@@ -431,9 +431,6 @@ class HolidayViewSet(viewsets.ModelViewSet):
         log_action(self.request.user, f'เพิ่มวันหยุด {h.name}', 'Holiday', h.id, request=self.request)
 
     def perform_destroy(self, instance):
-        if instance.is_system:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('ไม่สามารถลบวันหยุดราชการที่ระบบสร้างให้ได้')
         log_action(self.request.user, f'ลบวันหยุด {instance.name}', 'Holiday', instance.id, request=self.request)
         instance.delete()
 
@@ -823,11 +820,21 @@ def import_timelog(request):
 
             import datetime as _dt
             row_day_type = 'weekday'
+            row_holiday_name = ''
+            row_holiday_type = ''
             _d = None
             try:
                 _d = _dt.date.fromisoformat(date_str)
-                if Holiday.objects.filter(date=_d).exists() or _d.weekday() >= 5:
+                _h_obj = Holiday.objects.filter(date=_d).first()
+                _is_wknd = _d.weekday() >= 5
+                if _h_obj or _is_wknd:
                     row_day_type = 'holiday'
+                    if _h_obj:
+                        row_holiday_name = _h_obj.name
+                        row_holiday_type = _h_obj.holiday_type
+                    else:
+                        row_holiday_name = 'เสาร์-อาทิตย์'
+                        row_holiday_type = 'weekend'
             except (ValueError, TypeError):
                 pass
 
@@ -897,7 +904,11 @@ def import_timelog(request):
                 'empId': str(emp_id), 'name': db_name,
                 'dept': dept_name, 'in': in_str, 'out': out_str,
                 'ot': str(ot_val), 'flag': flag,
+                'timePeriod':   time_period_val,
                 'attendanceStatus': att_status,
+                'dayType':      row_day_type,
+                'holidayName':  row_holiday_name,
+                'holidayType':  row_holiday_type,
             })
             row_id += 1
 
@@ -975,7 +986,9 @@ def _calc_ot(check_in, check_out, time_period='', day_type='weekday'):
 def _row_from_timelog(idx, tl):
     in_str   = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
     out_str  = tl.check_out.strftime('%H:%M') if tl.check_out else ''
-    day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or tl.log_date.weekday() >= 5) else 'weekday'
+    h_obj    = Holiday.objects.filter(date=tl.log_date).first()
+    is_weekend = tl.log_date.weekday() >= 5
+    day_type = 'holiday' if (h_obj or is_weekend) else 'weekday'
     ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
     flag     = (day_type == 'weekday' and (not in_str or not out_str)) or ot_val > 8
     return {
@@ -990,6 +1003,9 @@ def _row_from_timelog(idx, tl):
         'flag':             flag,
         'attendanceStatus': tl.attendance_status or '',
         'timePeriod':       tl.time_period or '',
+        'dayType':          day_type,
+        'holidayName':      h_obj.name if h_obj else ('เสาร์-อาทิตย์' if is_weekend else ''),
+        'holidayType':      h_obj.holiday_type if h_obj else ('weekend' if is_weekend else ''),
     }
 
 
@@ -1026,7 +1042,36 @@ def timelog_list_view(request):
             if sample_date == f'{greg_year}-{mon:02d}':
                 rows = hist.rows_data
 
+    rows = _enrich_rows_day_type(rows)
     return Response({'rows': rows, 'total': len(rows)})
+
+
+def _enrich_rows_day_type(rows):
+    """Recompute dayType/holidayName/holidayType for each row from current Holiday DB.
+    Used to fix stale rows_data stored in ImportHistory before this field existed.
+    """
+    import datetime as _dt
+    enriched = []
+    for r in rows:
+        date_str = r.get('date', '')
+        try:
+            _d = _dt.date.fromisoformat(date_str)
+            h_obj = Holiday.objects.filter(date=_d).first()
+            is_wknd = _d.weekday() >= 5
+            if h_obj or is_wknd:
+                day_type = 'holiday'
+                h_name = h_obj.name if h_obj else 'เสาร์-อาทิตย์'
+                h_type = h_obj.holiday_type if h_obj else 'weekend'
+            else:
+                day_type = 'weekday'
+                h_name = ''
+                h_type = ''
+        except (ValueError, TypeError):
+            day_type = r.get('dayType', 'weekday')
+            h_name = r.get('holidayName', '')
+            h_type = r.get('holidayType', '')
+        enriched.append({**r, 'dayType': day_type, 'holidayName': h_name, 'holidayType': h_type})
+    return enriched
 
 
 @api_view(['GET'])
@@ -1058,18 +1103,14 @@ def timelog_my_view(request):
             if my_rows:
                 rows = my_rows
 
+    rows = _enrich_rows_day_type(rows)
+
     total_ot = sum(float(r.get('ot', 0)) for r in rows)
     flag_count = sum(1 for r in rows if r.get('flag'))
-    # Calculate total OT baht using correct TU rates: weekday 60, holiday 70
-    import datetime as _dt
-    def is_weekend(d):
-        return d.weekday() >= 5  # Saturday=5, Sunday=6
-    total_ot_baht = 0.0
-    for tl in qs:
-        day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or is_weekend(tl.log_date)) else 'weekday'
-        ot_val = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
-        rate = 70 if is_weekend(tl.log_date) else 60
-        total_ot_baht += ot_val * rate
+    total_ot_baht = sum(
+        float(r.get('ot', 0)) * (70 if r.get('dayType') == 'holiday' else 60)
+        for r in rows
+    )
     return Response({
         'rows': rows,
         'total': len(rows),

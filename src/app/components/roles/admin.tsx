@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Upload, Users, Building2, Settings, History, ListChecks,
   Plus, AlertTriangle, CheckCircle2, Search, Pencil, Trash2,
-  CloudUpload, UserPlus, CalendarDays, Download, X, Lock, Info, Clock,
+  CloudUpload, UserPlus, CalendarDays, Download, X, Lock, Info, Clock, RefreshCw,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
@@ -122,6 +122,9 @@ type ImportRow = {
   in: string; out: string; ot: string; flag: boolean;
   attendanceStatus?: string;
   timePeriod?: string;
+  dayType?: string;
+  holidayName?: string;
+  holidayType?: string;
 };
 
 const PAGE_SIZE = 10;
@@ -221,12 +224,24 @@ export function AdminImport() {
   return (
     <>
       <PageHeader title="นำเข้าข้อมูลเวลาเข้า-ออกงาน" right={
-        <Select value={month} onValueChange={v => { setMonth(v); }}>
-          <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {allMonthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={month} onValueChange={v => { setMonth(v); }}>
+            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {allMonthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            className="border-tu-red text-tu-red"
+            onClick={() => loadRows(month)}
+            disabled={loading}
+            title="ซิงค์วันหยุดใหม่ — กดหลังจากเพิ่ม/ลบวันหยุดในหน้าจัดการวันหยุด"
+          >
+            <RefreshCw className={`size-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+            ซิงค์วันหยุด
+          </Button>
+        </div>
       } />
 
       {error && (
@@ -379,7 +394,22 @@ export function AdminImport() {
 }
 
 
-function getAttendanceStatus(r: ImportRow): { label: string; kind: 'success' | 'warning' | 'danger' | 'neutral' } {
+function getAttendanceStatus(r: ImportRow): { label: string; kind: 'success' | 'warning' | 'danger' | 'neutral'; color?: string } {
+  if (r.dayType === 'holiday') {
+    const name = r.holidayName || '';
+    const htype = r.holidayType || '';
+    if (htype === 'weekend') {
+      return { label: name || 'เสาร์-อาทิตย์', kind: 'neutral', color: 'bg-[var(--neutral-100)] text-[var(--neutral-600)] border border-[var(--neutral-300)]' };
+    }
+    if (htype === 'compensation') {
+      return { label: name || 'วันหยุดชดเชย', kind: 'neutral', color: 'bg-orange-100 text-orange-700 border border-orange-300' };
+    }
+    if (htype === 'special') {
+      return { label: name || 'วันหยุดพิเศษ', kind: 'neutral', color: 'bg-purple-100 text-purple-700 border border-purple-300' };
+    }
+    // official / is_system
+    return { label: name || 'วันหยุดราชการ', kind: 'neutral', color: 'bg-blue-50 text-blue-700 border border-blue-200' };
+  }
   const raw = r.attendanceStatus?.trim();
   if (raw) return { label: raw, kind: 'neutral' };
   if (r.in?.trim()) return { label: 'ปกติ', kind: 'success' };
@@ -503,7 +533,13 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
                   </td>
 
                   <td className="px-3 py-2">
-                    {(() => { const s = getAttendanceStatus(r); return <StatusChip kind={s.kind}>{s.label}</StatusChip>; })()}
+                    {(() => {
+                      const s = getAttendanceStatus(r);
+                      if (s.color) return (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.color}`}>{s.label}</span>
+                      );
+                      return s.label ? <StatusChip kind={s.kind}>{s.label}</StatusChip> : null;
+                    })()}
                   </td>
                   <td className="px-3 py-2">
                     {justSaved
@@ -982,7 +1018,13 @@ export function AdminUsers() {
                       <td className="px-3 py-2 font-mono text-[var(--neutral-600)]">{u.username}</td>
                       <td className="px-3 py-2">{u.department_name || <span className="text-[var(--neutral-400)]">—</span>}</td>
                       <td className="px-3 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${roleColor}`}>{roleLabel}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {(u.available_roles?.length ? u.available_roles : [u.role]).map(r => (
+                            <span key={r} className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${ROLE_COLOR_MAP[r] || 'bg-[var(--neutral-300)] text-[var(--neutral-700)]'}`}>
+                              {ROLE_LABEL[r] || r}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-[var(--neutral-500)]">{u.email || '—'}</td>
                       <td className="px-3 py-2">
@@ -2109,7 +2151,7 @@ export function AdminHolidays() {
     <>
       <PageHeader
         title="จัดการวันหยุดประจำปี"
-        subtitle="วันหยุดราชการ (is_system) แก้ไข/ลบไม่ได้ — เพิ่มเฉพาะวันหยุดชดเชยและวันพิเศษ"
+        subtitle="จัดการวันหยุดประจำปี — ลบหรือแก้ไขได้ทุกวันหยุดตามต้องการ"
         right={
           <div className="flex items-center gap-2">
             <Select value={year} onValueChange={setYear}>
@@ -2140,8 +2182,8 @@ export function AdminHolidays() {
       <div className="flex items-start gap-3 p-4 mb-5 bg-blue-50 border border-blue-200 rounded-xl">
         <Info className="size-5 text-info shrink-0 mt-0.5" />
         <p className="text-[13px] text-blue-800">
-          วันหยุดราชการ <Lock className="size-3 inline" /> ถูกสร้างโดยระบบ — ไม่สามารถแก้ไขหรือลบได้
-          วันหยุดชดเชยและวันพิเศษต้องเพิ่มด้วยตนเองตามประกาศราชกิจจาฯ ของแต่ละปี
+          กด "ซิงค์วันหยุดราชการ" เพื่อโหลดวันหยุดตามปฏิทิน — จากนั้นลบวันที่หน่วยงานไม่หยุดออกได้เลย เช่น วันแรงงาน
+          วันหยุดชดเชยและวันพิเศษเพิ่มด้วยตนเองตามประกาศราชกิจจาฯ
         </p>
       </div>
 
@@ -2209,9 +2251,7 @@ export function AdminHolidays() {
                           )}
                         </td>
                         <td className="px-4 py-2.5">
-                          {isRO ? (
-                            <span className="text-[var(--neutral-400)] text-[13px] px-2">—</span>
-                          ) : (
+                          {(
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" className="size-7 text-tu-red hover:bg-tu-red-soft" onClick={() => openEdit(h)}>
                                 <Pencil className="size-3.5" />
@@ -2229,7 +2269,7 @@ export function AdminHolidays() {
               </table>
             </div>
             <p className="text-[12px] text-[var(--neutral-400)] mt-3">
-              แสดง {holidays.length} รายการ • วันหยุดราชการ <Lock className="size-3 inline" /> ไม่สามารถแก้ไขได้
+              แสดง {holidays.length} รายการ
             </p>
           </>
         )}
