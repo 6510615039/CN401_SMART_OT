@@ -29,9 +29,10 @@ class User(AbstractUser):
     role         = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff', verbose_name='บทบาท')
     extra_roles  = models.JSONField(default=list, blank=True, verbose_name='สิทธิ์เพิ่มเติม')
     department   = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='members', verbose_name='แผนก')
-    phone        = models.CharField(max_length=20, blank=True, verbose_name='เบอร์โทร')
-    notify_email = models.EmailField(blank=True, verbose_name='อีเมลสำหรับแจ้งเตือน')
-    is_active    = models.BooleanField(default=True)
+    phone         = models.CharField(max_length=20, blank=True, verbose_name='เบอร์โทร')
+    notify_email  = models.EmailField(blank=True, verbose_name='อีเมลสำหรับแจ้งเตือน')
+    profile_image = models.TextField(blank=True, default='', verbose_name='รูปโปรไฟล์ (base64)')
+    is_active     = models.BooleanField(default=True)
 
     @property
     def available_roles(self):
@@ -236,6 +237,7 @@ class Notification(models.Model):
         ('ot_rep_forwarded',    'ตัวแทนส่งต่อแล้ว'),
         ('ot_checker_approved', 'ผู้ตรวจสอบอนุมัติ'),
         ('ot_checker_rejected', 'ผู้ตรวจสอบตีกลับ'),
+        ('no_ot_declared',      'แจ้งไม่มีโอทีประจำเดือน'),
     ]
 
     recipient  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -251,3 +253,19 @@ class Notification(models.Model):
 
     def __str__(self):
         return f'{self.recipient} — {self.notif_type}'
+
+
+class NoOTDeclaration(models.Model):
+    department  = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='no_ot_declarations')
+    declared_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='no_ot_declarations')
+    greg_year   = models.PositiveIntegerField()
+    month       = models.PositiveSmallIntegerField()
+    note        = models.TextField(blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('department', 'greg_year', 'month')
+        ordering = ['-greg_year', '-month']
+
+    def __str__(self):
+        return f'{self.department} {self.greg_year}/{self.month:02d}'

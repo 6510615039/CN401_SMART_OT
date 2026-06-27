@@ -926,7 +926,9 @@ export function StaffProfile() {
           const ne = d.notify_email || d.email || '';
           setNotifyEmail(ne);
           setNotifyEmailEdit(ne);
-          if (d.profile_image) setAvatarUrl(d.profile_image);
+          // backend ก่อน, ถ้าไม่มีใช้ cache ใน localStorage
+          const img = d.profile_image || localStorage.getItem('profile_image_cache') || '';
+          if (img) setAvatarUrl(img);
         }
       }).catch(() => {});
   }, []);
@@ -942,17 +944,23 @@ export function StaffProfile() {
     if (file.size > 5 * 1024 * 1024) { setUploadError('ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
     setUploadError('');
     const reader = new FileReader();
-    reader.onload = () => setAvatarUrl(reader.result as string);
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setAvatarUrl(base64);
+      // บันทึกลง backend + cache ใน localStorage → AppShell จะ update ทันที
+      const token = localStorage.getItem('access_token');
+      fetch('/api/auth/me/update/', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_image: base64 }),
+      }).then(r => {
+        if (r.ok) {
+          localStorage.setItem('profile_image_cache', base64);
+          window.dispatchEvent(new CustomEvent('profile-image-changed', { detail: base64 }));
+        }
+      }).catch(() => {});
+    };
     reader.readAsDataURL(file);
-    // Upload ไปยัง API
-    const token = localStorage.getItem('access_token');
-    const formData = new FormData();
-    formData.append('profile_image', file);
-    fetch('/api/auth/me/update/', {
-      method: 'PATCH',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: formData,
-    }).catch(() => {});
   }
 
   return (

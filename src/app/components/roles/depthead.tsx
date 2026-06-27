@@ -11,7 +11,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Progress } from '../ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import {
@@ -56,100 +56,474 @@ function HeadBreadcrumb({ page }: { page: string }) {
   );
 }
 
-const TOP_OT = [
-  { name: 'สมชาย', hours: 32 },
-  { name: 'มาลี',   hours: 28 },
-  { name: 'ปนัดดา', hours: 24 },
-  { name: 'กิตติ',   hours: 20 },
-  { name: 'พิชญ์',   hours: 16 },
-];
+const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const THAI_MONTHS_FULL  = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
-const TREND = [
-  { m: 'ธ.ค.', v: 85000 },
-  { m: 'ม.ค.', v: 92000 },
-  { m: 'ก.พ.', v: 88000 },
-  { m: 'มี.ค.', v: 105000 },
-  { m: 'เม.ย.', v: 98000 },
-  { m: 'พ.ค.', v: 120000 },
+/** แปลง YYYY-MM-DD → DD/MM/YYYY พ.ศ. */
+function fmtDate(s: string | null | undefined): string {
+  if (!s) return '-';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const day   = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year  = d.getUTCFullYear() + 543;
+  return `${day}/${month}/${year}`;
+}
+
+/** แปลง ISO datetime → DD/MM/YYYY พ.ศ. (local time) */
+function fmtDateTime(s: string | null | undefined): string {
+  if (!s) return '-';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const day   = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year  = d.getFullYear() + 543;
+  return `${day}/${month}/${year}`;
+}
+
+/** ตัดเวลาให้เหลือ HH:MM */
+function fmtTime(t: string | null | undefined): string {
+  if (!t) return '-';
+  return t.substring(0, 5);
+}
+
+const DASH_PERIODS = [
+  { value: 'month',   label: 'รายเดือน' },
+  { value: 'quarter', label: 'ไตรมาส' },
+  { value: 'half',    label: 'ครึ่งปีงบ' },
+  { value: 'year',    label: 'ปีงบประมาณ' },
 ];
 
 export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onBudgetRequest?: () => void }) {
-  const [kpi, setKpi] = useState<any>(null);
+  const _now = new Date();
+  const _curThaiYear = _now.getFullYear() + 543 + (_now.getMonth() >= 9 ? 1 : 0);
+  const _curMon = _now.getMonth() + 1;
+  const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
+
+  const [allRequests, setAllRequests] = useState<any[]>([]);
+  const [budget, setBudget]           = useState<number | null>(null);
+  const [period, setPeriod]           = useState('month');
+  const [selThaiYear, setSelThaiYear] = useState(String(_curThaiYear));
+  const [selMonth, setSelMonth]       = useState(String(_now.getMonth() + 1).padStart(2, '0'));
+  const [selQuarter, setSelQuarter]   = useState(_curQ);
+  const [loading, setLoading]         = useState(true);
+  const [noOtConfirm, setNoOtConfirm]     = useState(false);
+  const [noOtSending, setNoOtSending]     = useState(false);
+  const [noOtToast, setNoOtToast]         = useState<{ ok: boolean; msg: string } | null>(null);
+  // เก็บ set ของ "gregYear-month" ที่แจ้งไปแล้ว
+  const [noOtDeclared, setNoOtDeclared]   = useState<Set<string>>(new Set());
+
+  // ไม่ใช้ yearOptions แล้ว — เปลี่ยนเป็น input กรอกปีเอง
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    fetch('/api/ot-requests/', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        const arr: any[] = Array.isArray(d) ? d : (d?.results || []);
-        const pending  = arr.filter(r => r.status === 'submitted').length;
-        const approved = arr.filter(r => ['head_approved','rep_forwarded','checker_approved','completed'].includes(r.status)).length;
-        const totalBaht = arr.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
-        const staffMap: Record<string, number> = {};
-        arr.forEach((r: any) => {
-          const name = (r.staff_name || 'ไม่ระบุ').split(' ')[0];
-          staffMap[name] = (staffMap[name] || 0) + parseFloat(r.ot_hours || 0);
-        });
-        const top5 = Object.entries(staffMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
-          .map(([name, hours]) => ({ name, hours: Math.round(hours * 10) / 10 }));
-        setKpi({ pending, approved, totalBaht: Math.round(totalBaht), top5 });
-      }).catch(() => {});
+    const h = { 'Authorization': `Bearer ${token}` };
+    Promise.all([
+      fetch('/api/auth/me/', { headers: h }).then(r => r.ok ? r.json() : null),
+      fetch('/api/ot-requests/', { headers: h }).then(r => r.ok ? r.json() : null),
+      fetch('/api/checker/budget/', { headers: h }).then(r => r.ok ? r.json() : null),
+      fetch('/api/no-ot-declaration/', { headers: h }).then(r => r.ok ? r.json() : []),
+    ]).then(([me, d, budgets, declarations]) => {
+      const arr: any[] = Array.isArray(d) ? d : (d?.results || []);
+      setAllRequests(arr);
+      if (me && Array.isArray(budgets)) {
+        const myDept = budgets.find((b: any) => b.id === me.department);
+        if (myDept) setBudget(myDept.ot_budget || 0);
+      }
+      if (Array.isArray(declarations)) {
+        const keys = new Set<string>(declarations.map((dec: any) => `${dec.greg_year}-${dec.month}`));
+        setNoOtDeclared(keys);
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const chartData = kpi?.top5?.length ? kpi.top5 : TOP_OT;
+  // ── ฟังก์ชัน filter เดียวกับ HeadReport ────────────────────────────────
+  function inRangeDash(dateStr: string): boolean {
+    const d = new Date(dateStr);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const gregYear = parseInt(selThaiYear) - 543;
+    if (period === 'month') {
+      const monthNum = parseInt(selMonth);
+      const actualGregYear = monthNum >= 10 ? gregYear - 1 : gregYear;
+      return y === actualGregYear && m === monthNum;
+    } else if (period === 'quarter') {
+      const Q_MAP: Record<string, { months: number[]; year: number }[]> = {
+        '1': [{ months: [10,11,12], year: gregYear - 1 }],
+        '2': [{ months: [1,2,3],   year: gregYear }],
+        '3': [{ months: [4,5,6],   year: gregYear }],
+        '4': [{ months: [7,8,9],   year: gregYear }],
+      };
+      return (Q_MAP[selQuarter] || []).some(({ months, year }) => year === y && months.includes(m));
+    } else if (period === 'half') {
+      const h1 = (y === gregYear - 1 && m >= 10) || (y === gregYear && m <= 3);
+      const h2 = y === gregYear && m >= 4 && m <= 9;
+      return selQuarter === '1' ? h1 : h2;
+    } else {
+      return (y === gregYear - 1 && m >= 10) || (y === gregYear && m <= 9);
+    }
+  }
+
+  // คำนวณ KPI
+  const selArr    = allRequests.filter(r => r.work_date && inRangeDash(r.work_date));
+  const pending   = allRequests.filter(r => r.status === 'submitted').length;
+  // approved — filter ตาม period เดียวกัน
+  const approved  = selArr.filter(r => ['head_approved','rep_forwarded','checker_approved','completed'].includes(r.status)).length;
+  const totalBaht = selArr.reduce((s: number, r: any) =>
+    s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+
+  // งบประมาณสำหรับช่วงที่เลือก
+  const periodMultiplier = period === 'month' ? 1 : period === 'quarter' ? 3 : period === 'half' ? 6 : 12;
+  const periodBudget     = budget !== null ? budget * periodMultiplier : null;
+  const periodBudgetLabel = period === 'month' ? 'งบประมาณรายเดือน'
+    : period === 'quarter' ? `งบประมาณไตรมาส`
+    : period === 'half'    ? `งบประมาณครึ่งปี`
+    : `งบประมาณปีงบ`;
+
+  // Top5
+  const staffMap: Record<string, number> = {};
+  selArr.forEach((r: any) => {
+    const name = (r.staff_name || 'ไม่ระบุ').split(' ')[0];
+    staffMap[name] = (staffMap[name] || 0) + parseFloat(r.ot_hours || 0);
+  });
+  const chartData = Object.entries(staffMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([name, hours]) => ({ name, hours: Math.round(hours * 10) / 10 }));
+
+  // Trend — แสดงตามช่วงเวลาจริงของ period ที่เลือก
+  const gregYear = parseInt(selThaiYear) - 543;
+
+  function getPeriodMonths(): { year: number; month: number }[] {
+    if (period === 'month') {
+      // 6 เดือนย้อนหลังจากเดือนที่เลือก
+      const m = parseInt(selMonth);
+      const endYear = m >= 10 ? gregYear - 1 : gregYear;
+      return Array.from({ length: 6 }, (_, i) => {
+        const d2 = new Date(endYear, m - 1 - (5 - i), 1);
+        return { year: d2.getFullYear(), month: d2.getMonth() + 1 };
+      });
+    } else if (period === 'quarter') {
+      const Q: Record<string, { months: number[]; year: number }> = {
+        '1': { months: [10, 11, 12], year: gregYear - 1 },
+        '2': { months: [1, 2, 3],   year: gregYear },
+        '3': { months: [4, 5, 6],   year: gregYear },
+        '4': { months: [7, 8, 9],   year: gregYear },
+      };
+      const q = Q[selQuarter] || Q['1'];
+      return q.months.map(m => ({ year: q.year, month: m }));
+    } else if (period === 'half') {
+      if (selQuarter === '1') {
+        // ต.ค.(ปีก่อน) – มี.ค.(ปีนี้)
+        return [
+          { year: gregYear - 1, month: 10 }, { year: gregYear - 1, month: 11 }, { year: gregYear - 1, month: 12 },
+          { year: gregYear, month: 1 },  { year: gregYear, month: 2 },  { year: gregYear, month: 3 },
+        ];
+      } else {
+        // เม.ย. – ก.ย.
+        return [4, 5, 6, 7, 8, 9].map(m => ({ year: gregYear, month: m }));
+      }
+    } else {
+      // ปีงบ: ต.ค.(ปีก่อน) – ก.ย.(ปีนี้) = 12 เดือน
+      return [
+        { year: gregYear - 1, month: 10 }, { year: gregYear - 1, month: 11 }, { year: gregYear - 1, month: 12 },
+        ...Array.from({ length: 9 }, (_, i) => ({ year: gregYear, month: i + 1 })),
+      ];
+    }
+  }
+
+  const periodMonths = getPeriodMonths();
+  const trendMap: Record<string, number> = {};
+  periodMonths.forEach(({ year, month }) => {
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    trendMap[key] = 0;
+  });
+  allRequests.forEach((r: any) => {
+    const key = (r.work_date || '').substring(0, 7);
+    if (key in trendMap) {
+      trendMap[key] += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+    }
+  });
+  const trendData = Object.entries(trendMap).map(([k, v]) => ({
+    m: THAI_MONTHS_SHORT[parseInt(k.split('-')[1]) - 1], v,
+  }));
+  const trendTitle = period === 'month' ? 'แนวโน้ม OT 6 เดือนย้อนหลัง'
+    : period === 'quarter' ? `OT ไตรมาส ${selQuarter} (3 เดือน)`
+    : period === 'half' ? `OT ครึ่ง${selQuarter === '1' ? 'แรก' : 'หลัง'} (6 เดือน)`
+    : `OT ปีงบประมาณ ${selThaiYear} (12 เดือน)`;
+
+  const selMonthLabel = period === 'month'
+    ? `${THAI_MONTHS_FULL[parseInt(selMonth) - 1]} ${selThaiYear}`
+    : period === 'quarter' ? `ไตรมาส ${selQuarter} ปี ${selThaiYear}`
+    : period === 'half' ? `ครึ่ง${selQuarter === '1' ? 'แรก' : 'หลัง'} ปี ${selThaiYear}`
+    : `ปีงบ ${selThaiYear}`;
+  const overBudget = periodBudget !== null && periodBudget > 0 && totalBaht > periodBudget;
+
+  // ── แจ้งไม่มีOTเดือนนี้ ───────────────────────────────────────────────
+  async function handleDeclareNoOT() {
+    setNoOtSending(true);
+    const gregYear = parseInt(selThaiYear) - 543;
+    const month    = parseInt(selMonth);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch('/api/no-ot-declaration/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ greg_year: gregYear, month }),
+      });
+      if (res.status === 409) {
+        // ถือว่า declared แล้ว — ล็อกปุ่มด้วย
+        setNoOtDeclared(prev => new Set(prev).add(`${gregYear}-${month}`));
+        setNoOtToast({ ok: false, msg: 'แจ้งเดือนนี้ไปแล้ว' });
+      } else if (res.ok) {
+        setNoOtDeclared(prev => new Set(prev).add(`${gregYear}-${month}`));
+        setNoOtToast({ ok: true, msg: 'แจ้งสำเร็จ — ส่งการแจ้งเตือนไปยังตัวแทนฝ่ายและผู้ตรวจสอบแล้ว' });
+      } else {
+        setNoOtToast({ ok: false, msg: 'เกิดข้อผิดพลาด กรุณาลองใหม่' });
+      }
+    } catch {
+      setNoOtToast({ ok: false, msg: 'เกิดข้อผิดพลาด กรุณาลองใหม่' });
+    } finally {
+      setNoOtSending(false);
+      setNoOtConfirm(false);
+      setTimeout(() => setNoOtToast(null), 4000);
+    }
+  }
+
+  // card base style — ทุก card ใช้ h เท่ากัน
+  const card = 'bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between min-h-[140px]';
 
   return (
     <>
       <HeadBreadcrumb page="dashboard" />
-      <PageHeader title="Dashboard หัวหน้างาน" />
-      <div className="grid grid-cols-4 gap-5 mb-6">
-        <div className="bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between">
+      <PageHeader
+        title="Dashboard หัวหน้างาน"
+        right={
+          <div className="flex items-center gap-2">
+            <Select value={period} onValueChange={v => {
+              setPeriod(v);
+              // reset quarter default: ครึ่งปีงบ → ครึ่งแรก, ไตรมาส → ไตรมาสปัจจุบัน
+              if (v === 'half') setSelQuarter('1');
+              if (v === 'quarter') setSelQuarter(_curQ);
+            }}>
+              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DASH_PERIODS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              value={selThaiYear}
+              onChange={e => setSelThaiYear(e.target.value)}
+              className="w-[90px] text-center"
+              min={2560}
+              max={2599}
+            />
+            {period === 'month' && (
+              <Select value={selMonth} onValueChange={setSelMonth}>
+                <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {THAI_MONTHS_FULL.map((m, i) => (
+                    <SelectItem key={i} value={String(i + 1).padStart(2, '0')}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {(period === 'quarter' || period === 'half') && (
+              <Select value={selQuarter} onValueChange={setSelQuarter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {period === 'quarter'
+                    ? ['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)
+                    : [{ v:'1', l:'ครึ่งแรก (ต.ค.–มี.ค.)' },{ v:'2', l:'ครึ่งหลัง (เม.ย.–ก.ย.)' }]
+                        .map(h => <SelectItem key={h.v} value={h.v}>{h.l}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        }
+      />
+
+      {/* 4 KPI cards */}
+      <div className="grid grid-cols-4 gap-5 mb-4">
+        {/* card 1 — รออนุมัติ */}
+        <div className={card}>
           <p className="text-[12px] text-[var(--neutral-500)]">คำร้องรออนุมัติ</p>
-          <p className="text-[32px] font-bold text-orange-600 tabular-nums">{kpi?.pending ?? '—'}</p>
-          <Button size="sm" onClick={onGo} className="bg-tu-red text-white">ไปอนุมัติ <ChevronRight className="size-4 ml-1" /></Button>
+          <p className="text-[32px] font-bold text-orange-600 tabular-nums">{loading ? '—' : pending}</p>
+          <Button size="sm" onClick={onGo} className="bg-tu-red text-white">
+            ไปอนุมัติ <ChevronRight className="size-4 ml-1" />
+          </Button>
         </div>
-        <KpiCard label="อนุมัติแล้ว" value={<span className="text-success">{kpi?.approved ?? '—'}</span>} accent="green" />
-        <KpiCard label="ยอด OT รวมแผนก" value={<span className="text-tu-red">{kpi?.totalBaht != null ? kpi.totalBaht.toLocaleString() : '—'}</span>} hint="บาท" accent="red" />
-        <KpiCard label="คำร้องทั้งหมด" value={(kpi != null ? kpi.pending + kpi.approved : '—').toString()} hint="รายการ" accent="blue" />
-      </div>
 
-      <div className="grid grid-cols-2 gap-5 mb-6">
-        <SectionCard title="พนักงานที่ทำ OT สูงสุด 5 อันดับ">
-          <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT สะสม <strong>เดือนปัจจุบัน</strong> · หน่วย: ชั่วโมง (ชม.)</p>
-          <div className="h-[260px]"><ResponsiveContainer>
-            <BarChart data={chartData} layout="vertical" margin={{ left: 30, right: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" label={{ value: 'ชม.', position: 'insideRight', offset: -4, style: { fontSize: 11, fill: '#888' } }} />
-              <YAxis type="category" dataKey="name" />
-              <Tooltip formatter={(v: any) => [v + ' ชม.', 'ชั่วโมง OT']} />
-              <Bar dataKey="hours" fill="#B8001F" radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </ResponsiveContainer></div>
-        </SectionCard>
-        <SectionCard title="แนวโน้ม OT 6 เดือนย้อนหลัง">
-          <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT <strong>รายเดือน</strong> (บาท) ย้อนหลัง 6 เดือน</p>
-          <div className="h-[260px]"><ResponsiveContainer>
-            <LineChart data={TREND} margin={{ left: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="m" label={{ value: 'เดือน', position: 'insideBottom', offset: -4, style: { fontSize: 11, fill: '#888' } }} />
-              <YAxis tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} label={{ value: 'บาท', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11, fill: '#888' } }} />
-              <Tooltip formatter={(v: any) => [Number(v).toLocaleString() + ' บาท', 'ยอด OT']} />
-              <Line type="monotone" dataKey="v" stroke="#B8001F" strokeWidth={3} dot={{ r: 5, fill: '#FFD400' }} />
-            </LineChart>
-          </ResponsiveContainer></div>
-        </SectionCard>
-      </div>
+        {/* card 2 — อนุมัติแล้ว (ตาม period) */}
+        <div className={card}>
+          <div>
+            <p className="text-[12px] text-[var(--neutral-500)]">อนุมัติแล้ว</p>
+            <p className="text-[11px] text-[var(--neutral-400)]">{selMonthLabel}</p>
+          </div>
+          <p className="text-[32px] font-bold text-success tabular-nums">{loading ? '—' : approved}</p>
+          <p className="text-[11px] text-[var(--neutral-500)]">รายการ</p>
+        </div>
 
-      <div className="bg-tu-red-soft border border-tu-red rounded-xl p-4 flex items-start gap-3">
-        <AlertTriangle className="size-5 text-tu-red shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-tu-red">แผนกของคุณมียอด OT เกินงบประมาณที่ตั้งไว้</p>
-          <p className="text-[13px] mt-1">
-            ยอด OT เดือน พ.ค. 2569 สูงกว่าเพดาน <strong>15,000 บาท</strong>
-            {' '}— กรุณาดำเนินการขออนุมัติงบประมาณเพิ่มเติมตามขั้นตอนภายนอกระบบ
-            แล้วแจ้งผู้ตรวจสอบอัปเดตเพดานใหม่
+        {/* card 3 — ยอด OT รวมแผนก */}
+        <div className={card}>
+          <div>
+            <p className="text-[12px] text-[var(--neutral-500)]">ยอดรวม OT ของแผนก</p>
+            <p className="text-[11px] text-[var(--neutral-400)]">{selMonthLabel}</p>
+          </div>
+          <p className="text-[28px] font-bold text-tu-red tabular-nums">
+            {loading ? '—' : totalBaht.toLocaleString()}
           </p>
+          {periodBudget !== null && (
+            <div>
+              <div className="flex justify-between text-[11px] text-[var(--neutral-500)] mb-0.5">
+                <span>งบ {periodBudget.toLocaleString()} บาท</span>
+                <span>{periodBudget > 0 ? Math.min(100, Math.round(totalBaht / periodBudget * 100)) : 0}%</span>
+              </div>
+              <Progress value={periodBudget > 0 ? Math.min(100, Math.round(totalBaht / periodBudget * 100)) : 0} className="h-1.5" />
+            </div>
+          )}
         </div>
+
+        {/* card 4 — งบประมาณตาม period */}
+        <div className={card}>
+          <div>
+            <p className="text-[12px] text-[var(--neutral-500)]">{periodBudgetLabel}</p>
+            {period !== 'month' && budget !== null && (
+              <p className="text-[11px] text-[var(--neutral-400)]">{budget.toLocaleString()} บาท/เดือน × {periodMultiplier}</p>
+            )}
+          </div>
+          <p className="text-[28px] font-bold text-[var(--neutral-800)] tabular-nums">
+            {periodBudget !== null ? periodBudget.toLocaleString() : '—'}
+          </p>
+          <p className="text-[11px] text-[var(--neutral-500)]">บาท</p>
+        </div>
+      </div>
+
+      {/* alert banner ใต้ cards ทันที */}
+      {overBudget && (
+        <div className="bg-tu-red-soft border border-tu-red rounded-xl p-4 flex items-start gap-3 mb-5">
+          <AlertTriangle className="size-5 text-tu-red shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-tu-red">แผนกของคุณมียอด OT เกินงบประมาณที่ตั้งไว้</p>
+            <p className="text-[13px] mt-1">
+              ยอด OT ช่วง{selMonthLabel} สูงกว่าเพดาน <strong>{periodBudget!.toLocaleString()} บาท</strong>
+              {' '}— กรุณาดำเนินการขออนุมัติงบประมาณเพิ่มเติมตามขั้นตอนภายนอกระบบ
+              แล้วแจ้งผู้ตรวจสอบอัปเดตเพดานใหม่
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* แจ้งไม่มี OT เดือนนี้ — แสดงเมื่อ period=month */}
+      {period === 'month' && (() => {
+        const gregYear = parseInt(selThaiYear) - 543;
+        const declaredKey = `${gregYear}-${parseInt(selMonth)}`;
+        const alreadyDeclared = noOtDeclared.has(declaredKey);
+        return alreadyDeclared ? (
+          <div className="flex items-center gap-3 bg-green-50 border border-green-300 rounded-xl px-5 py-4 mb-5">
+            <CheckCircle2 className="size-6 text-green-600 shrink-0" />
+            <div>
+              <p className="text-[14px] font-semibold text-green-800">แจ้งไม่มี OT เดือนนี้เรียบร้อยแล้ว</p>
+              <p className="text-[12px] text-green-700 mt-0.5">ตัวแทนฝ่ายและผู้ตรวจสอบได้รับแจ้งแล้ว</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between bg-orange-50 border border-orange-300 rounded-xl px-5 py-4 mb-5">
+            <div className="flex items-center gap-3">
+              <Send className="size-5 text-orange-500 shrink-0" />
+              <div>
+                <p className="text-[14px] font-semibold text-orange-800">แผนกไม่มีการทำ OT เดือนนี้?</p>
+                <p className="text-[12px] text-orange-700 mt-0.5">กดปุ่มเพื่อแจ้งตัวแทนฝ่ายและผู้ตรวจสอบ</p>
+              </div>
+            </div>
+            <Button
+              className="gap-2 bg-orange-500 hover:bg-orange-600 text-white shrink-0 ml-4"
+              onClick={() => setNoOtConfirm(true)}
+            >
+              <Send className="size-4" />
+              แจ้งไม่มี OT เดือนนี้
+            </Button>
+          </div>
+        );
+      })()}
+
+      {/* toast — บนกลาง */}
+      {noOtToast && (
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-xl shadow-xl text-white text-[13px] whitespace-nowrap ${noOtToast.ok ? 'bg-green-600' : 'bg-red-600'}`}>
+          {noOtToast.ok ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertTriangle className="size-5 shrink-0" />}
+          {noOtToast.msg}
+        </div>
+      )}
+
+      {/* confirm dialog */}
+      <Dialog open={noOtConfirm} onOpenChange={setNoOtConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>แจ้งไม่มีOTประจำเดือน</DialogTitle>
+          </DialogHeader>
+          <p className="text-[14px] text-[var(--neutral-600)]">
+            ยืนยันการแจ้งว่าแผนกของคุณ<strong>ไม่มีการทำ OT</strong>ประจำเดือน
+            <strong> {THAI_MONTHS_FULL[parseInt(selMonth) - 1]} {selThaiYear}</strong>
+          </p>
+          <p className="text-[12px] text-[var(--neutral-500)]">
+            ระบบจะส่งการแจ้งเตือนไปยังตัวแทนฝ่ายและผู้ตรวจสอบโดยอัตโนมัติ
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoOtConfirm(false)} disabled={noOtSending}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleDeclareNoOT}
+              disabled={noOtSending}
+              className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
+            >
+              <Send className="size-4" />
+              {noOtSending ? 'กำลังส่ง...' : 'ยืนยันแจ้ง'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* charts */}
+      <div className="grid grid-cols-2 gap-5">
+        <SectionCard title="พนักงานที่ทำ OT สูงสุด 5 อันดับ">
+          <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT สะสม <strong>{selMonthLabel}</strong> · หน่วย: ชั่วโมง (ชม.)</p>
+          <div className="h-[220px]">
+            {chartData.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-[var(--neutral-400)] text-[13px]">
+                ยังไม่มีข้อมูล OT เดือนนี้
+              </div>
+            ) : (
+              <ResponsiveContainer>
+                <BarChart data={chartData} layout="vertical" margin={{ left: 30, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" />
+                  <Tooltip formatter={(v: any) => [v + ' ชม.', 'ชั่วโมง OT']} />
+                  <Bar dataKey="hours" fill="#B8001F" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </SectionCard>
+        <SectionCard title={trendTitle}>
+          <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT <strong>รายเดือน</strong> (บาท) · {selMonthLabel}</p>
+          <div className="h-[220px]">
+            {loading ? (
+              <div className="flex items-center justify-center h-full text-[var(--neutral-400)] text-[13px]">กำลังโหลด...</div>
+            ) : (
+              <ResponsiveContainer>
+                <LineChart data={trendData} margin={{ left: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="m" />
+                  <YAxis tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString() + ' บาท', 'ยอด OT']} />
+                  <Line type="monotone" dataKey="v" stroke="#B8001F" strokeWidth={3} dot={{ r: 5, fill: '#FFD400' }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </SectionCard>
       </div>
     </>
   );
@@ -265,11 +639,11 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                         <span>{r.staff_name || '—'}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2">{r.work_date}</td>
+                    <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                     <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                     <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
                     <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
-                    <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
+                    <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDateTime(r.created_at)}</td>
                     <td className="px-3 py-2 flex gap-1">
                       <Button size="sm" className="bg-success text-white h-7" onClick={async () => {
                         await fetch(`/api/ot-requests/${r.id}/approve/`, {
@@ -520,9 +894,9 @@ export function HeadHistory() {
                   const note = r.head_note || r.checker_note || '—';
                   return (
                     <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
-                      <td className="px-3 py-2">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
+                      <td className="px-3 py-2">{fmtDateTime(r.created_at)}</td>
                       <td className="px-3 py-2 font-medium">{r.staff_name || '—'}</td>
-                      <td className="px-3 py-2">{r.work_date}</td>
+                      <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                       <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                       <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
                       <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
@@ -544,7 +918,7 @@ export function HeadMembers() {
   const [members, setMembers] = useState<any[]>([]);
   const [otMap, setOtMap] = useState<Record<number, any[]>>({});
   const [deptName, setDeptName] = useState('');
-  const [selected, setSelected] = useState<number | null>(null);
+  const [detailMember, setDetailMember] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const token = () => localStorage.getItem('access_token');
   const headers = { 'Authorization': `Bearer ${token()}` };
@@ -567,7 +941,7 @@ export function HeadMembers() {
           if (!map[r.staff]) map[r.staff] = [];
           map[r.staff].push(r);
         }
-        setMembers(userList.filter((u: any) => u.role === 'staff'));
+        setMembers(userList.filter((u: any) => ['staff', 'depthead'].includes(u.role)));
         setOtMap(map);
       })
       .catch(() => {})
@@ -577,8 +951,6 @@ export function HeadMembers() {
   const totalHours = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + parseFloat(r.ot_hours || 0), 0), 0);
   const totalAmt   = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0), 0);
   const hasOt      = members.filter(m => (otMap[m.id] || []).length > 0).length;
-  const selectedMember = members.find(m => m.id === selected);
-  const selectedOtList = selected !== null ? (otMap[selected] || []) : [];
 
   if (loading) return (
     <div className="flex items-center justify-center h-60 gap-3 text-[var(--neutral-500)]">
@@ -587,6 +959,92 @@ export function HeadMembers() {
     </div>
   );
 
+  // ─── Subpage: รายละเอียด OT ของสมาชิก ───────────────────────────────────
+  if (detailMember) {
+    const reqs = otMap[detailMember.id] || [];
+    const totalDetailAmt = reqs.reduce((s: number, r: any) =>
+      s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+
+    return (
+      <>
+        <HeadBreadcrumb page="members" />
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="outline" className="gap-2 shrink-0" onClick={() => setDetailMember(null)}>
+            <ChevronRight className="size-4 rotate-180" />ย้อนกลับ
+          </Button>
+          <Avatar className="size-10 shrink-0">
+            {detailMember.profile_image && <AvatarImage src={detailMember.profile_image} alt={detailMember.first_name} className="object-cover" />}
+            <AvatarFallback className="bg-tu-yellow text-black font-bold">
+              {(detailMember.first_name || '?').charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h1 className="text-[20px] font-bold">
+              OT ของ {detailMember.first_name} {detailMember.last_name}
+            </h1>
+            <p className="text-[12px] text-[var(--neutral-500)]">
+              {detailMember.employee_id || detailMember.username} · {deptName}
+            </p>
+          </div>
+        </div>
+
+        {reqs.length === 0 ? (
+          <div className="text-center py-20 text-[var(--neutral-400)]">
+            <Clock className="size-12 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">ยังไม่มีคำขอ OT</p>
+          </div>
+        ) : (
+          <SectionCard>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[13px] text-[var(--neutral-500)]">{reqs.length} รายการ</p>
+              <p className="font-bold text-tu-red text-[16px]">รวม {totalDetailAmt.toLocaleString()} บาท</p>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
+              <table className="w-full text-[13px]">
+                <thead className="bg-tu-red text-white">
+                  <tr>{['วันที่','ประเภท','เริ่ม','สิ้นสุด','ชม.','จำนวนเงิน','สถานะ'].map(h => (
+                    <th key={h} className="text-left px-3 py-3">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {reqs.sort((a: any, b: any) => b.work_date.localeCompare(a.work_date)).map((r: any) => {
+                    const st  = STATUS_HIST[r.status] || { kind: 'neutral' as const, label: r.status };
+                    const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+                    return (
+                      <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
+                        <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
+                        <td className="px-3 py-2">
+                          <StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>
+                            {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
+                          </StatusChip>
+                        </td>
+                        <td className="px-3 py-2 font-mono">{fmtTime(r.start_time)}</td>
+                        <td className="px-3 py-2 font-mono">{fmtTime(r.end_time)}</td>
+                        <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours || 0))}</td>
+                        <td className="px-3 py-2 font-mono font-semibold text-tu-red">
+                          {amt.toLocaleString()} บาท
+                        </td>
+                        <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--neutral-300)] bg-[var(--neutral-50)]">
+                    <td colSpan={5} className="px-3 py-2 font-semibold text-right">รวมทั้งสิ้น</td>
+                    <td className="px-3 py-2 font-bold text-tu-red">{totalDetailAmt.toLocaleString()} บาท</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </SectionCard>
+        )}
+      </>
+    );
+  }
+
+  // ─── Member list ─────────────────────────────────────────────────────────
   return (
     <>
       <HeadBreadcrumb page="members" />
@@ -606,9 +1064,12 @@ export function HeadMembers() {
             const hrs  = reqs.reduce((s: number, r: any) => s + parseFloat(r.ot_hours || 0), 0);
             const amt  = reqs.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
             return (
-              <div key={m.id} className={`bg-white border rounded-xl p-5 text-center shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors ${selected === m.id ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)]'}`}>
+              <div key={m.id} className="bg-white border border-[var(--neutral-300)] rounded-xl p-5 text-center shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
                 <Avatar className="size-20 mx-auto mb-3">
-                  <AvatarFallback className="bg-tu-yellow text-black text-2xl">{(m.first_name || m.username || '?').charAt(0)}</AvatarFallback>
+                  {m.profile_image && <AvatarImage src={m.profile_image} alt={m.first_name} className="object-cover" />}
+                  <AvatarFallback className="bg-tu-yellow text-black text-2xl">
+                    {(m.first_name || m.username || '?').charAt(0)}
+                  </AvatarFallback>
                 </Avatar>
                 <h4 className="text-[14px] font-semibold">{m.first_name} {m.last_name}</h4>
                 <p className="text-[11px] text-[var(--neutral-500)] mb-0.5">{m.employee_id || m.username}</p>
@@ -618,72 +1079,15 @@ export function HeadMembers() {
                 }
                 <Button
                   size="sm"
-                  variant={selected === m.id ? 'default' : 'outline'}
-                  className={`w-full ${selected === m.id ? 'bg-tu-red text-white' : 'border-tu-red text-tu-red'}`}
-                  onClick={() => setSelected(selected === m.id ? null : m.id)}
-                  disabled={reqs.length === 0}
+                  variant="outline"
+                  className="w-full border-tu-red text-tu-red"
+                  onClick={() => setDetailMember(m)}
                 >
-                  {selected === m.id ? 'ซ่อน OT' : 'ดู OT'}
+                  ดู OT
                 </Button>
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* OT detail panel */}
-      {selectedMember && (
-        <div className="mt-6 bg-white border border-[var(--neutral-300)] rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
-          <div className="bg-tu-red text-white px-5 py-3 flex items-center justify-between">
-            <h3 className="text-white">รายละเอียด OT — {selectedMember.first_name} {selectedMember.last_name}</h3>
-            <button onClick={() => setSelected(null)} className="text-white opacity-70 hover:opacity-100">
-              <X className="size-5" />
-            </button>
-          </div>
-          <div className="p-5">
-            {selectedOtList.length === 0
-              ? <p className="text-center text-[var(--neutral-500)] py-8">ไม่มีข้อมูล OT</p>
-              : (
-                <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
-                  <table className="w-full text-[13px]">
-                    <thead className="bg-[var(--neutral-100)]">
-                      <tr>{['วันที่','ประเภท','เริ่ม','สิ้นสุด','ชม.','อัตรา','จำนวนเงิน','สถานะ'].map(h => (
-                        <th key={h} className="text-left px-3 py-2 text-[var(--neutral-700)]">{h}</th>
-                      ))}</tr>
-                    </thead>
-                    <tbody>
-                      {selectedOtList.map((r: any) => {
-                        const rate = r.day_type === 'holiday' ? 70 : 60;
-                        const hrs = parseFloat(r.ot_hours || 0);
-                        const st = STATUS_HIST[r.status] || { kind: 'neutral' as const, label: r.status };
-                        return (
-                          <tr key={r.id} className="border-t border-[var(--neutral-300)]">
-                            <td className="px-3 py-2">{r.work_date}</td>
-                            <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
-                            <td className="px-3 py-2 font-mono">{r.start_time || '-'}</td>
-                            <td className="px-3 py-2 font-mono">{r.end_time || '-'}</td>
-                            <td className="px-3 py-2 font-mono">{Math.floor(hrs)}</td>
-                            <td className="px-3 py-2 font-mono">{rate} บาท/ชม.</td>
-                            <td className="px-3 py-2 font-mono font-semibold text-tu-red">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
-                            <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-[var(--neutral-300)] bg-[var(--neutral-50)]">
-                        <td colSpan={6} className="px-3 py-2 font-semibold text-right">รวมทั้งสิ้น</td>
-                        <td className="px-3 py-2 font-bold text-tu-red">
-                          {selectedOtList.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0).toLocaleString()} บาท
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )
-            }
-          </div>
         </div>
       )}
     </>
@@ -856,7 +1260,7 @@ export function HeadReport() {
       setHeadName(fullName);
       setSignatoryName(fullName);
       const all: any[] = Array.isArray(otData) ? otData : (otData.results || []);
-      setRequests(all.filter(r => r.status !== 'submitted'));
+      setRequests(all);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -920,12 +1324,14 @@ export function HeadReport() {
               <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
               <SelectContent>{HEAD_REPORT_PERIODS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={thaiYear} onValueChange={setThaiYear}>
-              <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {[0,1,2].map(d => <SelectItem key={d} value={String(curThaiYear - d)}>ปี {curThaiYear - d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Input
+              type="number"
+              value={thaiYear}
+              onChange={e => setThaiYear(e.target.value)}
+              className="w-[90px] text-center"
+              min={2560}
+              max={2599}
+            />
             {period === 'month' && (
               <Select value={thaiMonth} onValueChange={setThaiMonth}>
                 <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
@@ -950,24 +1356,6 @@ export function HeadReport() {
               disabled={loading || filtered.length === 0}
             >
               <Download className="size-4 mr-1" />Export Excel
-            </Button>
-            <Button
-              variant="outline"
-              disabled={loading || requests.length === 0}
-              onClick={() => {
-                const tok = localStorage.getItem('access_token');
-                fetch('/api/head/report/pdf/', { headers: { 'Authorization': `Bearer ${tok}` } })
-                  .then(r => r.blob())
-                  .then(blob => {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `OT-Report-${deptName}.pdf`;
-                    a.click();
-                    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-                  });
-              }}
-            >
-              <Download className="size-4 mr-1" />Export PDF
             </Button>
           </div>
         }

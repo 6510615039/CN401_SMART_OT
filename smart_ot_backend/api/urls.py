@@ -12,10 +12,11 @@ router.register('audit-log',      views.AuditLogViewSet,      basename='audit-lo
 
 urlpatterns = [
     # Auth
-    path('auth/login/',   views.login_view),
-    path('auth/refresh/', views.refresh_token_view),
-    path('auth/me/',      views.me_view),
-    path('auth/logout/',  views.logout_view),
+    path('auth/login/',      views.login_view),
+    path('auth/refresh/',    views.refresh_token_view),
+    path('auth/me/',         views.me_view),
+    path('auth/me/update/',  views.me_update_view),
+    path('auth/logout/',     views.logout_view),
 
     # Settings & Import
     path('settings/',       views.settings_view),
@@ -40,6 +41,8 @@ urlpatterns = [
     path('notifications/',                      views.notification_list_view),
     path('notifications/<int:pk>/read/',        views.notification_mark_read_view),
     path('notifications/mark-all-read/',        views.notification_mark_all_read_view),
+    # No-OT Declaration
+    path('no-ot-declaration/',                  views.no_ot_declaration_view),
     # Checker
     path('checker/budget/',                     views.checker_budget_view),
     path('checker/no-ot-departments/',          views.no_ot_departments_view),

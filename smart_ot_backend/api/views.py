@@ -12,7 +12,7 @@ import openpyxl
 from .models import (
     User, Department, OTRequest, Holiday,
     SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline,
-    Notification,
+    Notification, NoOTDeclaration,
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -224,6 +224,21 @@ def refresh_token_view(request):
 @permission_classes([IsAuthenticated])
 def me_view(request):
     return Response(UserSerializer(request.user).data)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def me_update_view(request):
+    user = request.user
+    profile_image = request.data.get('profile_image', '')
+    if profile_image:
+        # รับ base64 data URL เช่น "data:image/jpeg;base64,..."
+        # จำกัดขนาดไม่เกิน 5MB (base64 ~4/3 ของขนาดจริง)
+        if len(profile_image) > 7 * 1024 * 1024:
+            return Response({'error': 'image too large'}, status=400)
+        user.profile_image = profile_image
+        user.save(update_fields=['profile_image'])
+    return Response({'status': 'ok', 'profile_image': user.profile_image})
 
 
 @api_view(['POST'])
@@ -1841,4 +1856,70 @@ def head_report_pdf_view(request):
         return resp
 
     except ImportError:
-        return Response({'error': 'reportlab ไม่ได้ติดตั้ง: pip install reportlab'}, status=500)
+        return Response({'error': 'reportlab not installed: pip install reportlab'}, status=500)
+
+
+# -- No-OT Declaration ---
+
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def no_ot_declaration_view(request):
+    user = request.user
+
+    if request.method == 'GET':
+        dept = getattr(user, 'department', None)
+        qs = NoOTDeclaration.objects.filter(department=dept).order_by('-greg_year', '-month')[:24]
+        data = [{
+            'id': d.id,
+            'greg_year': d.greg_year,
+            'month': d.month,
+            'note': d.note,
+            'declared_by': d.declared_by.get_full_name(),
+            'created_at': d.created_at.isoformat(),
+        } for d in qs]
+        return Response(data)
+
+    effective_role = get_effective_role(user, request)
+    if effective_role != 'depthead':
+        return Response({'error': 'depthead only'}, status=403)
+
+    greg_year = request.data.get('greg_year')
+    month     = request.data.get('month')
+    note      = request.data.get('note', '')
+
+    if not greg_year or not month:
+        return Response({'error': 'greg_year and month required'}, status=400)
+
+    dept = getattr(user, 'department', None)
+    if not dept:
+        return Response({'error': 'no department'}, status=400)
+
+    decl, created = NoOTDeclaration.objects.get_or_create(
+        department=dept,
+        greg_year=int(greg_year),
+        month=int(month),
+        defaults={'declared_by': user, 'note': note},
+    )
+    if not created:
+        return Response({'error': 'already declared', 'id': decl.id}, status=409)
+
+    thai_year = int(greg_year) + 543
+    month_int = int(month)
+    msg = f'[{dept.name}] {user.get_full_name()} declared no OT month {month_int}/{thai_year}'
+
+    deptreps   = User.objects.filter(role='deptrep', is_active=True, department=dept)
+    checkers   = User.objects.filter(role='checker', is_active=True)
+    recipients = (deptreps | checkers).distinct()
+
+    for recipient in recipients:
+        Notification.objects.create(
+            recipient=recipient,
+            message=msg,
+            notif_type='no_ot_declared',
+        )
+
+    return Response({
+        'id': decl.id,
+        'message': msg,
+        'notified': recipients.count(),
+    }, status=201)

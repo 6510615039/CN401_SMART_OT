@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { Bell, ChevronDown, LogOut, User as UserIcon, CheckCheck } from 'lucide-react';
 import { Role, ROLE_INFO, ROLE_BADGE, TUWordmark } from './shared';
 import { NotificationItem } from '../App';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { cn } from './ui/utils';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -57,6 +57,7 @@ const ROLE_LABELS: Record<Role, string> = {
 export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead }: Props) {
   const fallback = ROLE_INFO[role];
   const [userInfo, setUserInfo] = useState<{ name: string; dept: string; empId: string } | null>(null);
+  const [profileImage, setProfileImage] = useState<string>(() => localStorage.getItem('profile_image_cache') || '');
   const unread = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
@@ -65,14 +66,31 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
     fetch('/api/auth/me/', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d) setUserInfo({
-          name: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.username,
-          dept: d.department_name || d.department || fallback.dept,
-          empId: d.employee_id || d.username,
-        });
+        if (d) {
+          setUserInfo({
+            name: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.username,
+            dept: d.department_name || d.department || fallback.dept,
+            empId: d.employee_id || d.username,
+          });
+          // อัปเดต profile image จาก backend
+          if (d.profile_image) {
+            setProfileImage(d.profile_image);
+            localStorage.setItem('profile_image_cache', d.profile_image);
+          }
+        }
       })
       .catch(() => {});
   }, [role]);
+
+  // รับ event เมื่อ StaffProfile อัปโหลดรูปใหม่
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const img = (e as CustomEvent).detail as string;
+      if (img) setProfileImage(img);
+    };
+    window.addEventListener('profile-image-changed', handler);
+    return () => window.removeEventListener('profile-image-changed', handler);
+  }, []);
 
   const info = userInfo ?? fallback;
 
@@ -151,6 +169,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--neutral-100)]">
                 <Avatar className="size-9">
+                  {profileImage && <AvatarImage src={profileImage} alt="profile" className="object-cover" />}
                   <AvatarFallback className="bg-tu-yellow text-black font-bold">{info.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="text-left hidden md:block">

@@ -24,7 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'full_name', 'first_name', 'last_name',
             'email', 'employee_id', 'role', 'extra_roles', 'available_roles',
             'department', 'department_name',
-            'phone', 'notify_email', 'is_active',
+            'phone', 'notify_email', 'profile_image', 'is_active',
         ]
 
     def get_full_name(self, obj):
