@@ -127,8 +127,4 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'recipient', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
-        read_only_fields = ['created_at']ds = ['id', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
-=======
-        fields = ['id', 'recipient', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
         read_only_fields = ['created_at']
->>>>>>> origin/zonda
