@@ -11,7 +11,8 @@ from django.contrib.auth import authenticate
 import openpyxl
 from .models import (
     User, Department, OTRequest, Holiday,
-    SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline
+    SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline,
+    Notification,
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -91,8 +92,11 @@ def log_action(user, action, model_name='', object_id='', detail='', request=Non
 def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
     """
     สร้างหรืออัปเดต User จากข้อมูล TU Auth
-    - ถ้ามีอยู่แล้ว: อัปเดตชื่อ/email/dept (คง role เดิม)
-    - ถ้าใหม่: สร้างด้วย role='staff' (admin เปลี่ยน role ทีหลังได้)
+    ลำดับการค้นหา:
+      1. หาจาก email (ตรงกับ user ที่ import จากไฟล์ 07 ซึ่งมี email_tu)
+      2. หาจาก TU username
+      3. ถ้าไม่เจอ: สร้างใหม่ด้วย role='staff'
+    คง role เดิมเสมอ ไม่ overwrite
     """
     username = tu_data.get('username', '').strip()
     if not username:
@@ -108,18 +112,30 @@ def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
         'email':      tu_data.get('email', ''),
         'is_active':  True,
     }
-    # กำหนด dept เฉพาะกรณีมีข้อมูล
     if dept:
         defaults['department'] = dept
 
     try:
-        user, created = User.objects.get_or_create(username=username, defaults={
-            **defaults, 'role': 'staff',
-        })
-        if not created:
+        email = tu_data.get('email', '').strip()
+
+        # 1) หาจาก email ก่อน (user ที่ import จากไฟล์ 07 มี email_tu ตรงกัน)
+        user = None
+        if email:
+            user = User.objects.filter(email__iexact=email).first()
+
+        # 2) หาจาก TU username
+        if not user:
+            user = User.objects.filter(username=username).first()
+
+        if user:
             # อัปเดตชื่อ/email/dept แต่ไม่เปลี่ยน role
             for k, v in defaults.items():
                 setattr(user, k, v)
+            user.save()
+        else:
+            # สร้างใหม่ด้วย role='staff'
+            user = User(username=username, role='staff', **defaults)
+            user.set_unusable_password()
             user.save()
         return user
     except Exception as e:

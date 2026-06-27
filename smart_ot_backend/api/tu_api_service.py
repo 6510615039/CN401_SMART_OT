@@ -56,8 +56,12 @@ def _effective_key() -> str:
 
 def _is_enabled() -> bool:
     s = _get_settings()
-    # ถ้าไม่มี SystemSettings หรือยังไม่ได้ตั้งค่า ให้ถือว่าเปิดใช้เสมอ
+    # ถ้าไม่มี SystemSettings → เปิดใช้เสมอ
     if s is None:
+        return True
+    # ถ้ามี API key จาก environment variable → เปิดใช้เสมอ (ข้าม DB flag)
+    # เพราะ tu_api_enabled default=False แต่เรามี key ใน .env แล้ว
+    if _DEFAULT_TU_API_KEY:
         return True
     return bool(s.tu_api_enabled)
 
