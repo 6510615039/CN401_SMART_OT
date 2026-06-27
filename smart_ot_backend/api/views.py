@@ -10,7 +10,7 @@ from django.contrib.auth import authenticate
 import openpyxl
 from .models import (
     User, Department, OTRequest, Holiday,
-    SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline
+    SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline, Notification
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -31,6 +31,73 @@ def get_effective_role(user, request):
         if acting_as in available:
             return acting_as
     return user.role
+
+
+def _notify(recipient, notif_type, ot_request, message):
+    """สร้าง in-app notification + ส่ง email (fail-silent)"""
+    from django.core.mail import send_mail
+    from django.conf import settings as djsettings
+    try:
+        Notification.objects.create(
+            recipient=recipient,
+            notif_type=notif_type,
+            ot_request=ot_request,
+            message=message,
+        )
+    except Exception:
+        pass
+    # ส่ง email
+    email_to = recipient.notify_email or recipient.email
+    if email_to:
+        try:
+            send_mail(
+                f'[SMART OT] {message[:60]}',
+                f'{message}\n\nกรุณาเข้าสู่ระบบ SMART OT เพื่อดำเนินการ',
+                djsettings.DEFAULT_FROM_EMAIL,
+                [email_to],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+
+
+def _notify_ot_status_change(ot, new_status, actor):
+    """แจ้งเตือนผู้ที่เกี่ยวข้องเมื่อสถานะคำร้อง OT เปลี่ยน"""
+    staff = ot.staff
+    staff_name = staff.get_full_name()
+    date_str = str(ot.work_date)
+
+    if new_status == 'head_approved':
+        # แจ้งพนักงาน + แจ้ง deptrep ทุกคนในแผนก
+        _notify(staff, 'ot_head_approved', ot,
+                f'คำร้อง OT วันที่ {date_str} ได้รับอนุมัติจากหัวหน้างานแล้ว')
+        for rep in User.objects.filter(role='deptrep', department=ot.department, is_active=True):
+            _notify(rep, 'ot_head_approved', ot,
+                    f'{staff_name} — คำร้อง OT วันที่ {date_str} ผ่านอนุมัติจากหัวหน้างาน รอส่งต่อ')
+
+    elif new_status == 'head_rejected':
+        _notify(staff, 'ot_head_rejected', ot,
+                f'คำร้อง OT วันที่ {date_str} ถูกตีกลับจากหัวหน้างาน: {ot.head_note}')
+
+    elif new_status == 'rep_forwarded':
+        # แจ้ง checker ทุกคน
+        for checker in User.objects.filter(role='checker', is_active=True):
+            _notify(checker, 'ot_rep_forwarded', ot,
+                    f'{staff_name} ({ot.department.name}) — คำร้อง OT วันที่ {date_str} ส่งต่อมาจากตัวแทนฝ่าย')
+
+    elif new_status == 'checker_approved':
+        _notify(staff, 'ot_checker_approved', ot,
+                f'คำร้อง OT วันที่ {date_str} ได้รับอนุมัติจากผู้ตรวจสอบแล้ว')
+
+    elif new_status == 'checker_rejected':
+        _notify(staff, 'ot_checker_rejected', ot,
+                f'คำร้อง OT วันที่ {date_str} ถูกตีกลับจากผู้ตรวจสอบ: {ot.checker_note}')
+
+    elif new_status == 'submitted':
+        # แจ้งหัวหน้างานในแผนก
+        for head in User.objects.filter(role='depthead', department=ot.department, is_active=True):
+            _notify(head, 'ot_submitted', ot,
+                    f'{staff_name} ยื่นคำร้อง OT วันที่ {date_str} รออนุมัติ')
 
 
 def _send_checker_notification(ot_list, note, sender):
@@ -89,36 +156,48 @@ def log_action(user, action, model_name='', object_id='', detail='', request=Non
 
 def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
     """
-    สร้างหรืออัปเดต User จากข้อมูล TU Auth
-    - ถ้ามีอยู่แล้ว: อัปเดตชื่อ/email/dept (คง role เดิม)
-    - ถ้าใหม่: สร้างด้วย role='staff' (admin เปลี่ยน role ทีหลังได้)
+    ค้นหา User ที่มีอยู่แล้วในระบบจากข้อมูล TU Auth
+    ไม่สร้างใหม่ — ถ้าไม่เจอจะคืน None (admin ต้องสร้างให้ก่อน)
+    ลำดับการค้นหา:
+      1. username ตรง (เช่น รหัส 6410525023)
+      2. email ตรง (@tu.ac.th หรือ @reg.tu.ac.th)
+      3. email prefix เป็น username
+      4. employee_id ตรง
     """
-    from .tu_api_service import get_or_create_dept
     username = tu_data.get('username', '').strip()
     if not username:
         return None
 
-    dept = get_or_create_dept(tu_data.get('dept_name', ''))
-    defaults = {
-        'first_name': tu_data.get('first_name', ''),
-        'last_name':  tu_data.get('last_name', ''),
-        'email':      tu_data.get('email', ''),
-        'is_active':  True,
-    }
-    # กำหนด dept เฉพาะกรณีมีข้อมูล
-    if dept:
-        defaults['department'] = dept
+    tu_email = tu_data.get('email', '').strip().lower()
 
     try:
-        user, created = User.objects.get_or_create(username=username, defaults={
-            **defaults, 'role': 'staff',
-        })
-        if not created:
-            # อัปเดตชื่อ/email/dept แต่ไม่เปลี่ยน role
-            for k, v in defaults.items():
-                setattr(user, k, v)
+        user = User.objects.filter(username=username).first()
+        if not user and tu_email:
+            user = (User.objects.filter(email__iexact=tu_email).first()
+                    or User.objects.filter(notify_email__iexact=tu_email).first())
+            if not user:
+                prefix = tu_email.split('@')[0]
+                user = User.objects.filter(username=prefix).first()
+        if not user:
+            user = User.objects.filter(employee_id=username).first()
+
+        if not user:
+            return None
+
+        # อัปเดตชื่อ/email จาก TU API (คง role/dept เดิม)
+        changed = False
+        for field in ['first_name', 'last_name']:
+            val = tu_data.get(field, '').strip()
+            if val and getattr(user, field) != val:
+                setattr(user, field, val)
+                changed = True
+        if tu_email and not user.email:
+            user.email = tu_email
+            changed = True
+        if changed:
             user.save()
         return user
+
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f'auto_create_user_from_tu: {e}')
@@ -155,7 +234,7 @@ def login_view(request):
     if tu_data:
         user = _auto_create_user_from_tu(tu_data)
         if not user:
-            return Response({'error': 'ไม่สามารถสร้างบัญชีในระบบได้ กรุณาติดต่อผู้ดูแลระบบ'}, status=500)
+            return Response({'error': 'ยืนยันตัวตนสำเร็จ แต่ไม่พบบัญชีในระบบ SMART OT กรุณาติดต่อแอดมินเพื่อเปิดสิทธิ์การใช้งาน'}, status=403)
 
     # ── ขั้นตอน 2: Local Auth (fallback) ──────────────────────────────
     if not user:
@@ -218,6 +297,7 @@ def logout_view(request):
 
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+    pagination_class = None
     queryset = User.objects.all().order_by('id')
 
     def get_serializer_class(self):
@@ -320,10 +400,19 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         is_weekend = work_date.weekday() >= 5
         day_type = 'holiday' if (is_holiday or is_weekend) else 'weekday'
 
+        # ตัดเศษนาที — ใช้เฉพาะชั่วโมงเต็ม
+        ot_hours = int(float(serializer.validated_data.get('ot_hours', 0)))
+
+        # Hardcode เพดาน: วันธรรมดา 4 ชม., วันหยุด 7 ชม.
+        MAX_WEEKDAY = 4
+        MAX_HOLIDAY = 7
+        max_hours = MAX_HOLIDAY if day_type == 'holiday' else MAX_WEEKDAY
+        if ot_hours > max_hours:
+            ot_hours = max_hours
+
         # คำนวณค่าตอบแทน: วันธรรมดา 60 บาท/ชม. วันหยุด 70 บาท/ชม.
-        ot_hours = serializer.validated_data.get('ot_hours', 0)
         hourly_rate = 70 if day_type == 'holiday' else 60
-        amount = float(ot_hours) * hourly_rate
+        amount = ot_hours * hourly_rate
 
         # ถ้า user ไม่มีแผนก ให้ใช้แผนก default หรือสร้างใหม่
         dept = self.request.user.department
@@ -337,10 +426,13 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             staff=self.request.user,
             department=dept,
             day_type=day_type,
+            ot_hours=ot_hours,
+            rate_per_hour=hourly_rate,
             amount=amount,
             status='submitted',
         )
         log_action(self.request.user, f'ยื่นคำร้อง OT วันที่ {ot.work_date}', 'OTRequest', ot.id, request=self.request)
+        _notify_ot_status_change(ot, 'submitted', self.request.user)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -356,6 +448,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.head_note = note
             ot.save()
             log_action(user, f'อนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            _notify_ot_status_change(ot, 'head_approved', user)
             return Response({'message': 'อนุมัติสำเร็จ'})
 
         elif effective_role == 'deptrep' and ot.status == 'head_approved':
@@ -365,6 +458,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.rep_note = note
             ot.save()
             log_action(user, f'ส่งต่อคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            _notify_ot_status_change(ot, 'rep_forwarded', user)
             return Response({'message': 'ส่งต่อสำเร็จ'})
 
         elif effective_role == 'checker' and ot.status == 'rep_forwarded':
@@ -374,6 +468,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.checker_note = note
             ot.save()
             log_action(user, f'ผู้ตรวจสอบอนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            _notify_ot_status_change(ot, 'checker_approved', user)
             return Response({'message': 'อนุมัติสำเร็จ'})
 
         return Response({'error': f'ไม่สามารถดำเนินการได้ (role={effective_role}, status={ot.status})'}, status=400)
@@ -390,6 +485,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.head_note = note
             ot.save()
             log_action(user, f'ตีกลับคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            _notify_ot_status_change(ot, 'head_rejected', user)
             return Response({'message': 'ตีกลับสำเร็จ'})
 
         elif effective_role == 'checker' and ot.status == 'rep_forwarded':
@@ -397,6 +493,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.checker_note = note
             ot.save()
             log_action(user, f'ผู้ตรวจสอบตีกลับคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            _notify_ot_status_change(ot, 'checker_rejected', user)
             return Response({'message': 'ตีกลับสำเร็จ'})
 
         return Response({'error': 'ไม่สามารถดำเนินการได้ในสถานะนี้'}, status=400)
@@ -420,9 +517,9 @@ class HolidayViewSet(viewsets.ModelViewSet):
         log_action(self.request.user, f'เพิ่มวันหยุด {h.name}', 'Holiday', h.id, request=self.request)
 
     def perform_destroy(self, instance):
-        if instance.is_system:
+        if instance.is_system and self.request.user.role != 'admin':
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('ไม่สามารถลบวันหยุดราชการที่ระบบสร้างให้ได้')
+            raise PermissionDenied('เฉพาะแอดมินเท่านั้นที่สามารถลบวันหยุดราชการได้')
         log_action(self.request.user, f'ลบวันหยุด {instance.name}', 'Holiday', instance.id, request=self.request)
         instance.delete()
 
@@ -628,6 +725,20 @@ def import_timelog(request):
         return Response({'error': 'กรุณาแนบไฟล์ Excel'}, status=400)
 
     f = request.FILES['file']
+
+    # ป้องกันอัปโหลดซ้ำเดือนเดียวกัน — บล็อกทันที
+    target_month = request.data.get('month', '').strip()  # YYYY-MM format
+    if target_month:
+        existing = ImportHistory.objects.filter(status__in=['success', 'partial'])
+        for hist in existing:
+            if hist.rows_data and len(hist.rows_data) > 0:
+                sample_date = (hist.rows_data[0].get('date', '') or '')[:7]
+                if sample_date == target_month:
+                    return Response({
+                        'error': f'เดือน {target_month} มีการนำเข้าข้อมูลแล้ว ไม่สามารถนำเข้าซ้ำได้',
+                        'duplicate': True,
+                        'existing_filename': hist.filename,
+                    }, status=status.HTTP_409_CONFLICT)
 
     # รับ department_id จาก form (ถ้ามี) เพื่อ assign ให้ user ที่สร้างใหม่
     import_dept = None
@@ -847,12 +958,16 @@ def import_timelog(request):
             except Exception as e:
                 error_lines.append(f'แถว {total}: บันทึก timelog ไม่ได้ — {e}')
 
+            tl_obj = TimeLog.objects.filter(user=user, log_date=date_val or date_str).first()
+            time_period = tl_obj.time_period if tl_obj else 'normal'
+
             rows_out.append({
                 'id': row_id, 'date': date_str,
                 'empId': str(emp_id), 'name': db_name,
                 'dept': dept_name, 'in': in_str, 'out': out_str,
                 'ot': str(ot_val), 'flag': flag,
                 'attendanceStatus': att_status,
+                'timePeriod': time_period,
             })
             row_id += 1
 
@@ -931,6 +1046,8 @@ def _row_from_timelog(idx, tl):
         'out':   out_str,
         'ot':    str(ot_val),
         'flag':  flag,
+        'timePeriod': tl.time_period,
+        'attendanceStatus': tl.attendance_status,
     }
 
 
@@ -1354,8 +1471,6 @@ def _check_ot_deadline(thai_month: str) -> 'str | None':
     except OTDeadline.DoesNotExist:
         pass
     return None
-<<<<<<< Updated upstream
-=======
 
 
 # ─── Notification API ──────────────────────────────────────────────────────────
@@ -1526,3 +1641,48 @@ def head_report_pdf_view(request):
 
         y = h - 120
         p.setFont(font_name, 10)
+
+        headers = ['#', 'วันที่', 'ชื่อ', 'ชม.', 'ประเภท', 'จำนวนเงิน', 'สถานะ']
+        x_positions = [60, 80, 160, 320, 370, 430, 510]
+        for i, hdr in enumerate(headers):
+            p.drawString(x_positions[i], y, hdr)
+        y -= 5
+        p.line(60, y, w - 60, y)
+        y -= 15
+
+        for idx, ot in enumerate(qs, 1):
+            if y < 60:
+                p.showPage()
+                p.setFont(font_name, 10)
+                y = h - 60
+            vals = [
+                str(idx),
+                str(ot.work_date),
+                ot.staff.get_full_name(),
+                f'{float(ot.ot_hours):.1f}',
+                ot.get_day_type_display(),
+                f'{float(ot.amount):,.0f}',
+                ot.get_status_display(),
+            ]
+            for i, v in enumerate(vals):
+                p.drawString(x_positions[i], y, v)
+            y -= 15
+
+        y -= 10
+        total_hours = sum(float(o.ot_hours) for o in qs)
+        total_amount = sum(float(o.amount) for o in qs)
+        p.setFont(font_name, 11)
+        p.drawString(60, y, f'รวม: {total_hours:.1f} ชั่วโมง  —  {total_amount:,.0f} บาท')
+
+        p.showPage()
+        p.save()
+        buf.seek(0)
+
+        response = HttpResponse(buf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="ot_report_{dept.code if dept else "all"}_{month}.pdf"'
+        return response
+
+    except ImportError:
+        return Response({'error': 'reportlab ไม่ได้ติดตั้ง — กรุณา pip install reportlab'}, status=500)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

@@ -36,8 +36,6 @@ urlpatterns = [
     path('ot-deadline/set/',                views.deadline_upsert_view),
     path('ot-deadline/<int:pk>/delete/',    views.deadline_delete_view),
 
-<<<<<<< Updated upstream
-=======
 
     # Notifications
     path('notifications/',                  views.notification_list_view),
@@ -50,4 +48,8 @@ urlpatterns = [
 
     # Head Report
     path('head/report/',                    views.head_report_view),
-    path('head/report/pdf/',           
+    path('head/report/pdf/',                views.head_report_pdf_view),
+
+    # Router
+    path('', include(router.urls)),
+]

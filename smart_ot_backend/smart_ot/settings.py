@@ -130,4 +130,8 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', 'SMART OT <noreply@tu.ac.th>')
 
 # Frontend app
-INSTA
+INSTALLED_APPS += ['frontend']
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]

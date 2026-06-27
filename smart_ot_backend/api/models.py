@@ -237,8 +237,6 @@ class OTDeadline(models.Model):
 
     def __str__(self):
         return f'{self.thai_month} → {self.deadline_date}'
-<<<<<<< Updated upstream
-=======
 
 
 class Notification(models.Model):
@@ -255,4 +253,12 @@ class Notification(models.Model):
     message    = models.TextField(verbose_name='ข้อความ')
     notif_type = models.CharField(max_length=30, choices=NOTIF_TYPES)
     ot_request = models.ForeignKey('OTRequest', on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
-    is_read   
+    is_read    = models.BooleanField(default=False, verbose_name='อ่านแล้ว')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'การแจ้งเตือน'
+
+    def __str__(self):
+        return f'{self.recipient.get_full_name()} — {self.notif_type}'

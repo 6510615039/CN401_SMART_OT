@@ -5,7 +5,7 @@ import {
   CloudUpload, UserPlus, CalendarDays, Download, X, Lock, Info, Clock,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
-import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
+import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -61,7 +61,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <PageHeader title="Dashboard ผู้ดูแลระบบ" right={<span className="text-[var(--neutral-500)]">วันที่ {new Date().toLocaleDateString('th-TH', {day:'numeric',month:'long',year:'numeric'})}</span>} />
+      <PageHeader title="Dashboard ผู้ดูแลระบบ" right={<span className="text-[var(--neutral-500)]">วันที่ {fmtDate(new Date().toISOString().slice(0,10))}</span>} />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <KpiCard label="ผู้ใช้ทั้งหมด" value={summary ? summary.total_users.toString() : '—'} icon={<Users className="size-6" />} accent="red" />
         <KpiCard label="นำเข้าข้อมูลล่าสุด" value={importLabel} icon={<Upload className="size-6" />} accent="yellow" hint={importHint} />
@@ -121,7 +121,17 @@ type ImportRow = {
   id: number; date: string; empId: string; name: string; dept: string;
   in: string; out: string; ot: string; flag: boolean;
   attendanceStatus?: string;
+  timePeriod?: string;
 };
+
+function formatDateDDMMYY(dateStr: string): string {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  const shortYear = String(Number(y) % 100).padStart(2, '0');
+  return `${d}-${m}-${shortYear}`;
+}
 
 const PAGE_SIZE = 10;
 
@@ -149,8 +159,6 @@ export function AdminImport() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-  const [showReimportDialog, setShowReimportDialog] = useState(false);
-  const [reimportConfirmed, setReimportConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const uploaded = rows.length > 0;
@@ -176,7 +184,7 @@ export function AdminImport() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadRows(month); setReimportConfirmed(false); }, [month, loadRows]);
+  useEffect(() => { loadRows(month); }, [month, loadRows]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -232,38 +240,6 @@ export function AdminImport() {
         </div>
       )}
 
-      {/* Reimport confirmation dialog */}
-      {showReimportDialog && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="size-11 rounded-full bg-tu-red-soft flex items-center justify-center shrink-0">
-                <AlertTriangle className="size-6 text-danger" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-[15px]">ยืนยันการนำเข้าใหม่</h3>
-                <p className="text-[12px] text-[var(--neutral-500)]">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
-              </div>
-            </div>
-            <div className="bg-tu-yellow-soft border border-tu-yellow rounded-lg p-3 mb-5 text-[13px]">
-              <p>ข้อมูลเดือน <strong>{thaiMonthLabel(month)}</strong> มีอยู่แล้ว <strong>{rows.length.toLocaleString()} รายการ</strong></p>
-              <p className="mt-1 text-danger font-medium">⚠️ การนำเข้าใหม่จะลบและแทนที่ข้อมูลเดิมทั้งหมด</p>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowReimportDialog(false)}
-              >ยกเลิก</Button>
-              <Button
-                className="flex-1 bg-tu-red hover:bg-tu-red-dark text-white"
-                onClick={() => { setReimportConfirmed(true); setRows([]); setShowReimportDialog(false); }}
-              >ยืนยัน นำเข้าใหม่</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <SectionCard><div className="flex items-center justify-center h-40 gap-3 text-[var(--neutral-500)]"><div className="size-8 border-4 border-tu-red border-t-transparent rounded-full animate-spin"/><span>กำลังโหลดข้อมูล...</span></div></SectionCard>
       ) : uploaded ? (
@@ -274,60 +250,9 @@ export function AdminImport() {
               <strong>นำเข้าข้อมูลแล้ว</strong> — {thaiMonthLabel(month)} พบ {rows.length.toLocaleString()} รายการ
               หากต้องการแก้ไขข้อมูลรายคน ให้แก้ไขในตารางด้านล่างแล้วกดบันทึก
             </p>
-            <button
-              className="ml-auto text-[13px] text-tu-red font-medium underline"
-              onClick={() => setShowReimportDialog(true)}
-            >นำเข้าใหม่</button>
           </div>
           <AdminEditableTable rows={rows} setRows={setRows} month={month} />
         </>
-      ) : reimportConfirmed ? (
-        /* ผู้ใช้ confirm แล้ว → แสดง upload zone พร้อม warning */
-        <SectionCard>
-          <div className="flex items-center gap-3 p-3 mb-4 bg-tu-red-soft border border-danger rounded-lg text-[13px]">
-            <AlertTriangle className="size-5 text-danger shrink-0" />
-            <p>โหมดนำเข้าใหม่ — ข้อมูลเดิมของเดือน <strong>{thaiMonthLabel(month)}</strong> จะถูกแทนที่เมื่ออัปโหลดสำเร็จ</p>
-          </div>
-          <div
-            className="border-2 border-dashed border-danger rounded-xl h-[240px] flex flex-col items-center justify-center gap-3 bg-tu-red-soft/30 cursor-pointer"
-            onClick={() => fileRef.current?.click()}
-          >
-            {uploading ? (
-              <>
-                <div className="size-12 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
-                <p className="text-[var(--neutral-700)]">กำลังอ่านไฟล์...</p>
-              </>
-            ) : (
-              <>
-                <CloudUpload className="size-16 text-danger" />
-                <p className="text-[var(--neutral-700)]">ลากไฟล์ .xlsx หรือ .csv มาวางที่นี่ หรือ</p>
-                <Button
-                  className="bg-tu-red hover:bg-tu-red-dark text-white"
-                  onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}
-                  disabled={uploading}
-                >เลือกไฟล์</Button>
-              </>
-            )}
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.csv"
-            className="hidden"
-            onChange={handleFile}
-          />
-          <p className="text-[12px] text-[var(--neutral-500)] mt-3 text-center">
-            รองรับไฟล์จากเครื่องสแกนนิ้ว/ใบหน้า — ขนาดสูงสุด 50MB
-          </p>
-
-          <div className="mt-6 bg-tu-yellow-soft border border-tu-yellow rounded-lg p-4 flex gap-3">
-            <AlertTriangle className="size-5 text-[var(--warning)] shrink-0 mt-0.5" />
-            <p className="text-[13px] text-[var(--neutral-700)]">
-              เมื่อนำเข้าไฟล์แล้ว <strong>ระบบจะไม่อนุญาตให้นำเข้าซ้ำ</strong> — หากต้องการแก้ไขข้อมูล
-              ให้แก้ไขในตารางแทน
-            </p>
-          </div>
-        </SectionCard>
       ) : (
         /* ยังไม่เคยนำเข้า → upload zone ปกติ */
         <SectionCard>
@@ -463,7 +388,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
         <table className="w-full text-[13px]">
           <thead className="bg-tu-red text-white">
             <tr>
-              {['วันที่','รหัส','ชื่อ','แผนก','เข้า','ออก','ชม. OT','สถานะเข้างาน','สถานะข้อมูล','Actions'].map(h => (
+              {['วันที่','รหัส','ชื่อ','แผนก','กะ','เข้า','ออก','ชม. OT','สถานะเข้างาน','สถานะข้อมูล','Actions'].map(h => (
                 <th key={h} className="text-left px-3 py-3">{h}</th>
               ))}
             </tr>
@@ -479,10 +404,11 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
                   r.flag ? 'bg-tu-red-soft' :
                   i % 2 === 0 ? 'bg-[var(--neutral-50)]' : 'bg-white'
                 }>
-                  <td className="px-3 py-2">{r.date}</td>
+                  <td className="px-3 py-2 font-mono">{formatDateDDMMYY(r.date)}</td>
                   <td className="px-3 py-2 font-mono">{r.empId}</td>
                   <td className="px-3 py-2">{r.name}</td>
                   <td className="px-3 py-2">{r.dept}</td>
+                  <td className="px-3 py-2 text-[12px]">{r.timePeriod === 'morning' ? 'กะเช้า' : 'กะปกติ'}</td>
 
                   {/* Editable fields */}
                   <td className="px-3 py-2">
@@ -1522,10 +1448,10 @@ export function AdminSettings() {
           </TabsList>
 
           <TabsContent value="rules" className="mt-6 grid grid-cols-2 gap-6 max-w-2xl">
-            <div><label>ชม. OT สูงสุดวันธรรมดา</label><Input className="mt-1" value={settings?.max_ot_hours_weekday ?? 4} onChange={e => set('max_ot_hours_weekday', e.target.value)} /></div>
-            <div><label>ชม. OT สูงสุดวันหยุด</label><Input className="mt-1" value={settings?.max_ot_hours_holiday ?? 7} onChange={e => set('max_ot_hours_holiday', e.target.value)} /></div>
-            <div><label>อัตราค่าจ้างวันธรรมดา (บาท/ชม.)</label><Input className="mt-1" defaultValue="60" disabled /></div>
-            <div><label>อัตราค่าจ้างวันหยุด (บาท/ชม.)</label><Input className="mt-1" defaultValue="70" disabled /></div>
+            <div><label>ชม. OT สูงสุดวันธรรมดา</label><div className="mt-1 px-3 py-2 bg-[var(--neutral-100)] border border-[var(--neutral-300)] rounded-lg text-[14px] font-semibold">4.0 <span className="text-[var(--neutral-500)] font-normal text-[12px]">ชั่วโมง (ฝังในระบบ)</span></div></div>
+            <div><label>ชม. OT สูงสุดวันหยุด</label><div className="mt-1 px-3 py-2 bg-[var(--neutral-100)] border border-[var(--neutral-300)] rounded-lg text-[14px] font-semibold">7.0 <span className="text-[var(--neutral-500)] font-normal text-[12px]">ชั่วโมง (ฝังในระบบ)</span></div></div>
+            <div><label>อัตราค่าจ้างวันธรรมดา (บาท/ชม.)</label><div className="mt-1 px-3 py-2 bg-[var(--neutral-100)] border border-[var(--neutral-300)] rounded-lg text-[14px] font-semibold">60 <span className="text-[var(--neutral-500)] font-normal text-[12px]">บาท/ชม. (ฝังในระบบ)</span></div></div>
+            <div><label>อัตราค่าจ้างวันหยุด (บาท/ชม.)</label><div className="mt-1 px-3 py-2 bg-[var(--neutral-100)] border border-[var(--neutral-300)] rounded-lg text-[14px] font-semibold">70 <span className="text-[var(--neutral-500)] font-normal text-[12px]">บาท/ชม. (ฝังในระบบ)</span></div></div>
           </TabsContent>
 
           <TabsContent value="noti" className="mt-6 space-y-4 max-w-md">
@@ -2055,7 +1981,7 @@ export function AdminHolidays() {
     <>
       <PageHeader
         title="จัดการวันหยุดประจำปี"
-        subtitle="วันหยุดราชการ (is_system) แก้ไข/ลบไม่ได้ — เพิ่มเฉพาะวันหยุดชดเชยและวันพิเศษ"
+        subtitle="จัดการวันหยุดทั้งหมด — แอดมินสามารถลบวันหยุดราชการออกจากปฏิทินได้"
         right={
           <div className="flex items-center gap-2">
             <Select value={year} onValueChange={setYear}>
@@ -2155,18 +2081,16 @@ export function AdminHolidays() {
                           )}
                         </td>
                         <td className="px-4 py-2.5">
-                          {isRO ? (
-                            <span className="text-[var(--neutral-400)] text-[13px] px-2">—</span>
-                          ) : (
-                            <div className="flex gap-1">
+                          <div className="flex gap-1">
+                            {!isRO && (
                               <Button size="icon" variant="ghost" className="size-7 text-tu-red hover:bg-tu-red-soft" onClick={() => openEdit(h)}>
                                 <Pencil className="size-3.5" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="size-7 text-danger hover:bg-tu-red-soft" onClick={() => setDeleteDlg(h)}>
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            </div>
-                          )}
+                            )}
+                            <Button size="icon" variant="ghost" className="size-7 text-danger hover:bg-tu-red-soft" onClick={() => setDeleteDlg(h)}>
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -2175,7 +2099,7 @@ export function AdminHolidays() {
               </table>
             </div>
             <p className="text-[12px] text-[var(--neutral-400)] mt-3">
-              แสดง {holidays.length} รายการ • วันหยุดราชการ <Lock className="size-3 inline" /> ไม่สามารถแก้ไขได้
+              แสดง {holidays.length} รายการ • วันหยุดราชการ <Lock className="size-3 inline" /> ไม่สามารถแก้ไขชื่อได้ แต่ลบออกจากปฏิทินได้
             </p>
           </>
         )}

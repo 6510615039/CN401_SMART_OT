@@ -3,10 +3,10 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
   LayoutDashboard, FileSpreadsheet, History, Users, Download, CheckCircle2,
-  ChevronRight, Send, RefreshCw,
+  ChevronRight, Send, RefreshCw, Upload,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
-import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
+import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -22,7 +22,7 @@ export const REP_NAV: NavItem[] = [
 
 const token = () => localStorage.getItem('access_token') || '';
 
-const MAX_DATES = 10;  // รองรับ OT สูงสุด 10 วัน/เดือน/คน
+const DATES_PER_ROW = 8;  // 8 คอลัมน์วันที่ (C-J) ตามแบบฟอร์มจริง
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +53,7 @@ function requestsToEmployees(requests: any[]): OTEmployee[] {
     grouped[name].reqs.push(r);
   });
   return Object.values(grouped).map((g, i) => {
+    g.reqs.sort((a, b) => a.work_date.localeCompare(b.work_date));
     const days: OTDay[] = g.reqs.map(r => ({
       date: thaiDate(r.work_date),
       time: `${(r.start_time || '').slice(0,5)}-${(r.end_time || '').slice(0,5)} น.`,
@@ -83,32 +84,110 @@ function thaiAmountText(n: number): string {
   return chunk(n)+'บาทถ้วน';
 }
 
-// ── Excel generation ────────────────────────────────────────────────────────
-function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำนักงานทะเบียนนักศึกษา') {
+// ── Excel generation (ตามแบบฟอร์มจริง — 16 คอลัมน์ A-P) ──────────────────
+function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำนักงานทะเบียนนักศึกษา', signer = '') {
   const wb = XLSX.utils.book_new();
   const rows: any[][] = [];
-  rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ']);
-  rows.push([`${deptName}  ประจำเดือน ${month}`]);
-  rows.push([]);
-  rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','รวมเวลาปฏิบัติงาน','','จำนวนเงิน','ว.ด.ป.\nที่รับเงิน','ลายมือชื่อ\nผู้รับเงิน','หมายเหตุ']);
-  rows.push(['','','วันที่ 1','วันที่ 2','วันที่ 3','วันที่ 4','วันที่ 5','วันปกติ\n(ชั่วโมง)','วันหยุด\n(ชั่วโมง)','','','','']);
-  const total = employees.reduce((s, e) => s + e.amount, 0);
+  const C = 16; // total columns A(0)-P(15)
+  const pad = (n: number) => Array(n).fill('');
+
+  // Row 1: Title (merged A1:P1)
+  rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ', ...pad(C-1)]);
+  // Row 2: Subtitle (merged A2:P2)
+  rows.push([`  ${deptName}  ประจำเดือน ${month}`, ...pad(C-1)]);
+  // Row 3: Header row 1
+  rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','','','','รวมเวลา','','จำนวนเงิน','','','หมายเหตุ']);
+  // Row 4: Header row 2
+  rows.push(['','','','','','','','','','','ปฏิบัติงาน','','','ว.ด.ป.','ลายมือชื่อ','']);
+  // Row 5: Header row 3
+  rows.push(['','','','','','','','','','','วันปกติ','วันหยุด','','ที่รับเงิน','ผู้รับเงิน','']);
+  // Row 6: Header row 4
+  rows.push(['','','','','','','','','','','(ชั่วโมง)','(ชั่วโมง)','','','','']);
+
+  // Row 7: ยอดยกมา (dates will be filled per employee in date row)
+  rows.push(['','','','','','','','','','','ยอดยกมา','','','','','']);
+
+  const grandTotal = employees.reduce((s, e) => s + e.amount, 0);
+
   employees.forEach(emp => {
-    const dr: any[] = [emp.seq, emp.name];
-    for (let i = 0; i < MAX_DATES; i++) dr.push(emp.days[i]?.date ?? '');
-    dr.push(emp.weekdayHrs||'', emp.weekendHrs||'', emp.amount, '', '', emp.note);
-    rows.push(dr);
-    const tr: any[] = ['', ''];
-    for (let i = 0; i < MAX_DATES; i++) tr.push(emp.days[i]?.time ?? '');
-    tr.push('','','','','','');
-    rows.push(tr);
+    const chunks: OTDay[][] = [];
+    for (let i = 0; i < emp.days.length; i += DATES_PER_ROW) {
+      chunks.push(emp.days.slice(i, i + DATES_PER_ROW));
+    }
+    if (chunks.length === 0) chunks.push([]);
+
+    chunks.forEach((chunk, ci) => {
+      const isLast = ci === chunks.length - 1;
+      // Date row
+      const dateRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
+      for (let i = 0; i < DATES_PER_ROW; i++) dateRow.push(chunk[i]?.date ?? '');
+      if (isLast) {
+        dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
+      } else {
+        dateRow.push('', '', '', '', '', '');
+      }
+      rows.push(dateRow);
+
+      // Time row
+      const timeRow: any[] = ['', ''];
+      for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
+      timeRow.push('', '', '', '', '', '');
+      rows.push(timeRow);
+    });
   });
+
+  // Summary
   rows.push([]);
-  rows.push(['','',`รวมเงินจ่ายทั้งสิ้น (ตัวอักษร)  -${thaiAmountText(total)}-`,'','','','','รวมเป็นเงิน','',total,'','','']);
+  const sumRow: any[] = ['', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
+  for (let i = 0; i < DATES_PER_ROW; i++) sumRow.push('');
+  sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
+  rows.push(sumRow);
+
+  // Signature block 1
+  rows.push([]);
+  rows.push(['ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-1)]);
+  const sig1: any[] = ['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลายมือชื่อ', '', 'ลงชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', ''];
+  rows.push(sig1);
+  const name1 = signer || 'นางสาวสาริยา  นวมจิต';
+  rows.push(['', `(${name1})`, '', '', '', '', '', '', '', '', '(นางสาวทองยุ่น  มธุรส)', '', '', '', '', '']);
+  rows.push(['ตำแหน่ง', 'รักษาการในตำแหน่งเลขานุการสำนักงานทะเบียนนักศึกษา', '', '', '', '', '', '', '', '         ตำแหน่ง', 'นักวิชาการเงินและบัญชีชำนาญการ', '', '', '', '', '']);
+
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:8},{wch:30},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:18},{wch:12}];
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:12}},{s:{r:1,c:0},e:{r:1,c:12}},{s:{r:3,c:2},e:{r:3,c:6}},{s:{r:3,c:7},e:{r:3,c:8}}];
-  XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
+
+  // Column widths (match original form)
+  ws['!cols'] = [
+    {wch:8},   // A: ลำดับ
+    {wch:40},  // B: ชื่อ-สกุล
+    {wch:16},  // C: date1
+    {wch:13},  // D: date2
+    {wch:13},  // E: date3
+    {wch:13},  // F: date4
+    {wch:13},  // G: date5
+    {wch:13},  // H: date6
+    {wch:13},  // I: date7
+    {wch:13},  // J: date8
+    {wch:7},   // K: วันปกติ
+    {wch:7},   // L: วันหยุด
+    {wch:9},   // M: จำนวนเงิน
+    {wch:8},   // N: วดป
+    {wch:13},  // O: ลายมือชื่อ
+    {wch:11},  // P: หมายเหตุ
+  ];
+
+  // Merges (match original form)
+  ws['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:15}},   // Title A1:P1
+    {s:{r:1,c:0},e:{r:1,c:15}},   // Subtitle A2:P2
+    {s:{r:2,c:0},e:{r:5,c:0}},    // ลำดับที่ A3:A6
+    {s:{r:2,c:1},e:{r:5,c:1}},    // ชื่อ-สกุล B3:B6
+    {s:{r:2,c:2},e:{r:2,c:9}},    // วันปฏิบัติงาน C3:J3
+    {s:{r:2,c:10},e:{r:2,c:11}},  // รวมเวลา K3:L3
+    {s:{r:3,c:10},e:{r:3,c:11}},  // ปฏิบัติงาน K4:L4
+    {s:{r:2,c:12},e:{r:5,c:12}},  // จำนวนเงิน M3:M6
+    {s:{r:2,c:15},e:{r:5,c:15}},  // หมายเหตุ P3:P6
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'หลักฐานจ่าย');
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   saveAs(new Blob([buf], { type: 'application/octet-stream' }), `OT-Report-${month}.xlsx`);
 }
@@ -127,50 +206,95 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className={th} rowSpan={2} style={{width:36}}>ลำดับที่</th>
-              <th className={th} rowSpan={2} style={{width:180}}>ชื่อ-สกุล</th>
-              <th className={th} colSpan={MAX_DATES}>วันปฏิบัติงานนอกเวลาราชการ</th>
-              <th className={th} colSpan={2}>รวมเวลา<br/>ปฏิบัติงาน</th>
-              <th className={th} rowSpan={2} style={{width:70}}>จำนวนเงิน</th>
-              <th className={th} rowSpan={2} style={{width:60}}>ว.ด.ป.<br/>ที่รับเงิน</th>
-              <th className={th} rowSpan={2} style={{width:90}}>ลายมือชื่อ<br/>ผู้รับเงิน</th>
-              <th className={th} rowSpan={2} style={{width:70}}>หมายเหตุ</th>
+              <th className={th} rowSpan={4} style={{width:36}}>ลำดับที่</th>
+              <th className={th} rowSpan={4} style={{width:180}}>ชื่อ-สกุล</th>
+              <th className={th} colSpan={8}>วันปฏิบัติงานนอกเวลาราชการ</th>
+              <th className={th} colSpan={2}>รวมเวลา</th>
+              <th className={th} rowSpan={4} style={{width:70}}>จำนวนเงิน</th>
+              <th className={th} rowSpan={4} style={{width:50}}>ว.ด.ป.<br/>ที่รับเงิน</th>
+              <th className={th} rowSpan={4} style={{width:80}}>ลายมือชื่อ<br/>ผู้รับเงิน</th>
+              <th className={th} rowSpan={4} style={{width:60}}>หมายเหตุ</th>
+            </tr>
+            <tr><th className={th} colSpan={8}></th><th className={th} colSpan={2}>ปฏิบัติงาน</th></tr>
+            <tr>
+              {Array.from({length:8},(_,i)=><th key={i} className={th} style={{width:80}}></th>)}
+              <th className={th} style={{width:50}}>วันปกติ</th>
+              <th className={th} style={{width:50}}>วันหยุด</th>
             </tr>
             <tr>
-              {Array.from({length:MAX_DATES},(_,i)=><th key={i} className={th} style={{width:90}}>วันที่ {i+1}</th>)}
-              <th className={th} style={{width:55}}>วันปกติ<br/>(ชั่วโมง)</th>
-              <th className={th} style={{width:55}}>วันหยุด<br/>(ชั่วโมง)</th>
+              {Array.from({length:8},(_,i)=><th key={i} className={th}></th>)}
+              <th className={th}>(ชั่วโมง)</th>
+              <th className={th}>(ชั่วโมง)</th>
             </tr>
           </thead>
           <tbody>
-            {employees.map(emp => (
-              <>
-                <tr key={`d-${emp.seq}`}>
-                  <td className={tdC} rowSpan={2}>{emp.seq}</td>
-                  <td className={td} rowSpan={2}>{emp.name}</td>
-                  {Array.from({length:MAX_DATES},(_,i)=>(
-                    <td key={i} className={tdC} style={{color:emp.days[i]?.isWeekend?'#B8001F':undefined}}>{emp.days[i]?.date??''}</td>
-                  ))}
-                  <td className={tdC} rowSpan={2}>{emp.weekdayHrs||''}</td>
-                  <td className={tdC} rowSpan={2}>{emp.weekendHrs||''}</td>
-                  <td className={tdC} rowSpan={2}>{emp.amount.toLocaleString()}</td>
-                  <td className={tdC} rowSpan={2}></td><td className={tdC} rowSpan={2}></td><td className={tdC} rowSpan={2}>{emp.note}</td>
-                </tr>
-                <tr key={`t-${emp.seq}`}>
-                  {Array.from({length:MAX_DATES},(_,i)=>(
-                    <td key={i} className={tdC} style={{color:emp.days[i]?.isWeekend?'#B8001F':undefined}}>{emp.days[i]?.time??''}</td>
-                  ))}
-                </tr>
-              </>
-            ))}
+            {/* ยอดยกมา */}
+            <tr className="bg-gray-50">
+              <td className={td} colSpan={10}></td>
+              <td className={th} colSpan={2}>ยอดยกมา</td>
+              <td className={tdC}></td>
+              <td className={td}></td><td className={td}></td><td className={td}></td>
+            </tr>
+            {employees.map(emp => {
+              const chunks: OTDay[][] = [];
+              for (let i = 0; i < emp.days.length; i += DATES_PER_ROW) {
+                chunks.push(emp.days.slice(i, i + DATES_PER_ROW));
+              }
+              if (chunks.length === 0) chunks.push([]);
+              const totalRows = chunks.length * 2;
+
+              return chunks.map((chunk, ci) => {
+                const isFirst = ci === 0;
+                const isLast = ci === chunks.length - 1;
+                return (
+                  <>
+                    <tr key={`d-${emp.seq}-${ci}`}>
+                      {isFirst && <td className={tdC} rowSpan={totalRows}>{emp.seq}</td>}
+                      {isFirst && <td className={td} rowSpan={totalRows}>{emp.name}</td>}
+                      {Array.from({length:8},(_,i)=>(
+                        <td key={i} className={tdC} style={{color:chunk[i]?.isWeekend?'#B8001F':undefined}}>{chunk[i]?.date??''}</td>
+                      ))}
+                      {isFirst && <td className={tdC} rowSpan={totalRows}>{emp.weekdayHrs||''}</td>}
+                      {isFirst && <td className={tdC} rowSpan={totalRows}>{emp.weekendHrs||''}</td>}
+                      {isFirst && <td className={tdC+' font-semibold'} rowSpan={totalRows}>{emp.amount.toLocaleString()}</td>}
+                      {isFirst && <td className={tdC} rowSpan={totalRows}></td>}
+                      {isFirst && <td className={tdC} rowSpan={totalRows}></td>}
+                      {isFirst && <td className={tdC} rowSpan={totalRows}>{emp.amount.toLocaleString()}</td>}
+                    </tr>
+                    <tr key={`t-${emp.seq}-${ci}`}>
+                      {Array.from({length:8},(_,i)=>(
+                        <td key={i} className={tdC} style={{color:chunk[i]?.isWeekend?'#B8001F':undefined}}>{chunk[i]?.time??''}</td>
+                      ))}
+                    </tr>
+                  </>
+                );
+              });
+            })}
+            {/* รวมเงินจ่ายทั้งสิ้น */}
             <tr>
-              <td className={td} colSpan={MAX_DATES+2+1}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร) &nbsp;-{thaiAmountText(total)}-</td>
+              <td className={td} colSpan={10}>&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร)&nbsp;&nbsp;-{thaiAmountText(total)}-</td>
               <td className={th} colSpan={2}>รวมเป็นเงิน</td>
               <td className={tdC+' font-semibold'}>{total.toLocaleString()}</td>
               <td className={td}></td><td className={td}></td><td className={td}></td>
             </tr>
           </tbody>
         </table>
+        {/* Signature block */}
+        <div className="mt-6 text-[11px]">
+          <p>ขอรับรองว่า ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง</p>
+          <div className="grid grid-cols-2 gap-8 mt-4">
+            <div className="text-center">
+              <p>ลงชื่อ...................................ผู้รับรองการปฏิบัติงาน</p>
+              <p className="mt-1">(นางสาวสาริยา  นวมจิต)</p>
+              <p>รักษาการในตำแหน่งเลขานุการสำนักงานทะเบียนนักศึกษา</p>
+            </div>
+            <div className="text-center">
+              <p>ลงชื่อ...................................ผู้จ่ายเงิน</p>
+              <p className="mt-1">(นางสาวทองยุ่น  มธุรส)</p>
+              <p>นักวิชาการเงินและบัญชีชำนาญการ</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -237,7 +361,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
                 </div>
                 <div className="flex-1">
                   <p className="text-[14px]"><strong>{r.staff_name}</strong> — {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()} บาท</p>
-                  <p className="text-[12px] text-[var(--neutral-500)]">{r.work_date}</p>
+                  <p className="text-[12px] text-[var(--neutral-500)]">{fmtDate(r.work_date)}</p>
                 </div>
                 <StatusChip kind="success">ส่งต่อแล้ว</StatusChip>
               </div>
@@ -255,10 +379,6 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<'select' | 'preview' | 'forward'>('select');
   const [requests, setRequests] = useState<any[]>([]);
   const [selIds, setSelIds] = useState<number[]>([]);
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
   const [loading, setLoading] = useState(false);
   const [forwarding, setForwarding] = useState(false);
   const [deptName, setDeptName] = useState('');
@@ -266,6 +386,8 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [note, setNote] = useState('');
   const [downloaded, setDownloaded] = useState(false);
   const [checkers, setCheckers] = useState<{ id: number; full_name: string; notify_email: string; email: string }[]>([]);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [signerName, setSignerName] = useState('');
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -279,7 +401,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   function loadRequests() {
     setDownloaded(false);
     setLoading(true);
-    fetch(`/api/ot-requests/?status=head_approved&month=${month}`, {
+    fetch('/api/ot-requests/?status=head_approved', {
       headers: { Authorization: `Bearer ${token()}` },
     })
       .then(r => r.json())
@@ -291,12 +413,15 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadRequests(); }, [month]);
+  useEffect(() => { loadRequests(); }, []);
 
   const selRequests = requests.filter(r => selIds.includes(r.id));
   const employees = requestsToEmployees(selRequests);
   const totalAmt = selRequests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
-  const monthLabel = thaiMonthFull(month);
+
+  // คำนวณเดือนจากข้อมูลคำร้อง
+  const firstDate = selRequests[0]?.work_date || '';
+  const monthLabel = firstDate ? thaiMonthFull(`${parseInt(firstDate.split('-')[0]) + 543}-${firstDate.split('-')[1]}`) : '';
 
   async function forwardAll() {
     setForwarding(true);
@@ -315,20 +440,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       <PageHeader title="ส่งออกข้อมูลเป็น Excel" />
       <StepBar step={0} />
       <SectionCard>
-        <div className="grid grid-cols-2 gap-4 mb-5">
-          <div>
-            <label>เดือน/ปี</label>
-            <Select value={month} onValueChange={setMonth}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Array.from({length:6},(_,i)=>{
-                  const d = new Date(); d.setMonth(d.getMonth()-i);
-                  const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-                  return <SelectItem key={val} value={val}>{thaiMonthFull(val)}</SelectItem>;
-                })}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-4 mb-5">
           <div className="flex items-end">
             <Button variant="outline" size="sm" onClick={loadRequests} disabled={loading}>
               <RefreshCw className={`size-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> รีเฟรช
@@ -367,7 +479,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
                         />
                       </td>
                       <td className="px-3 py-2">{r.staff_name}</td>
-                      <td className="px-3 py-2 text-[var(--neutral-500)]">{r.work_date}</td>
+                      <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDate(r.work_date)}</td>
                       <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))} ชม.</td>
                       <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                       <td className="px-3 py-2">
@@ -414,7 +526,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
           <Button
             variant="outline"
             className="border-tu-red text-tu-red"
-            onClick={() => { generateXlsx(employees, monthLabel, deptName); setDownloaded(true); }}
+            onClick={() => { generateXlsx(employees, monthLabel, deptName, signerName); setDownloaded(true); }}
           >
             <Download className="size-4 mr-1" />ดาวน์โหลด Excel
           </Button>
@@ -438,7 +550,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
         <SectionCard>
           <div className="bg-tu-yellow-soft border border-tu-yellow rounded-lg p-4 mb-5 flex items-center justify-between">
             <div>
-              <p className="font-semibold">📎 OT-Report-{month}.xlsx</p>
+              <p className="font-semibold">📎 OT-Report-{monthLabel}.xlsx</p>
               <p className="text-[13px] text-[var(--neutral-500)] mt-1">
                 {employees.length} พนักงาน • {selIds.length} คำร้อง • รวม {totalAmt.toLocaleString()} บาท
               </p>
@@ -447,7 +559,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
               variant="outline"
               size="sm"
               className="border-tu-red text-tu-red shrink-0"
-              onClick={() => generateXlsx(employees, monthLabel, deptName)}
+              onClick={() => generateXlsx(employees, monthLabel, deptName, signerName)}
             >
               <Download className="size-3.5 mr-1" />ดาวน์โหลดอีกครั้ง
             </Button>
@@ -457,7 +569,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
               <p className="text-[12px] text-[var(--neutral-500)] mb-1.5">📧 จะส่งอีเมลแจ้งผู้ตรวจสอบ {checkers.length} คน</p>
               <div className="flex flex-wrap gap-2">
                 {checkers.map(c => {
-                  const mail = c.notify_email || c.email || '';
+                  const mail = c.notify_email || '';
                   return (
                     <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-white border border-[var(--neutral-300)] px-3 py-1 text-[12px]">
                       <span className="font-medium">{c.full_name}</span>
@@ -468,8 +580,39 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
               </div>
             </div>
           )}
+          {/* อัปโหลดเอกสารเพิ่มเติม (กรณีตัวแทนฝ่ายปรับฟอร์แมตเอง) */}
           <div className="mb-5">
-            <label>หมายเหตุถึงผู้ตรวจสอบ (optional)</label>
+            <label className="font-medium block mb-1">อัปโหลดเอกสารเพิ่มเติม (ถ้ามี)</label>
+            <p className="text-[12px] text-[var(--neutral-500)] mb-2">หากต้องการปรับฟอร์แมตเอกสารเอง สามารถอัปโหลดไฟล์ที่แก้ไขแล้วได้ที่นี่</p>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-[var(--neutral-400)] cursor-pointer hover:bg-[var(--neutral-50)] transition-colors">
+                <Upload className="size-4 text-[var(--neutral-500)]" />
+                <span className="text-[13px] text-[var(--neutral-600)]">{uploadedFile ? uploadedFile.name : 'เลือกไฟล์ (.xlsx, .pdf)'}</span>
+                <input type="file" accept=".xlsx,.pdf,.xls" className="hidden"
+                  onChange={e => setUploadedFile(e.target.files?.[0] || null)} />
+              </label>
+              {uploadedFile && (
+                <Button variant="outline" size="sm" onClick={() => setUploadedFile(null)} className="text-danger border-danger text-[12px]">
+                  ลบไฟล์
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* ชื่อผู้ลงนามในเอกสาร */}
+          <div className="mb-5">
+            <label className="font-medium block mb-1">ชื่อผู้ลงนามในเอกสาร (ถ้าต้องการเปลี่ยน)</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-[var(--neutral-300)] px-3 py-2 text-[13px]"
+              placeholder="ระบุชื่อผู้ลงนาม หากต้องการเปลี่ยนจากค่าเริ่มต้น"
+              value={signerName}
+              onChange={e => setSignerName(e.target.value)}
+            />
+          </div>
+
+          <div className="mb-5">
+            <label className="font-medium block mb-1">หมายเหตุถึงผู้ตรวจสอบ (optional)</label>
             <Textarea
               className="mt-1"
               rows={4}
@@ -505,7 +648,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
             {checkers.length > 0 && (
               <p className="text-[12px] text-[var(--neutral-400)] mt-1">
                 📧 แจ้งทางอีเมล {checkers.length} คน:{' '}
-                {checkers.map(c => c.notify_email || c.email || c.full_name).filter(Boolean).join(', ')}
+                {checkers.map(c => c.notify_email || c.full_name).filter(Boolean).join(', ')}
               </p>
             )}
           </div>
@@ -639,10 +782,17 @@ export function RepHistory() {
           <tbody>
             {requests.map(r => (
               <tr key={r.id} className="border-b border-[var(--neutral-100)] hover:bg-[var(--neutral-50)]">
-                <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
-                <td className="px-3 py-2">{r.work_date}</td>
+                <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? fmtDateTime(r.created_at) : '-'}</td>
+                <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                 <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                 <td className="px-3 py-2 font-mono text-right">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
                 <td className="px-3 py-2 font-mono font-semibold text-right">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                 <td className="px-3 py-2"><StatusChip kind={r.status === 'completed' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'}>{r.status}</StatusChip></td>
-              
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SectionCard>
+    </>
+  );
+}

@@ -4,7 +4,7 @@ import {
   Calendar as CalendarIcon, AlertTriangle, CheckCircle2, ChevronRight, Lock,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
-import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
+import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -166,16 +166,16 @@ function MiniCalendar({ month, otDays, totalOT }: { month: string; otDays: numbe
 
 export function StaffTimeLog() {
   const [view, setView] = useState<'table' | 'cal'>('table');
-  const [month, setMonth] = useState('2569-05');
+  const curThaiYear = new Date().getFullYear() + 543;
+  const curMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+  const [selMonth, setSelMonth] = useState(curMonth);
+  const [selYear, setSelYear] = useState(String(curThaiYear));
+  const month = `${selYear}-${selMonth}`;
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  const MONTH_OPTIONS = Array.from({length:12}, (_,i) => ({
-    value: `2569-${String(i+1).padStart(2,'0')}`,
-    label: `${THAI_MONTHS[i]} 2569`,
-  }));
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -194,9 +194,13 @@ export function StaffTimeLog() {
     <>
       <PageHeader title="เวลาเข้า-ออกของฉัน" right={
         <>
-          <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>{MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          <Select value={selMonth} onValueChange={setSelMonth}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={selYear} onValueChange={setSelYear}>
+            <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{[0,1,2].map(d => <SelectItem key={d} value={String(curThaiYear - d)}>{curThaiYear - d}</SelectItem>)}</SelectContent>
           </Select>
           <div className="flex border border-[var(--neutral-300)] rounded-lg overflow-hidden">
             <button onClick={() => setView('table')} className={`px-3 py-1.5 text-[13px] ${view === 'table' ? 'bg-tu-red text-white' : ''}`}>ตาราง</button>
@@ -232,7 +236,7 @@ export function StaffTimeLog() {
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-t border-[var(--neutral-300)] hover:bg-tu-yellow-soft">
-                    <td className="px-3 py-2">{r.date}</td>
+                    <td className="px-3 py-2">{fmtDate(r.date)}</td>
                     <td className="px-3 py-2 font-mono">{r.in || '-'}</td>
                     <td className="px-3 py-2 font-mono">{r.out || '-'}</td>
                     <td className="px-3 py-2 font-mono">{r.ot}</td>
@@ -480,7 +484,7 @@ export function StaffSubmit() {
                   };
 
                   return (
-                    <tr key={r.date} className={`border-t border-[var(--neutral-300)] transition-colors ${
+                    <tr key={fmtDate(r.date)} className={`border-t border-[var(--neutral-300)] transition-colors ${
                       isLocked ? 'bg-[var(--neutral-50)] opacity-70' :
                       isRejected ? 'bg-tu-red-soft' :
                       isSel ? 'bg-tu-yellow-soft' : ''
@@ -495,7 +499,7 @@ export function StaffSubmit() {
                           />
                         )}
                       </td>
-                      <td className="px-3 py-2 font-medium">{r.date}</td>
+                      <td className="px-3 py-2 font-medium">{fmtDate(r.date)}</td>
                       <td className="px-3 py-2"><StatusChip kind={isHoliday ? 'danger' : 'neutral'}>{isHoliday ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                       <td className="px-3 py-2 font-mono">{r.in || '-'}</td>
                       <td className="px-3 py-2 font-mono">{r.out || '-'}</td>
@@ -654,8 +658,8 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetai
                   <tbody>
                     {filtered.map((r: any) => (
                       <tr key={r.id} className={`border-t border-[var(--neutral-300)] ${isRejected(r.status) ? 'bg-tu-red-soft' : ''}`}>
-                        <td className="px-3 py-2">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
-                        <td className="px-3 py-2">{r.work_date}</td>
+                        <td className="px-3 py-2">{r.created_at ? fmtDateTime(r.created_at) : '-'}</td>
+                        <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                         <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                         <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
                         <td className="px-3 py-2 font-mono">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>

@@ -178,4 +178,49 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                       </span>
                     </DropdownMenuItem>
                   ))}
-         
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onLogout} className="text-danger">
+                <LogOut className="size-4 mr-2" />ออกจากระบบ
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <div className="flex flex-1">
+        {/* Sidebar */}
+        <aside className="w-56 bg-white border-r border-[var(--neutral-300)] shadow-[1px_0_4px_rgba(0,0,0,0.04)] flex flex-col shrink-0 sticky top-16 h-[calc(100vh-4rem)]">
+          <div className="p-4 border-b border-[var(--neutral-300)]">
+            <span className={cn('inline-block px-3 py-1 rounded-full text-[12px] font-semibold', ROLE_BADGE[role])}>
+              {ROLE_LABELS[role]}
+            </span>
+          </div>
+          <nav className="flex-1 overflow-y-auto py-2">
+            {nav.map(item => (
+              <button
+                key={item.key}
+                onClick={() => onNavigate(item.key)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-3 text-[13px] transition-colors',
+                  current === item.key
+                    ? 'bg-tu-red/10 text-tu-red font-semibold border-r-3 border-tu-red'
+                    : 'text-[var(--neutral-600)] hover:bg-[var(--neutral-100)]'
+                )}
+              >
+                <span className="size-5 shrink-0">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Main content */}
+        <main className="flex-1 p-6 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

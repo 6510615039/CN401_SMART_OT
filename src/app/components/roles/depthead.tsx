@@ -5,7 +5,7 @@ import {
   CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
-import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
+import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -265,11 +265,11 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                         <span>{r.staff_name || '—'}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2">{r.work_date}</td>
+                    <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                     <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                     <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
                     <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
-                    <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
+                    <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? fmtDateTime(r.created_at) : '-'}</td>
                     <td className="px-3 py-2 flex gap-1">
                       <Button size="sm" className="bg-success text-white h-7" onClick={async () => {
                         await fetch(`/api/ot-requests/${r.id}/approve/`, {
@@ -279,7 +279,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                         setActionMsg({ kind: 'success', text: 'อนุมัติเรียบร้อยแล้ว' });
                         setTimeout(() => setActionMsg(null), 3000);
                         loadRequests();
-                      }}>✓</Button>
+                      }}>อนุมัติ</Button>
                       <Button size="sm" variant="outline" onClick={() => onDetail(r.id)} className="border-tu-red text-tu-red h-7">ดู</Button>
                     </td>
                   </tr>
@@ -518,9 +518,9 @@ export function HeadHistory() {
                   const note = r.head_note || r.checker_note || '—';
                   return (
                     <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
-                      <td className="px-3 py-2">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
+                      <td className="px-3 py-2">{r.created_at ? fmtDateTime(r.created_at) : '-'}</td>
                       <td className="px-3 py-2 font-medium">{r.staff_name || '—'}</td>
-                      <td className="px-3 py-2">{r.work_date}</td>
+                      <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                       <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                       <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
                       <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
@@ -656,7 +656,7 @@ export function HeadMembers() {
                         const st = STATUS_HIST[r.status] || { kind: 'neutral' as const, label: r.status };
                         return (
                           <tr key={r.id} className="border-t border-[var(--neutral-300)]">
-                            <td className="px-3 py-2">{r.work_date}</td>
+                            <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                             <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                             <td className="px-3 py-2 font-mono">{r.start_time || '-'}</td>
                             <td className="px-3 py-2 font-mono">{r.end_time || '-'}</td>

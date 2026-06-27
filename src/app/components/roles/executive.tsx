@@ -488,5 +488,16 @@ export function ExecTrend() {
                 <BarChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="m" />
-                  <YAxis tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
-                  <Tooltip formatter={(v: any, nam
+                  <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                  <Tooltip formatter={(v: any, name: string) => [Number(v).toLocaleString() + ' บาท', name]} />
+                  <Legend />
+                  <Bar dataKey="total" fill="#B8001F" radius={[6, 6, 0, 0]} name="รวม OT" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionCard>
+        </>
+      )}
+    </>
+  );
+}
