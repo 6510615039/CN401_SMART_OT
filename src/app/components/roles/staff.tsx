@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 function currentThaiMonth(): string {
   const now = new Date();
@@ -61,24 +61,33 @@ export const STAFF_NAV: NavItem[] = [
 export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
   const [summary, setSummary] = useState<any>(null);
   const [activeMonth, setActiveMonth] = useState('');
+  const [filterMonth, setFilterMonth] = useState(currentThaiMonth);
   const [otRequests, setOtRequests] = useState<any[]>([]);
   const [otDays, setOtDays] = useState<number[]>([]);
+  const [userName, setUserName] = useState('');
+
+  // โหลดชื่อพนักงานสำหรับแสดงคำทักทาย
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    fetch('/api/auth/me/', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) {
+          const name = `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.username || '';
+          setUserName(name);
+        }
+      }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    // 1. Get latest imported month
-    fetch('/api/admin/summary/', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        const m = d?.imported_months?.[0] || '';
-        setActiveMonth(m);
-        // 2. Get staff summary for that month
-        return Promise.all([
-          fetch(`/api/staff/summary/${m ? '?month=' + m : ''}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
-          fetch(`/api/timelog/my/${m ? '?month=' + m : ''}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
-          fetch('/api/ot-requests/?ordering=-created_at', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
-        ]);
-      })
+    const m = filterMonth;
+    setActiveMonth(m);
+    Promise.all([
+      fetch(`/api/staff/summary/?month=${m}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+      fetch(`/api/timelog/my/?month=${m}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+      fetch('/api/ot-requests/?ordering=-created_at', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+    ])
       .then(([summaryData, timelogData, reqData]) => {
         if (summaryData) setSummary(summaryData);
         if (timelogData?.rows) {
@@ -93,7 +102,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [filterMonth]);
 
   const otHours = summary?.total_ot_hours ?? '—';
   const otBaht  = summary?.total_ot_baht != null ? Math.round(parseFloat(summary.total_ot_baht)).toLocaleString() : '—';
@@ -117,13 +126,27 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
 
   return (
     <>
-      <PageHeader title="สวัสดี" subtitle="ระบบ OT" />
+      <PageHeader
+        title={userName ? `สวัสดี, คุณ${userName}` : 'สวัสดี'}
+        subtitle="ระบบ SMART OT"
+        right={<MonthYearPicker value={filterMonth} onChange={setFilterMonth} />}
+      />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <KpiCard label="ชั่วโมง OT เดือนนี้" value={<span className="text-tu-red">{otHours}</span>} hint="ชั่วโมง" accent="red" />
         <KpiCard label="ค่า OT คาดว่าจะได้รับ" value={<span className="text-success">{otBaht}</span>} hint="บาท" accent="green" />
         <KpiCard label="สถานะคำร้องเดือนนี้" value={<StatusChip kind={statusMap[reqStatus] as any}>{statusLabel[reqStatus]}</StatusChip>} accent="yellow" />
         <KpiCard label="คำร้องทั้งหมด" value={<span>{summary?.ot_total ?? '—'}</span>} hint="รายการ" accent="blue" />
       </div>
+
+      {hasRejected && (
+        <div className="bg-tu-red-soft border border-tu-red rounded-xl p-5 flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="size-6 text-tu-red" />
+            <p>คุณมีคำร้อง <strong>{summary.ot_rejected} รายการ</strong> ถูกตีกลับ กรุณาแก้ไข</p>
+          </div>
+          <Button onClick={onGoEdit} className="bg-tu-red hover:bg-tu-red-dark text-white">ไปแก้ไข <ChevronRight className="size-4 ml-1" /></Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-5 mb-6">
         <SectionCard title="กิจกรรมล่าสุดของฉัน">
@@ -139,7 +162,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
                   <div className={`size-9 rounded-full grid place-items-center ${k === 'success' ? 'bg-green-100 text-success' : k === 'danger' ? 'bg-tu-red-soft text-danger' : 'bg-blue-100 text-info'}`}><CheckCircle2 className="size-4" /></div>
                   <div className="flex-1">
                     <p className="text-[13px]">{label} — {dateStr}</p>
-                    <p className="text-[11px] text-[var(--neutral-500)]">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60).toLocaleString()} บาท</p>
+                    <p className="text-[11px] text-[var(--neutral-500)]">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()} บาท</p>
                   </div>
                 </div>
               );
@@ -151,16 +174,6 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
           <MiniCalendar month={activeMonth} otDays={otDays} totalOT={otHours} />
         </SectionCard>
       </div>
-
-      {hasRejected && (
-        <div className="bg-tu-red-soft border border-tu-red rounded-xl p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="size-6 text-tu-red" />
-            <p>คุณมีคำร้อง <strong>{summary.ot_rejected} รายการ</strong> ถูกตีกลับ กรุณาแก้ไข</p>
-          </div>
-          <Button onClick={onGoEdit} className="bg-tu-red hover:bg-tu-red-dark text-white">ไปแก้ไข <ChevronRight className="size-4 ml-1" /></Button>
-        </div>
-      )}
     </>
   );
 }
@@ -194,6 +207,21 @@ function MiniCalendar({ month, otDays, totalOT }: { month: string; otDays: numbe
             <div key={i} className={`aspect-square rounded text-[12px] grid place-items-center ${!valid ? 'bg-transparent' : hasOT ? 'bg-tu-yellow text-black font-bold' : weekend ? 'bg-[var(--neutral-100)] text-[var(--neutral-500)]' : 'bg-white border border-[var(--neutral-300)]'}`}>{valid && d}</div>
           );
         })}
+      </div>
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--neutral-200)]">
+        <div className="flex items-center gap-1.5">
+          <div className="size-3 rounded bg-tu-yellow border border-[var(--warning)]" />
+          <span className="text-[11px] text-[var(--neutral-600)]">วันที่ได้ OT</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="size-3 rounded bg-[var(--neutral-100)] border border-[var(--neutral-300)]" />
+          <span className="text-[11px] text-[var(--neutral-600)]">วันหยุด</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="size-3 rounded bg-white border border-[var(--neutral-300)]" />
+          <span className="text-[11px] text-[var(--neutral-600)]">วันทำงาน</span>
+        </div>
       </div>
     </div>
   );
@@ -308,11 +336,12 @@ function deadlineDateDisplay(iso: string) {
   return `${d.getDate()} ${SHORT_MONTHS_TH[d.getMonth()]} ${thaiY}`;
 }
 
-export function StaffSubmit() {
-  const [month, setMonth] = useState(currentThaiMonth);
+export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
+  const [month, setMonth] = useState(() => initialMonth || currentThaiMonth());
   const [rows, setRows] = useState<any[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [hours, setHours] = useState<Record<string, string>>({});
+  const [originalHours, setOriginalHours] = useState<Record<string, string>>({});
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -353,6 +382,7 @@ export function StaffSubmit() {
           const initHours: Record<string,string> = {};
           otRows.forEach((r: any) => { initHours[r.date] = String(Math.min(parseFloat(r.ot), r.dayType === 'holiday' ? 7 : 4)); });
           setHours(initHours);
+          setOriginalHours({ ...initHours });
         }
         if (reqs) {
           const arr: any[] = Array.isArray(reqs) ? reqs : (reqs.results || []);
@@ -364,7 +394,10 @@ export function StaffSubmit() {
           const map: Record<string, { id: number; status: string }> = {};
           arr.forEach((r: any) => {
             if (!prefix || String(r.work_date || '').startsWith(prefix)) {
-              map[r.work_date] = { id: r.id, status: r.status };
+              // ถ้ามีหลาย request ต่อวันเดียวกัน → เก็บ id ล่าสุด (สูงสุด)
+              if (!map[r.work_date] || r.id > map[r.work_date].id) {
+                map[r.work_date] = { id: r.id, status: r.status };
+              }
             }
           });
           setExistingReqs(map);
@@ -386,28 +419,70 @@ export function StaffSubmit() {
     return h * rate;
   }
 
-  // Exclude locked dates from selection (shouldn't be selectable, but guard anyway)
-  const selRows = rows.filter(r => selected.includes(r.date) && !existingReqs[r.date]);
-  const total = selRows.reduce((s, r) => s + calcAmount(r.dayType || 'weekday', hours[r.date] || r.ot), 0);
+  // รวมวันที่เลือก: ยังไม่ยื่น หรือ ถูกตีกลับ (สามารถยื่นซ้ำได้)
+  const selRows = rows.filter(r => {
+    if (!selected.includes(r.date)) return false;
+    const ex = existingReqs[r.date];
+    if (!ex) return true;
+    return ex.status === 'head_rejected' || ex.status === 'checker_rejected';
+  });
+  // คำนวณรวมโดย cap ที่ maxH เสมอ (ไม่คิดเกิน cap)
+  const total = selRows.reduce((s, r) => {
+    const isHol = r.dayType === 'holiday';
+    const maxH = isHol ? 7 : 4;
+    const h = String(Math.min(Math.floor(parseFloat(hours[r.date] || r.ot)), maxH));
+    return s + calcAmount(r.dayType || 'weekday', h);
+  }, 0);
+
+  // วันที่เลือกได้ (ไม่ locked, ไม่ deadline passed)
+  const selectableRows = rows.filter(r => {
+    const existing = existingReqs[r.date];
+    const isRejected = existing?.status === 'head_rejected' || existing?.status === 'checker_rejected';
+    return !existing || isRejected;
+  });
+  const allSelected = selectableRows.length > 0 && selectableRows.every(r => selected.includes(r.date));
 
   async function handleSubmit() {
     setSubmitting(true);
     const token_ = token();
     try {
       for (const r of selRows) {
-        const h = Math.floor(parseFloat(hours[r.date] || r.ot));  // ปัดลงเหลือชั่วโมงเต็ม
-        await fetch('/api/ot-requests/', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token_}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            work_date: r.date,
-            start_time: r.in || '08:00',
-            end_time: r.out || '17:00',
-            ot_hours: h,
-            work_detail: reason || 'ปฏิบัติงานนอกเวลาราชการ',
-            location: 'สำนักงานทะเบียนนักศึกษา',
-          }),
-        });
+        const isHol = r.dayType === 'holiday';
+        const maxH = isHol ? 7 : 4;
+        const rawH = Math.floor(parseFloat(hours[r.date] || r.ot));
+        const h = Math.min(rawH, maxH);  // cap ตาม ceiling เสมอ
+        // ถ้าพนักงานแก้ชั่วโมงจากที่ระบบคำนวณ → flag ให้หัวหน้าเห็น
+        const origH = Math.floor(parseFloat(originalHours[r.date] || r.ot));
+        const isManualEdit = h !== origH;
+        const detailPrefix = isManualEdit
+          ? `[ปรับชั่วโมง: ระบบคำนวณ ${origH} ชม. → แก้เป็น ${h} ชม.] `
+          : '';
+        const existingReq = existingReqs[r.date];
+        const isRejectedReq = existingReq?.status === 'head_rejected' || existingReq?.status === 'checker_rejected';
+        const payload = {
+          work_date: r.date,
+          start_time: r.in || '08:00',
+          end_time: r.out || '17:00',
+          ot_hours: h,
+          work_detail: detailPrefix + (reason || 'ปฏิบัติงานนอกเวลาราชการ'),
+          location: 'สำนักงานทะเบียนนักศึกษา',
+        };
+
+        if (isRejectedReq && existingReq) {
+          // ยื่นซ้ำบน request เดิม → ไม่สร้างใหม่
+          await fetch(`/api/ot-requests/${existingReq.id}/resubmit/`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token_}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // ยื่นใหม่ปกติ
+          await fetch('/api/ot-requests/', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token_}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
       }
       // Re-fetch existing requests after submit to update UI immediately
       const newReqs = await fetch('/api/ot-requests/', { headers: { 'Authorization': `Bearer ${token_}` } }).then(r => r.ok ? r.json() : null);
@@ -420,7 +495,9 @@ export function StaffSubmit() {
         const map: Record<string, { id: number; status: string }> = {};
         arr.forEach((r: any) => {
           if (!prefix || String(r.work_date || '').startsWith(prefix)) {
-            map[r.work_date] = { id: r.id, status: r.status };
+            if (!map[r.work_date] || r.id > map[r.work_date].id) {
+              map[r.work_date] = { id: r.id, status: r.status };
+            }
           }
         });
         setExistingReqs(map);
@@ -490,7 +567,19 @@ export function StaffSubmit() {
           <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
             <table className="w-full text-[13px]">
               <thead className="bg-tu-red text-white">
-                <tr>{['','วันที่','ประเภท','เข้า','ออก','ชม. OT','อัตรา','จำนวนเงิน','สถานะ'].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr>
+                <tr>
+                  <th className="px-3 py-3">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={c => {
+                        if (c) setSelected(selectableRows.map(r => r.date));
+                        else setSelected([]);
+                      }}
+                      className="border-white data-[state=checked]:bg-white data-[state=checked]:text-tu-red"
+                    />
+                  </th>
+                  {['วันที่','ประเภท','เข้า','ออก','ชม. OT','อัตรา','จำนวนเงิน','สถานะ'].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
+                </tr>
               </thead>
               <tbody>
                 {rows.map(r => {
@@ -541,9 +630,16 @@ export function StaffSubmit() {
                             <Input
                               value={hours[r.date] ?? String(Math.floor(parseFloat(r.ot || '0')))}
                               onChange={e => setHours(prev => ({ ...prev, [r.date]: e.target.value }))}
-                              className={`w-20 h-8 font-mono ${overLimit ? 'bg-tu-red-soft border-tu-red' : ''}`}
+                              onBlur={e => {
+                                const val = e.target.value.trim();
+                                if (val === '' || isNaN(parseFloat(val))) {
+                                  // restore ค่า default เมื่อลบออกหรือกรอกผิด
+                                  setHours(prev => ({ ...prev, [r.date]: originalHours[r.date] ?? String(Math.floor(parseFloat(r.ot || '0'))) }));
+                                }
+                              }}
+                              className={`w-20 h-8 font-mono ${overLimit ? 'bg-tu-red-soft border-tu-red border' : ''}`}
                             />
-                            {overLimit && <p className="text-[11px] text-danger mt-0.5">เกิน {maxH} ชม.</p>}
+                            {overLimit && <p className="text-[11px] text-danger mt-0.5">เกิน {maxH} ชม. (จะถูก cap)</p>}
                           </>
                         )}
                       </td>
@@ -572,9 +668,14 @@ export function StaffSubmit() {
 
         {rows.length > 0 && (
           <div className="mt-5">
-            <label className="text-[13px] font-medium">เหตุผลการขอเบิก *</label>
-            <Textarea className="mt-1" rows={3} placeholder="โปรดระบุเหตุผลและงานที่ปฏิบัติในช่วง OT"
-              value={reason} onChange={e => setReason(e.target.value)} />
+            <label className="text-[13px] font-medium text-[var(--neutral-700)]">หมายเหตุเพิ่มเติม <span className="font-normal text-[var(--neutral-500)]">(ไม่บังคับ)</span></label>
+            <Textarea
+              className="mt-1.5 border border-[var(--neutral-300)] bg-[var(--neutral-50)] focus:border-tu-red focus:bg-white transition-colors rounded-lg"
+              rows={5}
+              placeholder="ระบุรายละเอียดงานหรือหมายเหตุเพิ่มเติม (ถ้ามี)"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+            />
           </div>
         )}
       </SectionCard>
@@ -591,7 +692,7 @@ export function StaffSubmit() {
               <DialogTrigger asChild>
                 <Button
                   className="bg-tu-red hover:bg-tu-red-dark text-white h-12 px-8"
-                  disabled={selected.length === 0 || !reason.trim() || !!deadline?.is_passed}
+                  disabled={selected.length === 0 || !!deadline?.is_passed}
                   title={deadline?.is_passed ? 'ปิดรับคำร้องโอทีเดือนนี้แล้ว' : undefined}
                 >
                   {deadline?.is_passed ? <><Lock className="size-4 mr-1" />ปิดรับแล้ว</> : 'ส่งคำร้อง'}
@@ -615,11 +716,18 @@ export function StaffSubmit() {
   );
 }
 
-export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetail?: (id: number) => void }) {
+export function StaffStatus({ onEdit, onDetail }: { onEdit?: (id: number, date: string, note?: string) => void; onDetail?: (id: number) => void }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('all');
+  // restore เดือนที่เคยเลือกไว้เมื่อกลับมา
+  const [filterMonth, setFilterMonth] = useState(() => localStorage.getItem('staff_status_month') || currentThaiMonth());
   const token = () => localStorage.getItem('access_token');
+
+  function saveAndSetMonth(m: string) {
+    localStorage.setItem('staff_status_month', m);
+    setFilterMonth(m);
+  }
 
   const STATUS_LABEL: Record<string,string> = {
     draft:'ร่าง', submitted:'รออนุมัติ', head_approved:'หัวหน้าอนุมัติ',
@@ -644,24 +752,32 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetai
   }
   useEffect(() => { loadRequests(); }, []);
 
+  // กรองตามเดือน
+  const filteredByMonth = (() => {
+    if (!filterMonth) return requests;
+    const parts = filterMonth.split('-');
+    const gregYear = parts[0] ? parseInt(parts[0]) - 543 : 0;
+    const mon = parts[1] ? parseInt(parts[1]) : 0;
+    const prefix = gregYear && mon ? `${gregYear}-${String(mon).padStart(2,'0')}` : '';
+    return prefix ? requests.filter(r => String(r.work_date || '').startsWith(prefix)) : requests;
+  })();
+
   const counts = {
-    all:      requests.length,
-    pending:  requests.filter(r => !isRejected(r.status) && !isApproved(r.status) && r.status !== 'draft').length,
-    approved: requests.filter(r => isApproved(r.status)).length,
-    rejected: requests.filter(r => isRejected(r.status)).length,
+    all:      filteredByMonth.length,
+    pending:  filteredByMonth.filter(r => !isRejected(r.status) && !isApproved(r.status) && r.status !== 'draft').length,
+    approved: filteredByMonth.filter(r => isApproved(r.status)).length,
+    rejected: filteredByMonth.filter(r => isRejected(r.status)).length,
   };
 
-  const filtered = tab === 'all'     ? requests
-                 : tab === 'pending' ? requests.filter(r => !isRejected(r.status) && !isApproved(r.status) && r.status !== 'draft')
-                 : tab === 'approved'? requests.filter(r => isApproved(r.status))
-                 : requests.filter(r => isRejected(r.status));
+  const filtered = tab === 'all'     ? filteredByMonth
+                 : tab === 'pending' ? filteredByMonth.filter(r => !isRejected(r.status) && !isApproved(r.status) && r.status !== 'draft')
+                 : tab === 'approved'? filteredByMonth.filter(r => isApproved(r.status))
+                 : filteredByMonth.filter(r => isRejected(r.status));
 
   return (
     <>
       <PageHeader title="สถานะคำร้องของฉัน" right={
-        <Button variant="outline" size="sm" onClick={loadRequests} disabled={loading} className="gap-1">
-          <span className={loading ? 'animate-spin inline-block' : ''}>🔄</span> รีเฟรช
-        </Button>
+        <MonthYearPicker value={filterMonth} onChange={saveAndSetMonth} />
       } />
       <SectionCard>
         <Tabs value={tab} onValueChange={setTab}>
@@ -683,10 +799,12 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetai
               <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
                 <table className="w-full text-[13px]">
                   <thead className="bg-tu-red text-white">
-                    <tr>{['วันที่ยื่น','วันที่ทำ OT','ประเภท','ชม.','รวมเงิน','สถานะ','Actions'].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr>
+                    <tr>{['วันที่ยื่น','วันที่ทำ OT','ประเภท','ชม.','รวมเงิน','สถานะ','หมายเหตุ',''].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr>
                   </thead>
                   <tbody>
-                    {filtered.map((r: any) => (
+                    {filtered.map((r: any) => {
+                      const note = r.head_note || r.checker_note || '';
+                      return (
                       <tr key={r.id} className={`border-t border-[var(--neutral-300)] ${isRejected(r.status) ? 'bg-tu-red-soft' : ''}`}>
                         <td className="px-3 py-2">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
                         <td className="px-3 py-2">{r.work_date}</td>
@@ -694,13 +812,19 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetai
                         <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
                         <td className="px-3 py-2 font-mono">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                         <td className="px-3 py-2"><StatusChip kind={STATUS_KIND[r.status] as any}>{STATUS_LABEL[r.status] || r.status}</StatusChip></td>
+                        <td className="px-3 py-2 max-w-[180px]">
+                          {note ? (
+                            <span className={`text-[12px] ${isRejected(r.status) ? 'text-danger font-medium' : 'text-[var(--neutral-600)]'}`}>{note}</span>
+                          ) : <span className="text-[11px] text-[var(--neutral-400)]">—</span>}
+                        </td>
                         <td className="px-3 py-2">
                           {isRejected(r.status)
-                            ? <Button size="sm" onClick={onEdit} className="bg-tu-red text-white">แก้ไข</Button>
+                            ? <Button size="sm" onClick={() => onEdit && onEdit(r.id, r.work_date, note)} className="bg-tu-red text-white">แก้ไข</Button>
                             : <Button size="sm" variant="ghost" onClick={() => onDetail && onDetail(r.id)}>👁</Button>}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -712,18 +836,71 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: () => void; onDetai
   );
 }
 
-export function StaffEditRejected() {
+export function StaffEditRejected({
+  requestId,
+  rejectedDate,
+  rejectionNote,
+  onBack,
+}: {
+  requestId?: number;
+  rejectedDate?: string;
+  rejectionNote?: string;
+  onBack?: () => void;
+}) {
+  const [reqData, setReqData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!requestId) return;
+    const token = localStorage.getItem('access_token');
+    fetch(`/api/ot-requests/${requestId}/`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setReqData(d); })
+      .catch(() => {});
+  }, [requestId]);
+
+  // ใช้ข้อมูลจาก fetch ถ้ามี ไม่อย่างนั้นใช้ props
+  const note = reqData?.head_note || reqData?.checker_note || rejectionNote || '';
+  const dateStr = reqData?.work_date || rejectedDate || '';
+
+  // แปลงเดือนจาก work_date → Thai month format สำหรับ StaffSubmit
+  const initialMonth = dateStr
+    ? (() => {
+        const d = new Date(dateStr + 'T12:00:00');
+        const thaiY = d.getFullYear() + 543;
+        return `${thaiY}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+      })()
+    : currentThaiMonth();
+
   return (
     <>
-      <PageHeader title="แก้ไขคำร้องที่ถูกตีกลับ" />
-      <div className="bg-tu-red-soft border border-tu-red rounded-xl p-4 flex items-start gap-3 mb-5">
-        <AlertTriangle className="size-5 text-tu-red mt-0.5" />
-        <div>
-          <p className="font-semibold text-tu-red">คำร้องนี้ถูกตีกลับโดย อรอนงค์ ใจกล้า เมื่อ 12 พ.ค. 2569</p>
-          <p className="text-[13px] text-[var(--neutral-700)] mt-1">เหตุผล: ชั่วโมง OT วันที่ 10/5 เกินเกณฑ์ที่กำหนด กรุณาปรับลดให้อยู่ในกรอบ 4 ชั่วโมง</p>
-        </div>
+      {/* Header row — ปุ่มย้อนกลับซ้าย ชื่อหน้ากลาง (ตาม pattern OTDetailPage) */}
+      <div className="flex items-center gap-3 mb-6">
+        {onBack && (
+          <Button variant="outline" className="gap-2 shrink-0" onClick={onBack}>
+            <ChevronRight className="size-4 rotate-180" />ย้อนกลับ
+          </Button>
+        )}
+        <h1 className="text-[20px] font-bold">แก้ไขคำร้องที่ถูกตีกลับ</h1>
       </div>
-      <StaffSubmit />
+
+      {/* แบนเนอร์แสดงเหตุผลที่ถูกตีกลับ */}
+      {(note || dateStr) && (
+        <div className="bg-tu-red-soft border-l-4 border-tu-red rounded-xl p-5 mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="size-5 text-tu-red shrink-0" />
+            <p className="font-semibold text-tu-red text-[15px]">คำร้องวันที่ {dateStr} ถูกตีกลับ</p>
+          </div>
+          {note ? (
+            <div className="ml-7 mt-1 p-3 bg-white/70 rounded-lg border border-tu-red/30">
+              <p className="text-[12px] text-[var(--neutral-500)] font-medium mb-0.5">เหตุผลจากหัวหน้างาน:</p>
+              <p className="text-[14px] text-[var(--neutral-800)]">{note}</p>
+            </div>
+          ) : (
+            <p className="ml-7 text-[13px] text-[var(--neutral-600)]">กรุณาตรวจสอบและแก้ไขข้อมูลให้ถูกต้อง</p>
+          )}
+        </div>
+      )}
+      <StaffSubmit initialMonth={initialMonth} />
     </>
   );
 }
@@ -731,8 +908,12 @@ export function StaffEditRejected() {
 export function StaffProfile() {
   const [saved, setSaved] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [notifyEmailEdit, setNotifyEmailEdit] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -741,8 +922,11 @@ export function StaffProfile() {
       .then(d => {
         if (d) {
           setUserInfo(d);
-          setEmail(d.email || '');
-          setPhone(d.phone || '');
+          // notify_email คืออีเมล @reg.tu.ac.th สำหรับรับแจ้งเตือน
+          const ne = d.notify_email || d.email || '';
+          setNotifyEmail(ne);
+          setNotifyEmailEdit(ne);
+          if (d.profile_image) setAvatarUrl(d.profile_image);
         }
       }).catch(() => {});
   }, []);
@@ -751,6 +935,25 @@ export function StaffProfile() {
   const empId = userInfo?.employee_id || userInfo?.username || '—';
   const dept = userInfo?.department_name || userInfo?.department || 'งานทะเบียนนักศึกษา';
   const initial = fullName.charAt(0) || '?';
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setUploadError('ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+    setUploadError('');
+    const reader = new FileReader();
+    reader.onload = () => setAvatarUrl(reader.result as string);
+    reader.readAsDataURL(file);
+    // Upload ไปยัง API
+    const token = localStorage.getItem('access_token');
+    const formData = new FormData();
+    formData.append('profile_image', file);
+    fetch('/api/auth/me/update/', {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    }).catch(() => {});
+  }
 
   return (
     <>
@@ -764,7 +967,36 @@ export function StaffProfile() {
       <div className="grid grid-cols-3 gap-5">
         <SectionCard>
           <div className="flex flex-col items-center text-center gap-3">
-            <Avatar className="size-24"><AvatarFallback className="bg-tu-yellow text-black text-3xl">{initial}</AvatarFallback></Avatar>
+            <div className="relative group">
+              <Avatar className="size-24">
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="profile" className="size-24 rounded-full object-cover" />
+                  : <AvatarFallback className="bg-tu-yellow text-black text-3xl">{initial}</AvatarFallback>
+                }
+              </Avatar>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-[11px] font-medium"
+              >
+                เปลี่ยนรูป
+              </button>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                ref={el => { fileInputRef.current = el; }}
+                onChange={handleFileChange}
+              />
+            </div>
+            {uploadError && <p className="text-[11px] text-danger">{uploadError}</p>}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-[12px]"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              อัปโหลดรูปโปรไฟล์
+            </Button>
             <div>
               <h3>{fullName}</h3>
               <p className="text-[var(--neutral-500)] text-[13px]">{empId}</p>
@@ -783,31 +1015,68 @@ export function StaffProfile() {
         </SectionCard>
 
         <SectionCard className="col-span-2">
-          <h4 className="font-semibold mb-4">ข้อมูลติดต่อ</h4>
-          <div className="space-y-4">
-            <div>
-              <label className="text-[13px] font-medium block mb-1">อีเมล</label>
-              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-[13px] font-medium block mb-1">เบอร์โทรศัพท์</label>
-              <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
-            </div>
-            <div className="flex justify-end">
-              <Button
-                className="bg-tu-red hover:bg-tu-red-dark text-white"
-                onClick={() => {
-                  const token = localStorage.getItem('access_token');
-                  fetch('/api/auth/me/update/', {
-                    method: 'PATCH',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, phone }),
-                  }).then(() => { setSaved(true); setTimeout(() => setSaved(false), 3000); }).catch(() => {});
-                }}
-              >
-                บันทึกข้อมูล
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-semibold">ข้อมูลติดต่อ</h4>
+            {!isEditing && (
+              <Button variant="outline" size="sm" onClick={() => { setNotifyEmailEdit(notifyEmail); setIsEditing(true); }}>
+                แก้ไข
               </Button>
+            )}
+          </div>
+          <div className="space-y-5">
+            {/* อีเมล TU Account (แสดงอย่างเดียว ไม่แก้ไขได้) */}
+            <div>
+              <p className="text-[12px] text-[var(--neutral-500)] font-medium mb-1">อีเมล TU Account</p>
+              <p className="text-[14px] text-[var(--neutral-800)] font-medium">{userInfo?.email || '—'}</p>
+              <p className="text-[11px] text-[var(--neutral-400)] mt-0.5">ใช้สำหรับเข้าสู่ระบบ ไม่สามารถเปลี่ยนได้</p>
             </div>
+
+            {/* อีเมลรับแจ้งเตือน */}
+            <div>
+              <p className="text-[12px] text-[var(--neutral-500)] font-medium mb-1">อีเมลรับแจ้งเตือน</p>
+              {isEditing ? (
+                <Input
+                  type="email"
+                  value={notifyEmailEdit}
+                  onChange={e => setNotifyEmailEdit(e.target.value)}
+                  className="border border-[var(--neutral-300)] bg-[var(--neutral-50)] focus:border-tu-red focus:bg-white"
+                  placeholder="เช่น name@reg.tu.ac.th"
+                  autoFocus
+                />
+              ) : (
+                <p className="text-[14px] text-[var(--neutral-800)]">{notifyEmail || <span className="text-[var(--neutral-400)]">ยังไม่ได้ตั้งค่า</span>}</p>
+              )}
+              <p className="text-[11px] text-[var(--neutral-400)] mt-0.5">ระบบจะส่งการแจ้งเตือนสถานะคำร้อง OT ไปที่อีเมลนี้</p>
+            </div>
+
+            {isEditing && (
+              <div className="flex gap-2 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => { setNotifyEmailEdit(notifyEmail); setIsEditing(false); }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  className="bg-tu-red hover:bg-tu-red-dark text-white"
+                  onClick={() => {
+                    const token = localStorage.getItem('access_token');
+                    fetch('/api/auth/me/update/', {
+                      method: 'PATCH',
+                      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ notify_email: notifyEmailEdit }),
+                    }).then(() => {
+                      setNotifyEmail(notifyEmailEdit);
+                      setIsEditing(false);
+                      setSaved(true);
+                      setTimeout(() => setSaved(false), 3000);
+                    }).catch(() => {});
+                  }}
+                >
+                  บันทึก
+                </Button>
+              </div>
+            )}
           </div>
         </SectionCard>
       </div>

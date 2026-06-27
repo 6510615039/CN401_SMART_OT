@@ -348,10 +348,12 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         is_weekend = work_date.weekday() >= 5
         day_type = 'holiday' if (is_holiday or is_weekend) else 'weekday'
 
-        # คำนวณค่าตอบแทน: วันธรรมดา 60 บาท/ชม. วันหยุด 70 บาท/ชม.
-        ot_hours = serializer.validated_data.get('ot_hours', 0)
+        # คำนวณค่าตอบแทน: วันธรรมดา 60 บาท/ชม. max 4ชม, วันหยุด 70 บาท/ชม. max 7ชม
+        max_hours = 7 if day_type == 'holiday' else 4
+        ot_hours_raw = float(serializer.validated_data.get('ot_hours', 0))
+        ot_hours = min(ot_hours_raw, max_hours)  # cap ที่ ceiling เสมอ
         hourly_rate = 70 if day_type == 'holiday' else 60
-        amount = float(ot_hours) * hourly_rate
+        amount = ot_hours * hourly_rate
 
         # ถ้า user ไม่มีแผนก ให้ใช้แผนก default หรือสร้างใหม่
         dept = self.request.user.department
@@ -365,6 +367,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             staff=self.request.user,
             department=dept,
             day_type=day_type,
+            ot_hours=ot_hours,  # ใช้ค่าที่ cap แล้ว
             amount=amount,
             status='submitted',
         )
@@ -428,6 +431,36 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             return Response({'message': 'ตีกลับสำเร็จ'})
 
         return Response({'error': 'ไม่สามารถดำเนินการได้ในสถานะนี้'}, status=400)
+
+    @action(detail=True, methods=['post'])
+    def resubmit(self, request, pk=None):
+        """พนักงานยื่นคำร้องซ้ำหลังถูกตีกลับ — อัปเดต request เดิม ไม่สร้างใหม่"""
+        ot = self.get_object()
+        if ot.status not in ('head_rejected', 'checker_rejected'):
+            return Response({'error': 'คำร้องนี้ไม่ได้ถูกตีกลับ'}, status=400)
+        if ot.staff != request.user:
+            return Response({'error': 'ไม่มีสิทธิ์แก้ไขคำร้องนี้'}, status=403)
+
+        # คำนวณใหม่พร้อม cap
+        max_hours = 7 if ot.day_type == 'holiday' else 4
+        ot_hours_raw = float(request.data.get('ot_hours', ot.ot_hours))
+        ot_hours = min(ot_hours_raw, max_hours)
+        hourly_rate = 70 if ot.day_type == 'holiday' else 60
+
+        ot.ot_hours = ot_hours
+        ot.amount = ot_hours * hourly_rate
+        ot.work_detail = request.data.get('work_detail', ot.work_detail)
+        ot.start_time = request.data.get('start_time', ot.start_time)
+        ot.end_time = request.data.get('end_time', ot.end_time)
+        # reset สถานะ + ล้าง note เดิม
+        ot.status = 'submitted'
+        ot.head_note = ''
+        ot.checker_note = ''
+        ot.save()
+
+        log_action(request.user, f'ยื่นคำร้อง OT #{ot.id} ซ้ำหลังถูกตีกลับ วันที่ {ot.work_date}', 'OTRequest', ot.id, request=request)
+        from .serializers import OTRequestSerializer as _S
+        return Response(_S(ot).data)
 
 
 # ─── Holidays ────────────────────────────────────────────────────────────────

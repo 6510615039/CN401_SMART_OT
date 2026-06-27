@@ -57,6 +57,7 @@ export default function App() {
   
   const [checkerOtEmp, setCheckerOtEmp] = useState<{ name: string; dept: string; idx: number } | null>(null);
   const [selectedOTId, setSelectedOTId] = useState<number | null>(null);
+  const [rejectedReqInfo, setRejectedReqInfo] = useState<{ id: number; date: string; note?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -66,20 +67,39 @@ export default function App() {
     localStorage.setItem('current_page', newPage);
   };
 
-  // ─── เช็ค access_token ใน localStorage ตอน mount ครั้งแรก (คง session ไว้หลัง refresh) ───
+  // ─── เช็ค access_token ตอน mount — restore session แล้ว fetch role ล่าสุดจาก DB ───
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    if (token) {
-      const activeRole = (localStorage.getItem('active_role') as Role) || 'staff';
-      const roles = getStoredAvailableRoles();
-      setRole(activeRole);
-      setAvailableRoles(roles);
-      setScreen('app');
+    if (!token) return;
 
-      // ดึงหน้าล่าสุดที่เคยเข้าไว้กลับมา (หรือค่าเริ่มต้นเป็น dashboard)
-      const savedPage = localStorage.getItem('current_page') || 'dashboard';
-      setPage(savedPage);
-    }
+    // Restore ทันทีจาก cache เพื่อให้ UI ไม่กระพริบ
+    const cachedRole = (localStorage.getItem('active_role') as Role) || 'staff';
+    const cachedRoles = getStoredAvailableRoles();
+    setRole(cachedRole);
+    setAvailableRoles(cachedRoles);
+    setScreen('app');
+    const savedPage = localStorage.getItem('current_page') || 'dashboard';
+    setPage(savedPage);
+
+    // Fetch role จาก DB จริง — รองรับกรณีแอดมินแก้ role หลัง login
+    fetch('/api/auth/me/', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(freshUser => {
+        if (!freshUser) return;
+        // อัปเดต localStorage ให้ตรงกับ DB
+        localStorage.setItem('user', JSON.stringify(freshUser));
+        const freshRoles: Role[] = Array.isArray(freshUser.available_roles) && freshUser.available_roles.length > 0
+          ? freshUser.available_roles
+          : [freshUser.role || 'staff'];
+        setAvailableRoles(freshRoles);
+        // ถ้า role ที่ active อยู่ไม่มีแล้ว → switch ไป role แรกที่มีสิทธิ์
+        if (!freshRoles.includes(cachedRole)) {
+          const newRole = freshRoles[0] as Role;
+          localStorage.setItem('active_role', newRole);
+          setRole(newRole);
+        }
+      })
+      .catch(() => {}); // token หมดอายุหรือ network error → ปล่อยให้ใช้ cache
   }, []);
 
   // Global fetch interceptor — แนบ X-Acting-Role header กับทุก /api/ call อัตโนมัติ
@@ -224,9 +244,17 @@ export default function App() {
         case 'dashboard': return <StaffDashboard onGoEdit={() => setPage('edit')} />;
         case 'timelog':   return <StaffTimeLog />;
         case 'submit':    return <StaffSubmit />;
-        case 'status':    return <StaffStatus onEdit={() => setPage('edit')} onDetail={(id) => { setSelectedOTId(id); setPage('ot-detail'); }} />;
+        case 'status':    return <StaffStatus
+          onEdit={(id, date, note) => { setRejectedReqInfo({ id, date, note }); setPage('edit'); }}
+          onDetail={(id) => { setSelectedOTId(id); setPage('ot-detail'); }}
+        />;
         case 'ot-detail': return <OTDetailPage onBack={() => setPage('status')} requestId={selectedOTId} />;
-        case 'edit':      return <StaffEditRejected />;
+        case 'edit':      return <StaffEditRejected
+          requestId={rejectedReqInfo?.id}
+          rejectedDate={rejectedReqInfo?.date}
+          rejectionNote={rejectedReqInfo?.note}
+          onBack={() => setPage('status')}
+        />;
         case 'profile':   return <StaffProfile />;
       }
     }
