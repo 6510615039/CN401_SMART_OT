@@ -82,12 +82,12 @@ export function Login({ onLogin, onForgot }: Props) {
           <div className="space-y-4">
             {/* Username / Email */}
             <div>
-              <label className="block mb-1.5">อีเมลนักศึกษา / รหัสพนักงาน</label>
+              <label className="block mb-1.5">รหัสพนักงาน</label>
               <div className="relative">
                 <User className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
                 <Input
                   className={`pl-10 h-11 ${isError ? 'border-danger focus-visible:ring-danger' : ''}`}
-                  placeholder="เช่น s6512345678@dome.tu.ac.th"
+                  placeholder="เช่น 0001"
                   value={username}
                   onChange={e => { setUsername(e.target.value); if (isError) setState('idle'); }}
                   disabled={isLoading}
