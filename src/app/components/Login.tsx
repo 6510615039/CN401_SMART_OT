@@ -94,7 +94,6 @@ export function Login({ onLogin, onForgot }: Props) {
                   onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                 />
               </div>
-              <p className="text-[11px] text-[var(--neutral-500)] mt-1">รองรับ @dome.tu.ac.th · @tu.ac.th · รหัสพนักงาน</p>
             </div>
 
             {/* Password */}
