@@ -315,14 +315,14 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
             <p className="text-[13px] text-[var(--neutral-500)] mb-3">
               ตีกลับ <strong>{sel.length}</strong> คำร้อง — พนักงานจะเห็นเหตุผลนี้และสามารถแก้ไขยื่นใหม่ได้
             </p>
-            <label className="text-[13px] font-medium block mb-1">เหตุผลในการตีกลับ <span className="text-danger">*</span></label>
-            <Textarea rows={4} value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+            <label className="text-[13px] font-medium block mb-1">เหตุผลในการตีกลับ <span className="text-[var(--neutral-400)]">(ไม่บังคับ)</span></label>
+            <Textarea rows={6} value={rejectReason} onChange={e => setRejectReason(e.target.value)}
               placeholder="เช่น เอกสารไม่ครบถ้วน / OT เกินเกณฑ์ที่กำหนด / ไม่มีเหตุผลความจำเป็นเพียงพอ ฯลฯ" />
             <p className="text-[11px] text-[var(--neutral-500)] mt-1">{rejectReason.length} / 200 ตัวอักษร</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectOpen(false)}>ยกเลิก</Button>
-            <Button className="bg-danger hover:bg-danger/90 text-white" disabled={rejectReason.trim().length < 5} onClick={handleRejectConfirm}>
+            <Button className="bg-danger hover:bg-danger/90 text-white" onClick={handleRejectConfirm}>
               <X className="size-4 mr-1" />ยืนยันตีกลับ
             </Button>
           </DialogFooter>
@@ -338,6 +338,7 @@ const DETAIL_ROWS = Array.from({ length: 5 }, (_, i) => ({
 
 export function HeadDetail() {
   const [sel, setSel] = useState<number[]>([0, 1, 2]);
+  const allSelected = sel.length === DETAIL_ROWS.length;
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectTarget, setRejectTarget] = useState<'selected' | 'all'>('all');
@@ -393,7 +394,9 @@ export function HeadDetail() {
         <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
           <table className="w-full text-[13px]">
             <thead className="bg-tu-red text-white"><tr>
-              <th className="px-3 py-3"></th>
+              <th className="px-3 py-3">
+                <Checkbox checked={allSelected} onCheckedChange={c => setSel(c ? DETAIL_ROWS.map(r => r.id) : [])} />
+              </th>
               {['วันที่','ประเภท','เข้า','ออก','ชม.','อัตรา','จำนวนเงิน','สถานะ'].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
             </tr></thead>
             <tbody>
@@ -437,10 +440,10 @@ export function HeadDetail() {
               {' '}— ระบบจะแจ้งเหตุผลให้พนักงานทางอีเมล
             </p>
             <label className="text-[13px] font-medium block mb-1">
-              เหตุผลในการตีกลับ <span className="text-danger">*</span>
+              เหตุผลในการตีกลับ <span className="text-[var(--neutral-400)]">(ไม่บังคับ)</span>
             </label>
             <Textarea
-              rows={4}
+              rows={6}
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
               placeholder="เช่น OT เกินเกณฑ์ที่กำหนด / เอกสารไม่ครบถ้วน / ไม่ได้รับอนุญาตให้ทำ OT ล่วงหน้า ฯลฯ"
@@ -451,7 +454,6 @@ export function HeadDetail() {
             <Button variant="outline" onClick={() => setRejectOpen(false)}>ยกเลิก</Button>
             <Button
               className="bg-danger hover:bg-danger/90 text-white"
-              disabled={rejectReason.trim().length < 5}
               onClick={handleRejectConfirm}
             >
               <X className="size-4 mr-1" />ยืนยันตีกลับ
