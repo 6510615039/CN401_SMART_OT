@@ -4,7 +4,7 @@ import {
   CheckCircle2, X, Eye, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
-import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
+import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate } from '../shared';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -92,6 +92,7 @@ function BudgetGauge({ percent }: { percent: number }) {
 
 export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp: any) => void }) {
   const [groups, setGroups] = useState<DeptGroup[]>([]);
+  const [noOtDepts, setNoOtDepts] = useState<{ id: number; name: string; code: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDept, setExpandedDept] = useState<number | null>(null);
   const [rejectDlg, setRejectDlg] = useState<{ open: boolean; requests: OTReq[]; dept: string }>({ open: false, requests: [], dept: '' });
@@ -109,6 +110,13 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
         if (res.ok) { const d = await res.json(); all.push(...(Array.isArray(d) ? d : d.results || [])); }
       }
       setGroups(groupByDept(all));
+
+      // ดึงรายชื่อแผนกที่ยังไม่มีการเบิก OT เดือนนี้
+      const noOtRes = await fetch('/api/checker/no-ot-departments/', { headers: { 'Authorization': `Bearer ${token()}` } });
+      if (noOtRes.ok) {
+        const noOtData = await noOtRes.json();
+        setNoOtDepts(noOtData.departments || []);
+      }
     } catch {}
     setLoading(false);
   }, []);
@@ -158,6 +166,14 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
         <KpiCard label="รายการทั้งหมด" value={String(groups.reduce((s, g) => s + g.pending.length + g.approved.length + g.rejected.length, 0))} hint="rep_forwarded+" accent="blue" />
       </div>
 
+      {/* แผนกที่ยังไม่มีการเบิก OT เดือนนี้ */}
+      {noOtDepts.length > 0 && (
+        <div className="flex items-start gap-2 p-4 mb-5 bg-red-50 border border-red-300 rounded-xl text-[13px]">
+          <span className="text-red-600 font-semibold shrink-0">⚠ แผนกที่ยังไม่ส่งเอกสารเดือนนี้ ({noOtDepts.length} แผนก):</span>
+          <span className="text-red-700">{noOtDepts.map(d => d.name).join(', ')}</span>
+        </div>
+      )}
+
       <SectionCard title="สถานะการส่งจากตัวแทนฝ่าย">
         {loading ? (
           <div className="flex items-center justify-center h-32 gap-3 text-[var(--neutral-500)]">
@@ -192,7 +208,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           {hasPending && <StatusChip kind="warning">รอตรวจสอบ</StatusChip>}
                           {isApproved && <StatusChip kind="success">อนุมัติแล้ว</StatusChip>}
                           {isRejected && <StatusChip kind="danger">ตีกลับแล้ว</StatusChip>}
-                          {!hasPending && !isApproved && !isRejected && <StatusChip kind="orange">ยังไม่ส่งมอบ</StatusChip>}
+                          {!hasPending && !isApproved && !isRejected && <StatusChip kind="warning">ยังไม่ส่งเอกสาร</StatusChip>}
                         </td>
                         <td className="px-3 py-2">
                           {(g.pending.length > 0 || g.approved.length > 0 || g.rejected.length > 0) && (
@@ -207,16 +223,16 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                         </td>
                         <td className="px-3 py-2">
                           {hasPending && (
-                            <div className="flex gap-1">
-                              <Button size="sm" className="h-7 px-2 bg-success text-white text-[11px]"
+                            <div className="flex gap-2">
+                              <Button size="sm" className="h-8 px-3 bg-success hover:bg-success/90 text-white text-[12px] font-semibold shadow-sm"
                                 disabled={processing}
                                 onClick={() => approveAll(g.pending)}>
-                                <CheckCircle2 className="size-3 mr-1" />อนุมัติทั้งหมด
+                                <CheckCircle2 className="size-4 mr-1" />อนุมัติทั้งหมด ({g.pending.length} รายการ)
                               </Button>
-                              <Button size="sm" className="h-7 px-2 bg-danger text-white text-[11px]"
+                              <Button size="sm" className="h-8 px-3 bg-danger hover:bg-danger/90 text-white text-[12px] font-semibold shadow-sm"
                                 disabled={processing}
                                 onClick={() => { setRejectDlg({ open: true, requests: g.pending, dept: g.dept_name }); setRejectNote(''); }}>
-                                <X className="size-3 mr-1" />ตีกลับ
+                                <X className="size-4 mr-1" />ตีกลับทั้งหมด
                               </Button>
                             </div>
                           )}
@@ -231,7 +247,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           <td className="px-3 py-2 pl-8 text-[12px] text-[var(--neutral-600)]" colSpan={2}>
                             {r.staff_name}
                           </td>
-                          <td className="px-3 py-2 text-[12px] font-mono">{r.work_date}</td>
+                          <td className="px-3 py-2 text-[12px] font-mono">{fmtDate(r.work_date)}</td>
                           <td className="px-3 py-2 text-[12px]">
                             <StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>
                               {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
@@ -344,7 +360,7 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
               <tbody>
                 {requests.map((r, j) => (
                   <tr key={r.id} className={`border-t border-[var(--neutral-300)] ${j % 2 === 0 ? 'bg-[var(--neutral-50)]' : 'bg-white'}`}>
-                    <td className="px-4 py-3 font-mono">{r.work_date}</td>
+                    <td className="px-4 py-3 font-mono">{fmtDate(r.work_date)}</td>
                     <td className="px-4 py-3"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                     <td className="px-4 py-3 font-mono">{r.start_time}</td>
                     <td className="px-4 py-3 font-mono">{r.end_time}</td>
@@ -413,7 +429,7 @@ export function CheckerHistory() {
                     </span>
                   </p>
                   <p className="text-[12px] text-[var(--neutral-500)]">
-                    วันที่ทำ OT: {r.work_date} • {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} บาท
+                    วันที่ทำ OT: {fmtDate(r.work_date)} • {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} บาท
                   </p>
                 </div>
               );
@@ -649,12 +665,13 @@ export function CheckerReport() {
               <p className="text-[11px] text-[var(--neutral-500)] mb-3">ยอด OT สะสม <strong>ตามช่วงที่เลือก</strong> จำแนกตามแผนก · หน่วย: บาท</p>
               {chartData.length === 0 ? <p className="text-center py-10 text-[var(--neutral-500)]">ไม่มีข้อมูล</p> : (
                 <div className="h-[280px]"><ResponsiveContainer>
-                  <BarChart data={chartData} margin={{ left: 16 }}>
+                  <BarChart data={chartData} margin={{ left: 16, top: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" label={{ value: 'แผนก', position: 'insideBottom', offset: -4, style: { fontSize: 11, fill: '#888' } }} />
                     <YAxis tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} label={{ value: 'บาท', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11, fill: '#888' } }} />
                     <Tooltip formatter={(v: any) => [Number(v).toLocaleString() + ' บาท', 'ยอด OT']} />
-                    <Bar dataKey="a" fill="#B8001F" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="a" fill="#B8001F" radius={[6, 6, 0, 0]}
+                      label={{ position: 'top', fontSize: 11, fill: '#B8001F', formatter: (v: number) => totalAmt > 0 ? `${Math.round(v / totalAmt * 100)}%` : '' }} />
                   </BarChart>
                 </ResponsiveContainer></div>
               )}

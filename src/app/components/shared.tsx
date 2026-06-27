@@ -1,6 +1,25 @@
 import { ReactNode } from 'react';
 import { cn } from './ui/utils';
 
+export function fmtDate(dateStr: string | undefined | null): string {
+  if (!dateStr) return '-';
+  const s = String(dateStr).slice(0, 10);
+  const parts = s.split('-');
+  if (parts.length !== 3) return s;
+  const [y, m, d] = parts;
+  const shortYear = String(Number(y) % 100).padStart(2, '0');
+  return `${d}-${m}-${shortYear}`;
+}
+
+export function fmtDateTime(isoStr: string | undefined | null): string {
+  if (!isoStr) return '-';
+  const d = new Date(isoStr);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear() % 100).padStart(2, '0');
+  return `${dd}-${mm}-${yy}`;
+}
+
 export type Role = 'admin' | 'staff' | 'depthead' | 'deptrep' | 'checker' | 'executive';
 
 export const ROLE_INFO: Record<Role, { label: string; name: string; dept: string; empId: string }> = {

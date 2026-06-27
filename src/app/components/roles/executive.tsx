@@ -223,7 +223,7 @@ export function ExecDashboard() {
                       <BarChart data={chartData} margin={{ bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="d" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
-                        <YAxis tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
+                        <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
                         <Tooltip formatter={(v: any) => [Math.round(v).toLocaleString() + ' บาท', 'ค่า OT']} />
                         <Bar dataKey="a" name="ค่า OT" radius={[4, 4, 0, 0]}>
                           {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -438,8 +438,8 @@ export function ExecTrend() {
                   <LineChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="m" />
-                    <YAxis tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
-                    <Tooltip formatter={(v: any, name: any) => [Math.round(v).toLocaleString() + ' บาท', name]} />
+                    <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                    <Tooltip formatter={(v: any, name: string) => [Number(v).toLocaleString() + ' บาท', name]} />
                     <Legend />
                     {deptNames.map((d, i) => (
                       <Line key={d} type="monotone" dataKey={d}
@@ -488,8 +488,8 @@ export function ExecTrend() {
                 <BarChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="m" />
-                  <YAxis tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
-                  <Tooltip formatter={(v: any, name: any) => [Math.round(v).toLocaleString() + ' บาท', name]} />
+                  <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                  <Tooltip formatter={(v: any, name: string) => [Number(v).toLocaleString() + ' บาท', name]} />
                   <Legend />
                   {deptNames.map((d, i) => (
                     <Bar key={d} dataKey={d} stackId="a" fill={COLORS[i % COLORS.length]}

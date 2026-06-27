@@ -3,7 +3,7 @@ import {
   ArrowLeft, CheckCircle2, Clock, AlertTriangle, X,
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { StatusChip } from './shared';
+import { StatusChip, fmtDateTime } from './shared';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 
@@ -112,7 +112,7 @@ export function OTDetailPage({ onBack, requestId }: Props) {
                 ['ชื่อ-นามสกุล', req.staff_name || '—'],
                 ['แผนก', req.department_name || '—'],
                 ['ประเภทวัน', req.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'],
-                ['วันที่ยื่น', req.created_at ? new Date(req.created_at).toLocaleDateString('th-TH') : '—'],
+                ['วันที่ยื่น', req.created_at ? fmtDateTime(req.created_at) : '—'],
               ].map(([k, v]) => (
                 <div key={k}>
                   <p className="text-[var(--neutral-500)] text-[11px] mb-0.5">{k}</p>

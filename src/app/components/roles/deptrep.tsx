@@ -3,10 +3,10 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
   LayoutDashboard, FileSpreadsheet, History, Users, Download, CheckCircle2,
-  ChevronRight, Send, RefreshCw,
+  ChevronRight, Send, RefreshCw, Upload,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
-import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
+import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -22,7 +22,7 @@ export const REP_NAV: NavItem[] = [
 
 const token = () => localStorage.getItem('access_token') || '';
 
-const MAX_DATES = 10;  // รองรับ OT สูงสุด 10 วัน/เดือน/คน
+const DATES_PER_ROW = 8;  // 8 คอลัมน์วันที่ (C-J) ตามแบบฟอร์มจริง
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,31 +83,80 @@ function thaiAmountText(n: number): string {
   return chunk(n)+'บาทถ้วน';
 }
 
-// ── Excel generation ────────────────────────────────────────────────────────
-function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำนักงานทะเบียนนักศึกษา') {
+// ── Excel generation (ตามแบบฟอร์มจริง — 16 คอลัมน์ A-P) ──────────────────
+function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำนักงานทะเบียนนักศึกษา', signer = '') {
   const wb = XLSX.utils.book_new();
   const rows: any[][] = [];
-  rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ']);
-  rows.push([`${deptName}  ประจำเดือน ${month}`]);
-  rows.push([]);
-  rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','รวมเวลาปฏิบัติงาน','','จำนวนเงิน','ว.ด.ป.\nที่รับเงิน','ลายมือชื่อ\nผู้รับเงิน','หมายเหตุ']);
-  rows.push(['','','วันที่ 1','วันที่ 2','วันที่ 3','วันที่ 4','วันที่ 5','วันปกติ\n(ชั่วโมง)','วันหยุด\n(ชั่วโมง)','','','','']);
-  const total = employees.reduce((s, e) => s + e.amount, 0);
+  const C = 16;
+  const pad = (n: number) => Array(n).fill('');
+
+  rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ', ...pad(C-1)]);
+  rows.push([`  ${deptName}  ประจำเดือน ${month}`, ...pad(C-1)]);
+  rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','','','','รวมเวลา','','จำนวนเงิน','','','หมายเหตุ']);
+  rows.push(['','','','','','','','','','','ปฏิบัติงาน','','','ว.ด.ป.','ลายมือชื่อ','']);
+  rows.push(['','','','','','','','','','','วันปกติ','วันหยุด','','ที่รับเงิน','ผู้รับเงิน','']);
+  rows.push(['','','','','','','','','','','(ชั่วโมง)','(ชั่วโมง)','','','','']);
+  rows.push(['','','','','','','','','','','ยอดยกมา','','','','','']);
+
+  const grandTotal = employees.reduce((s, e) => s + e.amount, 0);
+
   employees.forEach(emp => {
-    const dr: any[] = [emp.seq, emp.name];
-    for (let i = 0; i < MAX_DATES; i++) dr.push(emp.days[i]?.date ?? '');
-    dr.push(emp.weekdayHrs||'', emp.weekendHrs||'', emp.amount, '', '', emp.note);
-    rows.push(dr);
-    const tr: any[] = ['', ''];
-    for (let i = 0; i < MAX_DATES; i++) tr.push(emp.days[i]?.time ?? '');
-    tr.push('','','','','','');
-    rows.push(tr);
+    const chunks: OTDay[][] = [];
+    for (let i = 0; i < emp.days.length; i += DATES_PER_ROW) {
+      chunks.push(emp.days.slice(i, i + DATES_PER_ROW));
+    }
+    if (chunks.length === 0) chunks.push([]);
+
+    chunks.forEach((chunk, ci) => {
+      const isLast = ci === chunks.length - 1;
+      const dateRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
+      for (let i = 0; i < DATES_PER_ROW; i++) dateRow.push(chunk[i]?.date ?? '');
+      if (isLast) {
+        dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
+      } else {
+        dateRow.push('', '', '', '', '', '');
+      }
+      rows.push(dateRow);
+
+      const timeRow: any[] = ['', ''];
+      for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
+      timeRow.push('', '', '', '', '', '');
+      rows.push(timeRow);
+    });
   });
+
+  const sumRow: any[] = ['', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
+  for (let i = 0; i < DATES_PER_ROW; i++) sumRow.push('');
+  sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
+  rows.push(sumRow);
+
   rows.push([]);
-  rows.push(['','',`รวมเงินจ่ายทั้งสิ้น (ตัวอักษร)  -${thaiAmountText(total)}-`,'','','','','รวมเป็นเงิน','',total,'','','']);
+  rows.push(['ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-1)]);
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลายมือชื่อ', '', 'ลงชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
+  const signerName = signer || 'นางสาวสาริยา  นวมจิต';
+  rows.push(['', `(${signerName})`, '', '', '', '', '', '', '', '', '(นางสาวทองยุ่น  มธุรส)', '', '', '', '', '']);
+  rows.push(['ตำแหน่ง', 'รักษาการในตำแหน่งเลขานุการสำนักงานทะเบียนนักศึกษา', '', '', '', '', '', '', '', '         ตำแหน่ง', 'นักวิชาการเงินและบัญชีชำนาญการ', '', '', '', '', '']);
+
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:8},{wch:30},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:18},{wch:12}];
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:12}},{s:{r:1,c:0},e:{r:1,c:12}},{s:{r:3,c:2},e:{r:3,c:6}},{s:{r:3,c:7},e:{r:3,c:8}}];
+  ws['!cols'] = [
+    {wch:8},{wch:40},{wch:16},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},
+    {wch:7},{wch:7},{wch:9},{wch:8},{wch:13},{wch:11},
+  ];
+  ws['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:15}},
+    {s:{r:1,c:0},e:{r:1,c:15}},
+    {s:{r:2,c:0},e:{r:5,c:0}},
+    {s:{r:2,c:1},e:{r:5,c:1}},
+    {s:{r:2,c:2},e:{r:2,c:9}},
+    {s:{r:2,c:10},e:{r:2,c:11}},
+    {s:{r:3,c:10},e:{r:3,c:11}},
+    {s:{r:4,c:10},e:{r:4,c:11}},
+    {s:{r:5,c:10},e:{r:5,c:11}},
+    {s:{r:2,c:12},e:{r:5,c:12}},
+    {s:{r:2,c:13},e:{r:5,c:13}},
+    {s:{r:2,c:14},e:{r:5,c:14}},
+    {s:{r:2,c:15},e:{r:5,c:15}},
+  ];
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   saveAs(new Blob([buf], { type: 'application/octet-stream' }), `OT-Report-${month}.xlsx`);
@@ -129,7 +178,7 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
             <tr>
               <th className={th} rowSpan={2} style={{width:36}}>ลำดับที่</th>
               <th className={th} rowSpan={2} style={{width:180}}>ชื่อ-สกุล</th>
-              <th className={th} colSpan={MAX_DATES}>วันปฏิบัติงานนอกเวลาราชการ</th>
+              <th className={th} colSpan={DATES_PER_ROW}>วันปฏิบัติงานนอกเวลาราชการ</th>
               <th className={th} colSpan={2}>รวมเวลา<br/>ปฏิบัติงาน</th>
               <th className={th} rowSpan={2} style={{width:70}}>จำนวนเงิน</th>
               <th className={th} rowSpan={2} style={{width:60}}>ว.ด.ป.<br/>ที่รับเงิน</th>
@@ -137,7 +186,7 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
               <th className={th} rowSpan={2} style={{width:70}}>หมายเหตุ</th>
             </tr>
             <tr>
-              {Array.from({length:MAX_DATES},(_,i)=><th key={i} className={th} style={{width:90}}>วันที่ {i+1}</th>)}
+              {Array.from({length:DATES_PER_ROW},(_,i)=><th key={i} className={th} style={{width:90}}>วันที่ {i+1}</th>)}
               <th className={th} style={{width:55}}>วันปกติ<br/>(ชั่วโมง)</th>
               <th className={th} style={{width:55}}>วันหยุด<br/>(ชั่วโมง)</th>
             </tr>
@@ -148,7 +197,7 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
                 <tr key={`d-${emp.seq}`}>
                   <td className={tdC} rowSpan={2}>{emp.seq}</td>
                   <td className={td} rowSpan={2}>{emp.name}</td>
-                  {Array.from({length:MAX_DATES},(_,i)=>(
+                  {Array.from({length:DATES_PER_ROW},(_,i)=>(
                     <td key={i} className={tdC} style={{color:emp.days[i]?.isWeekend?'#B8001F':undefined}}>{emp.days[i]?.date??''}</td>
                   ))}
                   <td className={tdC} rowSpan={2}>{emp.weekdayHrs||''}</td>
@@ -157,7 +206,7 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
                   <td className={tdC} rowSpan={2}></td><td className={tdC} rowSpan={2}></td><td className={tdC} rowSpan={2}>{emp.note}</td>
                 </tr>
                 <tr key={`t-${emp.seq}`}>
-                  {Array.from({length:MAX_DATES},(_,i)=>(
+                  {Array.from({length:DATES_PER_ROW},(_,i)=>(
                     <td key={i} className={tdC} style={{color:emp.days[i]?.isWeekend?'#B8001F':undefined}}>{emp.days[i]?.time??''}</td>
                   ))}
                 </tr>

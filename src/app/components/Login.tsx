@@ -82,18 +82,19 @@ export function Login({ onLogin, onForgot }: Props) {
           <div className="space-y-4">
             {/* Username / Email */}
             <div>
-              <label className="block mb-1.5">รหัสพนักงาน</label>
+              <label className="block mb-1.5">อีเมลนักศึกษา / รหัสพนักงาน</label>
               <div className="relative">
                 <User className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
                 <Input
                   className={`pl-10 h-11 ${isError ? 'border-danger focus-visible:ring-danger' : ''}`}
-                  placeholder="เช่น 0001"
+                  placeholder="เช่น s6512345678@dome.tu.ac.th"
                   value={username}
                   onChange={e => { setUsername(e.target.value); if (isError) setState('idle'); }}
                   disabled={isLoading}
                   onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                 />
               </div>
+              <p className="text-[11px] text-[var(--neutral-500)] mt-1">รองรับ @dome.tu.ac.th · @tu.ac.th · รหัสพนักงาน</p>
             </div>
 
             {/* Password */}
@@ -199,15 +200,15 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
               href="https://account.tu.ac.th"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full h-12 rounded-lg bg-tu-red hover:bg-tu-red-dark text-white font-semibold transition-colors no-underline"
+              className="flex items-center justify-center gap-2 w-full h-12 rounded-lg bg-tu-red text-white font-semibold hover:bg-tu-red-dark transition-colors"
             >
-              ไปยัง TU IT Center (account.tu.ac.th) →
+              ไปยังหน้าจัดการบัญชี TU (สทส.)
             </a>
-            <p className="text-[12px] text-[var(--neutral-500)] text-center">
-              เปิดในแท็บใหม่ · จัดการบัญชี TU Account ของคุณ
-            </p>
+            <Button variant="outline" onClick={onBack} className="w-full h-11">
+              ← กลับหน้าเข้าสู่ระบบ
+            </Button>
           </div>
-          <button onClick={onBack} className="block w-full text-center text-tu-red font-medium mt-6">← กลับไปเข้าสู่ระบบ</button>
+
         </div>
       </div>
     </div>

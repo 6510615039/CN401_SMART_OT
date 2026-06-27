@@ -382,7 +382,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             staff=self.request.user,
             department=dept,
             day_type=day_type,
-            ot_hours=ot_hours,  # ใช้ค่าที่ cap แล้ว
+            ot_hours=ot_hours,
+            rate_per_hour=hourly_rate,
             amount=amount,
             status='submitted',
         )
@@ -496,6 +497,9 @@ class HolidayViewSet(viewsets.ModelViewSet):
         log_action(self.request.user, f'เพิ่มวันหยุด {h.name}', 'Holiday', h.id, request=self.request)
 
     def perform_destroy(self, instance):
+        if instance.is_system and self.request.user.role != 'admin':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('เฉพาะแอดมินเท่านั้นที่สามารถลบวันหยุดราชการได้')
         log_action(self.request.user, f'ลบวันหยุด {instance.name}', 'Holiday', instance.id, request=self.request)
         instance.delete()
 

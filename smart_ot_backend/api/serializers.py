@@ -84,7 +84,7 @@ class OTRequestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'staff', 'staff_name', 'department', 'department_name',
             'work_date', 'day_type', 'day_type_display',
-            'start_time', 'end_time', 'ot_hours',
+            'start_time', 'end_time', 'ot_hours', 'rate_per_hour',
             'work_detail', 'location', 'amount',
             'status', 'status_display',
             'head_note', 'rep_note', 'checker_note',
@@ -92,7 +92,7 @@ class OTRequestSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'staff', 'department', 'day_type', 'amount', 'status',
+            'staff', 'department', 'day_type', 'ot_hours', 'rate_per_hour', 'amount', 'status',
             'head_approved_at', 'checker_approved_at', 'created_at', 'updated_at',
         ]
 
@@ -126,4 +126,9 @@ class AuditLogSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ['id', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
+        fields = ['id', 'recipient', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
+        read_only_fields = ['created_at']ds = ['id', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
+=======
+        fields = ['id', 'recipient', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
+        read_only_fields = ['created_at']
+>>>>>>> origin/zonda

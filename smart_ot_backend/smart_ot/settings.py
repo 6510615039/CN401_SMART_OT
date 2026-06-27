@@ -131,6 +131,10 @@ DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', 'SMART OT <noreply@tu
 
 # Frontend app
 INSTALLED_APPS += ['frontend']
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
 # Templates
 TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
 # Login redirect

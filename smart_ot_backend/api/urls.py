@@ -49,6 +49,7 @@ urlpatterns = [
     # Head Report
     path('head/report/',                        views.head_report_view),
     path('head/report/pdf/',                    views.head_report_pdf_view),
+
     # Router
     path('', include(router.urls)),
 ]
