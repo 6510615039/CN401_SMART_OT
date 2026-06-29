@@ -1,23 +1,78 @@
 {% extends "layout.html" %}
 {% block title %}Dashboard — ผู้บริหาร{% endblock %}
 {% block breadcrumb %}Dashboard{% endblock %}
-{% block sidebar_nav %}
-<a href="{% url 'exec_dashboard' %}" class="nav-item active"><i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard</a>
-{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_exec.html" %}{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Dashboard ผู้บริหาร</h1></div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
-  <div class="kpi-card">
-    <div><p class="kpi-label">ค่า OT ที่อนุมัติแล้ว (รวม)</p><p class="kpi-value" style="color:var(--success);">{{ summary.total_amount|floatformat:0|default:"0" }}</p><p class="kpi-label">บาท</p></div>
-    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);"><i data-lucide="banknote" style="width:24px;height:24px;"></i></div>
+<div class="page-header">
+  <div><h1 style="margin:0;">Executive Dashboard</h1></div>
+</div>
+
+<!-- 3 KPI Cards -->
+<div class="grid-3" style="margin-bottom:24px;">
+  <div style="background:var(--tu-red);color:white;border-radius:12px;padding:20px;height:130px;display:flex;flex-direction:column;justify-content:space-between;">
+    <p style="font-size:12px;opacity:0.8;margin:0;">รวมค่า OT</p>
+    <p style="font-size:32px;font-weight:700;margin:0;">{{ summary.total_amt|floatformat:0|default:"0" }}</p>
+    <p style="font-size:12px;opacity:0.8;margin:0;">บาท &bull; {{ summary.total_requests|default:"0" }} รายการ</p>
   </div>
-  <div class="kpi-card">
-    <div><p class="kpi-label">ชั่วโมง OT รวม</p><p class="kpi-value" style="color:var(--info);">{{ summary.total_hours|default:"0" }}</p><p class="kpi-label">ชั่วโมง</p></div>
-    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);"><i data-lucide="clock" style="width:24px;height:24px;"></i></div>
+  <div class="kpi-card" style="height:130px;">
+    <div>
+      <p class="kpi-label">รวมชั่วโมง OT</p>
+      <p class="kpi-value red">{{ summary.total_hrs|floatformat:1|default:"0" }}</p>
+      <p class="kpi-label">ชั่วโมง &bull; {{ summary.dept_count|default:"0" }} แผนก</p>
+    </div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
+      <i data-lucide="clock" style="width:24px;height:24px;"></i>
+    </div>
   </div>
-  <div class="kpi-card">
-    <div><p class="kpi-label">คำร้องที่อนุมัติแล้ว</p><p class="kpi-value">{{ summary.total_requests|default:"0" }}</p></div>
-    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);"><i data-lucide="check-circle-2" style="width:24px;height:24px;"></i></div>
+  <div style="background:var(--tu-yellow);color:var(--neutral-black);border-radius:12px;padding:20px;height:130px;display:flex;flex-direction:column;justify-content:space-between;">
+    <p style="font-size:12px;margin:0;">พนักงานที่ทำ OT</p>
+    <p style="font-size:32px;font-weight:700;margin:0;">{{ summary.staff_count|default:"0" }}</p>
+    <p style="font-size:12px;margin:0;">คน</p>
   </div>
+</div>
+
+<!-- Department breakdown table -->
+{% if dept_breakdown %}
+<div class="card" style="margin-bottom:24px;">
+  <h3 class="section-title">รายละเอียดแต่ละแผนก</h3>
+  <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--neutral-300);">
+    <table class="table-red">
+      <thead>
+        <tr>
+          <th>แผนก</th>
+          <th style="text-align:right;">ค่า OT รวม</th>
+          <th style="text-align:right;">ชั่วโมงรวม</th>
+          <th style="text-align:right;">จำนวนคน</th>
+          <th style="text-align:right;">จำนวนรายการ</th>
+          <th style="text-align:right;">เฉลี่ย/คน</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dept_breakdown %}
+        <tr>
+          <td style="font-weight:600;">{{ d.name }}</td>
+          <td class="font-mono" style="text-align:right;color:var(--tu-red);font-weight:600;">{{ d.amount|floatformat:0 }}</td>
+          <td class="font-mono" style="text-align:right;">{{ d.hours|floatformat:1 }}</td>
+          <td class="font-mono" style="text-align:right;">{{ d.staff_count }}</td>
+          <td class="font-mono" style="text-align:right;">{{ d.count }}</td>
+          <td class="font-mono" style="text-align:right;">{% if d.staff_count > 0 %}{{ d.avg_per_staff|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr style="border-top:2px solid var(--tu-red);background:var(--neutral-100);">
+          <td style="font-weight:700;">รวมทั้งหมด</td>
+          <td class="font-mono" style="text-align:right;font-weight:700;color:var(--tu-red);">{{ summary.total_amt|floatformat:0 }}</td>
+          <td class="font-mono" style="text-align:right;font-weight:700;">{{ summary.total_hrs|floatformat:1 }}</td>
+          <td class="font-mono" style="text-align:right;font-weight:700;">{{ summary.staff_count }}</td>
+          <td class="font-mono" style="text-align:right;font-weight:700;">{{ summary.total_requests }}</td>
+          <td class="font-mono" style="text-align:right;font-weight:700;">{% if summary.staff_count > 0 %}{{ summary.avg_per_staff|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div style="text-align:center;">
+  <a href="{% url 'exec_trend' %}" class="btn-outline-red"><i data-lucide="trending-up" style="width:16px;height:16px;"></i> ดูแนวโน้ม OT</a>
 </div>
 {% endblock %}

@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block title %}แนวโน้ม OT — ผู้บริหาร{% endblock %}
+{% block breadcrumb %}แนวโน้ม OT{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_exec.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 style="margin:0;">วิเคราะห์แนวโน้ม OT</h1></div>
+</div>
+
+<div class="card">
+  <h3 class="section-title">แนวโน้มค่า OT 12 เดือนล่าสุด</h3>
+  <canvas id="trendChart" style="width:100%;height:400px;"></canvas>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var labels = {{ chart_labels|safe|default:"[]" }};
+  var values = {{ chart_values|safe|default:"[]" }};
+  var ctx = document.getElementById('trendChart');
+  if (!ctx || labels.length === 0) return;
+
+  new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'ค่า OT (บาท)',
+        data: values,
+        borderColor: '#B8001F',
+        backgroundColor: 'rgba(184, 0, 31, 0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: '#B8001F',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return ctx.parsed.y.toLocaleString() + ' บาท'; }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: function(v) { return v >= 1000 ? (v/1000).toFixed(0) + 'K' : v; } }
+        }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

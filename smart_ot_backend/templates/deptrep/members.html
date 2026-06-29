@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block title %}สมาชิกในแผนก — ตัวแทนแผนก{% endblock %}
+{% block breadcrumb %}สมาชิกในแผนก{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_rep.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 style="margin:0;">สมาชิกในแผนก — {{ dept_name }}</h1>
+  </div>
+</div>
+
+<div class="grid-4" style="margin-bottom:24px;">
+  {% for m in members %}
+  <div class="card" style="text-align:center;padding:20px;">
+    <div style="width:56px;height:56px;border-radius:50%;display:grid;place-items:center;margin:0 auto 8px;font-size:20px;font-weight:700;{% if m.role == 'depthead' %}background:#f97316;color:white;{% else %}background:var(--tu-yellow);color:var(--neutral-black);{% endif %}">
+      {{ m.full_name|first|default:"?" }}
+    </div>
+    <h4 style="font-size:13px;font-weight:600;margin:0;line-height:1.3;">{{ m.full_name|default:m.username }}</h4>
+    <p style="font-size:11px;color:var(--neutral-500);margin:2px 0 8px;">{% if m.role == 'depthead' %}หัวหน้างาน{% else %}พนักงาน{% endif %}</p>
+    {% with ot=member_ot|default_if_none:"" %}
+    {% for mo in member_ot %}
+      {% if mo.id == m.id %}
+        {% if mo.hrs > 0 %}
+        <p style="color:var(--tu-red);font-weight:600;font-size:13px;margin:0;">{{ mo.hrs|floatformat:0 }} ชม.</p>
+        <p style="font-size:11px;color:var(--neutral-500);margin:2px 0 0;">{{ mo.amt|floatformat:0 }} บาท</p>
+        {% else %}
+        <p style="font-size:11px;color:var(--neutral-300);margin:0;">ไม่มี OT เดือนนี้</p>
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% endwith %}
+  </div>
+  {% empty %}
+  <div class="card" style="grid-column:1/-1;text-align:center;padding:32px;">
+    <p style="color:var(--neutral-500);font-size:13px;">ไม่พบสมาชิกในแผนก</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

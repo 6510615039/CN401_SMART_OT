@@ -1,0 +1,111 @@
+{% extends "layout.html" %}
+{% block title %}รายงานแผนก — หัวหน้าแผนก{% endblock %}
+{% block breadcrumb %}รายงานแผนก{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_head.html" %}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--neutral-500);margin-bottom:16px;">
+  <span>หัวหน้างาน</span>
+  <i data-lucide="chevron-right" style="width:12px;height:12px;"></i>
+  <span style="color:var(--neutral-black);font-weight:500;">รายงานแผนก</span>
+</div>
+
+<div class="page-header">
+  <h1 style="margin:0;">รายงานแผนก{% if dept_name %} {{ dept_name }}{% endif %}</h1>
+</div>
+
+<!-- 2 KPI Cards -->
+<div class="grid-2" style="margin-bottom:24px;">
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รวมชั่วโมง</p>
+      <p class="kpi-value red">{{ total_hours|default:"0" }}</p>
+      <p class="kpi-label">ชั่วโมง</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);">
+      <i data-lucide="timer" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รวมยอดเงิน</p>
+      <p class="kpi-value green">{{ total_amount|floatformat:0|default:"0" }}</p>
+      <p class="kpi-label">บาท</p>
+    </div>
+    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);">
+      <i data-lucide="banknote" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js Bar Chart -->
+<div class="card" style="margin-bottom:24px;">
+  <h3 class="section-title">สรุป OT รายเดือน</h3>
+  <div style="position:relative;height:360px;">
+    <canvas id="otBarChart"></canvas>
+  </div>
+</div>
+
+<!-- OT Table -->
+{% if ots %}
+<div class="card" style="padding:0;overflow:hidden;">
+  <div style="padding:16px 20px;border-bottom:1px solid var(--neutral-300);">
+    <h3 style="margin:0;">รายการ OT ทั้งหมด</h3>
+  </div>
+  <table class="table-red">
+    <thead>
+      <tr>
+        <th>ชื่อ</th>
+        <th>วันที่</th>
+        <th>ชม.</th>
+        <th>จำนวนเงิน</th>
+        <th>สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ot in ots %}
+      <tr>
+        <td style="font-weight:500;">{{ ot.staff.get_full_name }}</td>
+        <td>{{ ot.work_date|date:"d-m-y" }}</td>
+        <td class="font-mono">{{ ot.ot_hours|floatformat:0 }}</td>
+        <td class="font-mono" style="font-weight:600;">{{ ot.amount|floatformat:0 }} บาท</td>
+        <td>{{ ot.get_status_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var ctx = document.getElementById('otBarChart');
+  if (!ctx) return;
+  new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: {{ chart_labels|safe }},
+      datasets: [{
+        label: 'ชั่วโมง OT',
+        data: {{ chart_values|safe }},
+        backgroundColor: '#B8001F',
+        borderRadius: 6,
+        maxBarThickness: 48
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

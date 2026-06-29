@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% block title %}ประวัติการตรวจสอบ — ผู้ตรวจสอบ{% endblock %}
+{% block breadcrumb %}ประวัติการตรวจสอบ{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_checker.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 style="margin:0;">ประวัติการตรวจสอบ</h1></div>
+</div>
+
+<div class="card">
+  {% if history %}
+  <div class="timeline">
+    {% for r in history %}
+    <div class="timeline-item">
+      <div class="timeline-dot {% if r.status == 'checker_approved' or r.status == 'completed' %}green{% else %}red{% endif %}">
+        {% if r.status == 'checker_approved' or r.status == 'completed' %}
+        <i data-lucide="check-circle-2" style="width:14px;height:14px;color:white;"></i>
+        {% else %}
+        <i data-lucide="x" style="width:14px;height:14px;color:white;"></i>
+        {% endif %}
+      </div>
+      <p style="margin:0;font-size:13px;">
+        <strong>{{ r.staff_name }}</strong> — แผนก{{ r.department_name }} &bull;
+        {% if r.status == 'checker_approved' or r.status == 'completed' %}
+        <span style="color:var(--success);font-weight:600;">อนุมัติแล้ว</span>
+        {% else %}
+        <span style="color:var(--danger);font-weight:600;">ตีกลับแล้ว</span>
+        {% endif %}
+      </p>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--neutral-500);">
+        วันที่ทำ OT: {{ r.work_date|date:"d-m-y" }} &bull; {{ r.ot_hours|floatformat:0 }} ชม. &bull; {{ r.amount|floatformat:0 }} บาท
+      </p>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="text-align:center;color:var(--neutral-500);padding:32px;font-size:13px;">ยังไม่มีประวัติการตรวจสอบ</p>
+  {% endif %}
+</div>
+{% endblock %}

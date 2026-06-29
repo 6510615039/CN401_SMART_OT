@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block title %}สมาชิกในแผนก — หัวหน้าแผนก{% endblock %}
+{% block breadcrumb %}สมาชิกในแผนก{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_head.html" %}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--neutral-500);margin-bottom:16px;">
+  <span>หัวหน้างาน</span>
+  <i data-lucide="chevron-right" style="width:12px;height:12px;"></i>
+  <span style="color:var(--neutral-black);font-weight:500;">สมาชิกในแผนก</span>
+</div>
+
+<div class="page-header">
+  <h1 style="margin:0;">สมาชิกในแผนก{% if dept_name %} — {{ dept_name }}{% endif %}</h1>
+</div>
+
+{% if members %}
+<div class="grid-4">
+  {% for m in members %}
+  <div class="card" style="text-align:center;padding:24px 16px;">
+    <!-- Avatar circle -->
+    <div class="avatar avatar-yellow" style="width:80px;height:80px;font-size:28px;margin:0 auto 12px;">
+      {{ m.first_name|first|default:"?" }}
+    </div>
+    <h3 style="margin:0;font-size:14px;">{{ m.get_full_name }}</h3>
+    <p style="margin:4px 0 0;font-size:11px;color:var(--neutral-500);">{{ m.employee_id|default:m.username }}</p>
+    <div style="margin:8px 0 12px;">
+      <span class="badge-neutral">{{ m.get_role_display|default:"พนักงาน" }}</span>
+    </div>
+    <!-- OT info -->
+    {% with m.id as uid %}
+    {% if member_ot and uid in member_ot %}
+    <p style="color:var(--tu-red);font-weight:600;font-size:13px;margin:0;">
+      {% for k,v in member_ot.items %}{% if k == uid %}{{ v.amt|floatformat:0 }} บาท ({{ v.hrs|floatformat:0 }} ชม.){% endif %}{% endfor %}
+    </p>
+    {% else %}
+    <p style="font-size:12px;color:var(--neutral-500);margin:0;">ยังไม่มีคำขอ OT</p>
+    {% endif %}
+    {% endwith %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:60px;color:var(--neutral-500);">
+  ไม่พบสมาชิกในแผนก
+</div>
+{% endif %}
+{% endblock %}

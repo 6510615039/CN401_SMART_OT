@@ -91,51 +91,48 @@ def log_action(user, action, model_name='', object_id='', detail='', request=Non
 
 def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
     """
-    สร้างหรืออัปเดต User จากข้อมูล TU Auth
+    ค้นหา User ที่มีอยู่แล้วในระบบจากข้อมูล TU Auth
+    ไม่สร้างใหม่ — ถ้าไม่เจอจะคืน None (admin ต้องสร้างให้ก่อน)
     ลำดับการค้นหา:
-      1. หาจาก email (ตรงกับ user ที่ import จากไฟล์ 07 ซึ่งมี email_tu)
-      2. หาจาก TU username
-      3. ถ้าไม่เจอ: สร้างใหม่ด้วย role='staff'
-    คง role เดิมเสมอ ไม่ overwrite
+      1. email ตรง (@tu.ac.th)
+      2. notify_email ตรง (@reg.tu.ac.th)
+      3. email prefix เป็น username (เช่น rsasima)
+      4. username ตรง (เช่น รหัสพนักงาน)
+      5. employee_id ตรง
     """
     username = tu_data.get('username', '').strip()
     if not username:
         return None
 
-    dept_name = tu_data.get('dept_name', '')
-    dept = Department.objects.get_or_create(
-        name=dept_name, defaults={'code': dept_name[:15].upper().replace(' ', '_')}
-    )[0] if dept_name else None
-    defaults = {
-        'first_name': tu_data.get('first_name', ''),
-        'last_name':  tu_data.get('last_name', ''),
-        'email':      tu_data.get('email', ''),
-        'is_active':  True,
-    }
-    if dept:
-        defaults['department'] = dept
+    tu_email = tu_data.get('email', '').strip().lower()
 
     try:
-        email = tu_data.get('email', '').strip()
-
-        # 1) หาจาก email ก่อน (user ที่ import จากไฟล์ 07 มี email_tu ตรงกัน)
         user = None
-        if email:
-            user = User.objects.filter(email__iexact=email).first()
-
-        # 2) หาจาก TU username
+        if tu_email:
+            user = (User.objects.filter(email__iexact=tu_email).first()
+                    or User.objects.filter(notify_email__iexact=tu_email).first())
+            if not user:
+                prefix = tu_email.split('@')[0]
+                user = User.objects.filter(username=prefix).first()
         if not user:
             user = User.objects.filter(username=username).first()
+        if not user:
+            user = User.objects.filter(employee_id=username).first()
 
-        if user:
-            # อัปเดตชื่อ/email/dept แต่ไม่เปลี่ยน role
-            for k, v in defaults.items():
-                setattr(user, k, v)
-            user.save()
-        else:
-            # สร้างใหม่ด้วย role='staff'
-            user = User(username=username, role='staff', **defaults)
-            user.set_unusable_password()
+        if not user:
+            return None
+
+        # อัปเดตชื่อ/email จาก TU API (คง role/dept เดิม)
+        changed = False
+        for field in ['first_name', 'last_name']:
+            val = tu_data.get(field, '').strip()
+            if val and getattr(user, field) != val:
+                setattr(user, field, val)
+                changed = True
+        if tu_email and not user.email:
+            user.email = tu_email
+            changed = True
+        if changed:
             user.save()
         return user
     except Exception as e:
@@ -174,7 +171,7 @@ def login_view(request):
     if tu_data:
         user = _auto_create_user_from_tu(tu_data)
         if not user:
-            return Response({'error': 'ไม่สามารถสร้างบัญชีในระบบได้ กรุณาติดต่อผู้ดูแลระบบ'}, status=500)
+            return Response({'error': 'ยืนยันตัวตนสำเร็จ แต่ไม่พบบัญชีในระบบ SMART OT กรุณาติดต่อแอดมินเพื่อเปิดสิทธิ์การใช้งาน'}, status=403)
 
     # ── ขั้นตอน 2: Local Auth (fallback) ──────────────────────────────
     if not user:

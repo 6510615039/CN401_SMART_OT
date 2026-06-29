@@ -1,0 +1,8 @@
+{% with request.resolver_match.url_name as current %}
+<a href="{% url 'exec_dashboard' %}" class="nav-item {% if current == 'exec_dashboard' %}active{% endif %}">
+  <i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard
+</a>
+<a href="{% url 'exec_trend' %}" class="nav-item {% if current == 'exec_trend' %}active{% endif %}">
+  <i data-lucide="trending-up" style="width:20px;height:20px;"></i> แนวโน้ม OT
+</a>
+{% endwith %}

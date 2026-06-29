@@ -1,0 +1,136 @@
+{% extends "layout.html" %}
+{% block title %}ตัวอย่างก่อนส่งออก — ตัวแทนแผนก{% endblock %}
+{% block breadcrumb %}ตัวอย่างก่อนส่งออก{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_rep.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 style="margin:0;">ตัวอย่างไฟล์ Excel — แบบฟอร์มหลักฐานการจ่ายค่า OT</h1></div>
+</div>
+
+<!-- Step Bar -->
+<div class="step-bar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="step-circle done">&#10003;</span>
+    <span style="font-size:14px;font-weight:600;color:var(--success);">เลือกข้อมูล</span>
+  </div>
+  <div class="step-line"></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="step-circle active">2</span>
+    <span style="font-size:14px;font-weight:600;color:var(--tu-red);">ตรวจสอบ</span>
+  </div>
+  <div class="step-line"></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="step-circle pending">3</span>
+    <span style="font-size:14px;color:var(--neutral-500);">ส่งต่อ</span>
+  </div>
+</div>
+
+<!-- Excel Preview -->
+<div class="card" style="margin-bottom:20px;">
+  <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--neutral-300);background:white;box-shadow:inset 0 1px 3px rgba(0,0,0,0.06);">
+    <div style="min-width:1100px;font-size:12px;padding:16px;">
+      <div style="text-align:center;font-weight:600;font-size:13px;margin-bottom:2px;">หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ</div>
+      <div style="text-align:center;font-size:12px;margin-bottom:12px;">{{ dept_name }}&nbsp;&nbsp;ประจำเดือน {{ month_label }}</div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr>
+            <th rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:36px;">ลำดับที่</th>
+            <th rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:160px;">ชื่อ-สกุล</th>
+            <th colspan="8" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;">วันปฏิบัติงานนอกเวลาราชการ</th>
+            <th colspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;">รวมเวลาปฏิบัติงาน</th>
+            <th rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:70px;">จำนวนเงิน</th>
+            <th rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:60px;">ว.ด.ป.<br>ที่รับเงิน</th>
+            <th rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:80px;">ลายมือชื่อ<br>ผู้รับเงิน</th>
+            <th rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:60px;">หมายเหตุ</th>
+          </tr>
+          <tr>
+            {% for i in "12345678" %}<th style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:85px;">วันที่ {{ forloop.counter }}</th>{% endfor %}
+            <th style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:50px;">วันปกติ<br>(ชม.)</th>
+            <th style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;width:50px;">วันหยุด<br>(ชม.)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for emp in employees %}
+            {% for chunk in emp.chunks %}
+            <!-- Date row -->
+            <tr>
+              {% if forloop.first %}
+              <td rowspan="{{ emp.row_count }}" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;">{{ emp.seq }}</td>
+              <td rowspan="{{ emp.row_count }}" style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;">{{ emp.name }}</td>
+              {% endif %}
+              {% for day in chunk.dates %}
+              <td style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;{% if day.is_weekend %}color:#B8001F;{% endif %}">{{ day.date }}</td>
+              {% endfor %}
+              {% for blank in chunk.date_blanks %}<td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>{% endfor %}
+              {% if forloop.last %}
+              <td rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;">{{ emp.weekday_hrs }}</td>
+              <td rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;">{{ emp.weekend_hrs }}</td>
+              <td rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;">{{ emp.amount|floatformat:0 }}</td>
+              <td rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td rowspan="2" style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              {% else %}
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              {% endif %}
+            </tr>
+            <!-- Time row -->
+            <tr>
+              {% for day in chunk.dates %}
+              <td style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;{% if day.is_weekend %}color:#B8001F;{% endif %}">{{ day.time }}</td>
+              {% endfor %}
+              {% for blank in chunk.date_blanks %}<td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>{% endfor %}
+              {% if not forloop.last %}
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          {% endfor %}
+          <!-- Total row -->
+          <tr>
+            <td colspan="10" style="border:1px solid #9ca3af;padding:4px 8px;font-size:11px;">
+              &nbsp;&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร) &nbsp;-{{ total_text }}-
+            </td>
+            <td colspan="2" style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;background:#f3f4f6;font-size:11px;font-weight:600;">รวมเป็นเงิน</td>
+            <td style="border:1px solid #9ca3af;padding:2px 4px;text-align:center;font-size:11px;font-weight:600;">{{ total|floatformat:0 }}</td>
+            <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+            <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+            <td style="border:1px solid #9ca3af;padding:2px 4px;font-size:11px;"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--neutral-300);">
+    <p style="margin:0;font-size:13px;color:var(--neutral-500);">รูปแบบไฟล์: Excel (.xlsx) &bull; {{ count }} พนักงาน &bull; {{ employees|length }} คำร้อง</p>
+  </div>
+</div>
+
+<!-- Action buttons -->
+<div style="display:flex;justify-content:space-between;">
+  <a href="{% url 'rep_export' %}" class="btn-outline">&larr; ย้อนกลับ</a>
+  <div style="display:flex;gap:12px;">
+    <a href="{% url 'rep_export_download' %}" class="btn-outline-red"><i data-lucide="download" style="width:16px;height:16px;"></i> ดาวน์โหลด Excel</a>
+    <form method="post" action="{% url 'rep_forward' %}" style="margin:0;">
+      {% csrf_token %}
+      {% for emp in employees %}
+        {% for req_id in emp.request_ids %}
+        <input type="hidden" name="selected_ids" value="{{ req_id }}">
+        {% endfor %}
+      {% endfor %}
+      <button type="submit" class="btn-red">ส่งต่อผู้ตรวจสอบ <i data-lucide="chevron-right" style="width:16px;height:16px;"></i></button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -4,32 +4,66 @@
 {% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
 
 {% block content %}
-<div class="page-header"><h1>สถานะคำร้อง OT</h1></div>
+<div class="page-header">
+  <h1 style="margin:0;">สถานะคำร้องของฉัน</h1>
+</div>
 
 <div class="card" style="padding:0;overflow:hidden;">
-  <table>
-    <thead><tr><th>วันที่</th><th>ชั่วโมง</th><th>ค่าตอบแทน</th><th>ประเภทวัน</th><th>สถานะ</th><th></th></tr></thead>
+  {% if requests %}
+  <table class="table-red">
+    <thead>
+      <tr>
+        <th>วันที่ OT</th>
+        <th>ประเภท</th>
+        <th>ชม.</th>
+        <th>จำนวนเงิน</th>
+        <th>สถานะ</th>
+        <th>Action</th>
+      </tr>
+    </thead>
     <tbody>
       {% for ot in requests %}
-      <tr>
-        <td>{{ ot.work_date|date:"j M Y" }}</td>
-        <td>{{ ot.ot_hours }}</td>
-        <td>{{ ot.amount|floatformat:0 }} บาท</td>
-        <td>{% if ot.day_type == 'holiday' %}<span class="badge-warning">วันหยุด</span>{% else %}<span class="badge-neutral">วันธรรมดา</span>{% endif %}</td>
+      <tr {% if ot.status == 'head_rejected' or ot.status == 'checker_rejected' %}style="background:var(--tu-red-soft);"{% endif %}>
+        <td>{{ ot.work_date|date:"d-m-y" }}</td>
         <td>
-          {% if ot.status == 'submitted' %}<span class="badge-info">รออนุมัติ</span>
-          {% elif ot.status == 'head_approved' %}<span class="badge-warning">หัวหน้าอนุมัติ</span>
-          {% elif ot.status == 'rep_forwarded' %}<span class="badge-warning">ส่งต่อแล้ว</span>
-          {% elif ot.status == 'checker_approved' %}<span class="badge-success">อนุมัติแล้ว</span>
-          {% elif 'rejected' in ot.status %}<span class="badge-danger">ถูกตีกลับ</span>
-          {% else %}<span class="badge-neutral">{{ ot.get_status_display }}</span>{% endif %}
+          {% if ot.day_type == 'holiday' %}
+          <span class="badge-danger">วันหยุด</span>
+          {% else %}
+          <span class="badge-neutral">วันธรรมดา</span>
+          {% endif %}
         </td>
-        <td><a href="{% url 'ot_detail' ot.id %}" style="font-size:12px;color:var(--tu-red);text-decoration:none;font-weight:500;">ดูรายละเอียด →</a></td>
+        <td class="font-mono">{{ ot.ot_hours|floatformat:0 }}</td>
+        <td class="font-mono">{{ ot.amount|floatformat:0 }} บาท</td>
+        <td>
+          {% if ot.status == 'submitted' %}
+          <span class="badge-warning">รออนุมัติ</span>
+          {% elif ot.status == 'head_approved' %}
+          <span class="badge-info">หัวหน้าอนุมัติ</span>
+          {% elif ot.status == 'head_rejected' %}
+          <span class="badge-danger">ตีกลับ</span>
+          {% elif ot.status == 'rep_forwarded' %}
+          <span class="badge-info">ส่งต่อแล้ว</span>
+          {% elif ot.status == 'checker_approved' %}
+          <span class="badge-success">อนุมัติแล้ว</span>
+          {% elif ot.status == 'checker_rejected' %}
+          <span class="badge-danger">ถูกปฏิเสธ</span>
+          {% elif ot.status == 'completed' %}
+          <span class="badge-success">เสร็จสิ้น</span>
+          {% else %}
+          <span class="badge-neutral">{{ ot.get_status_display }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{% url 'ot_detail' ot.id %}" class="btn-outline-red btn-sm" style="text-decoration:none;">ดู</a>
+        </td>
       </tr>
-      {% empty %}
-      <tr><td colspan="6" style="text-align:center;color:var(--neutral-500);padding:40px;">ไม่มีคำร้อง</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <div style="padding:60px;text-align:center;color:var(--neutral-500);">
+    <p style="font-weight:600;margin:0;">ไม่มีคำร้องในหมวดนี้</p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

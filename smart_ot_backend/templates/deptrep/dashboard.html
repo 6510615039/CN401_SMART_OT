@@ -1,28 +1,95 @@
 {% extends "layout.html" %}
 {% block title %}Dashboard — ตัวแทนแผนก{% endblock %}
 {% block breadcrumb %}Dashboard{% endblock %}
-{% block sidebar_nav %}
-<a href="{% url 'rep_dashboard' %}" class="nav-item active"><i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard</a>
-{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_rep.html" %}{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Dashboard ตัวแทนแผนก</h1></div>
-<div class="card" style="padding:0;overflow:hidden;">
-  <div style="padding:16px 20px;border-bottom:1px solid var(--neutral-300);"><h3 style="margin:0;">คำร้องรอส่งต่อ ({{ to_forward.count }})</h3></div>
-  <table>
-    <thead><tr><th>พนักงาน</th><th>วันที่</th><th>ชั่วโมง</th><th>ค่าตอบแทน</th><th></th></tr></thead>
-    <tbody>
-      {% for ot in to_forward %}
-      <tr>
-        <td>{{ ot.staff.get_full_name }}</td>
-        <td>{{ ot.work_date|date:"j M Y" }}</td>
-        <td>{{ ot.ot_hours }}</td>
-        <td>{{ ot.amount|floatformat:0 }} บาท</td>
-        <td><a href="{% url 'ot_detail' ot.id %}" style="color:var(--tu-red);text-decoration:none;font-size:12px;font-weight:500;">ส่งต่อ →</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่มีคำร้องรอส่งต่อ</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="page-header">
+  <div>
+    <h1 style="margin:0;">Dashboard ตัวแทนฝ่าย</h1>
+    <p style="color:var(--neutral-500);margin:4px 0 0;font-size:13px;">{{ dept_name }}</p>
+  </div>
+</div>
+
+<!-- 4 KPI Cards -->
+<div class="grid-4" style="margin-bottom:24px;">
+  <div class="kpi-card" style="flex-direction:column;align-items:stretch;height:auto;padding:20px;">
+    <p class="kpi-label">พร้อมส่งออก</p>
+    <p class="kpi-value red" style="margin:8px 0;">{{ to_forward_count|default:"0" }}</p>
+    <a href="{% url 'rep_export' %}" class="btn-red btn-sm" style="justify-content:center;">ไปส่งออก <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></a>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">ส่งออกแล้วเดือนนี้</p>
+      <p class="kpi-value green">{{ forwarded_count|default:"0" }}</p>
+      <p class="kpi-label">รายการ</p>
+    </div>
+    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);">
+      <i data-lucide="check-circle-2" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รวมยอดรอส่ง</p>
+      <p class="kpi-value blue">{{ total_amt|floatformat:0|default:"0" }}</p>
+      <p class="kpi-label">บาท</p>
+    </div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
+      <i data-lucide="banknote" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">สถานะ</p>
+      <div style="margin-top:6px;">
+        {% if to_forward_count > 0 %}
+        <span class="badge-warning">รอดำเนินการ</span>
+        {% else %}
+        <span class="badge-success">ทันสมัย</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-yellow-soft);color:var(--warning);">
+      <i data-lucide="activity" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Banner -->
+{% if to_forward_count > 0 %}
+<div class="alert-yellow" style="margin-bottom:24px;align-items:center;justify-content:space-between;">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div style="width:64px;height:64px;border-radius:12px;background:var(--success);display:grid;place-items:center;">
+      <i data-lucide="file-spreadsheet" style="width:32px;height:32px;color:white;"></i>
+    </div>
+    <div>
+      <h2 style="margin:0;">มี {{ to_forward_count }} คำร้องพร้อมส่งออก</h2>
+      <p style="color:var(--neutral-500);margin:4px 0 0;font-size:13px;">รวมยอด {{ total_amt|floatformat:0 }} บาท - ผ่านการอนุมัติจากหัวหน้างานแล้วทั้งหมด</p>
+    </div>
+  </div>
+  <a href="{% url 'rep_export' %}" class="btn-red" style="height:48px;padding:0 24px;font-size:15px;display:inline-flex;align-items:center;">ส่งออกเลย <i data-lucide="chevron-right" style="width:16px;height:16px;"></i></a>
+</div>
+{% endif %}
+
+<!-- Recent forwarded -->
+<div class="card">
+  <h3 class="section-title">คำร้องที่ส่งต่อล่าสุด</h3>
+  {% if forwarded %}
+  <div>
+    {% for r in forwarded %}
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;{% if not forloop.last %}border-bottom:1px solid var(--neutral-300);{% endif %}">
+      <div style="width:36px;height:36px;border-radius:50%;background:#dcfce7;color:var(--success);display:grid;place-items:center;">
+        <i data-lucide="check-circle-2" style="width:16px;height:16px;"></i>
+      </div>
+      <div style="flex:1;">
+        <p style="margin:0;font-size:13px;"><strong>{{ r.staff_name }}</strong> — {{ r.ot_hours|floatformat:0 }} ชม. {{ r.amount|floatformat:0 }} บาท</p>
+        <p style="margin:2px 0 0;font-size:11px;color:var(--neutral-500);">{{ r.work_date|date:"d-m-y" }}</p>
+      </div>
+      <span class="badge-success">ส่งต่อแล้ว</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="text-align:center;color:var(--neutral-500);padding:24px;font-size:13px;">ยังไม่มีประวัติการส่งต่อ</p>
+  {% endif %}
 </div>
 {% endblock %}

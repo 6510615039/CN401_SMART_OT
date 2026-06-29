@@ -1,0 +1,17 @@
+{% with request.resolver_match.url_name as current %}
+<a href="{% url 'head_dashboard' %}" class="nav-item {% if current == 'head_dashboard' %}active{% endif %}">
+  <i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard
+</a>
+<a href="{% url 'head_pending' %}" class="nav-item {% if current == 'head_pending' %}active{% endif %}">
+  <i data-lucide="inbox" style="width:20px;height:20px;"></i> คำร้องรออนุมัติ
+</a>
+<a href="{% url 'head_history' %}" class="nav-item {% if current == 'head_history' %}active{% endif %}">
+  <i data-lucide="history" style="width:20px;height:20px;"></i> ประวัติการอนุมัติ
+</a>
+<a href="{% url 'head_members' %}" class="nav-item {% if current == 'head_members' %}active{% endif %}">
+  <i data-lucide="users" style="width:20px;height:20px;"></i> สมาชิกในแผนก
+</a>
+<a href="{% url 'head_report' %}" class="nav-item {% if current == 'head_report' %}active{% endif %}">
+  <i data-lucide="file-bar-chart" style="width:20px;height:20px;"></i> รายงานแผนก
+</a>
+{% endwith %}

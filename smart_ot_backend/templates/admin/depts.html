@@ -4,15 +4,21 @@
 {% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
 {% block content %}
 <div class="page-header"><h1>จัดการแผนก</h1></div>
-<div class="card" style="padding:0;overflow:hidden;">
-  <table>
-    <thead><tr><th>รหัส</th><th>ชื่อแผนก</th><th>จำนวนสมาชิก</th></tr></thead>
+<div class="card" style="padding:0;overflow:hidden;border-radius:12px;">
+  <table class="table-red">
+    <thead>
+      <tr>
+        <th style="width:100px;">รหัส</th>
+        <th>ชื่อแผนก</th>
+        <th style="width:150px;text-align:right;">จำนวนสมาชิก</th>
+      </tr>
+    </thead>
     <tbody>
       {% for d in depts %}
       <tr>
-        <td style="font-size:12px;color:var(--neutral-500);">{{ d.code }}</td>
+        <td><span class="font-mono" style="font-size:12px;color:var(--neutral-500);">{{ d.code }}</span></td>
         <td><strong>{{ d.name }}</strong></td>
-        <td>{{ d.member_count }} คน</td>
+        <td style="text-align:right;"><span class="font-mono" style="font-weight:600;">{{ d.member_count }}</span> คน</td>
       </tr>
       {% empty %}
       <tr><td colspan="3" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่มีแผนก</td></tr>

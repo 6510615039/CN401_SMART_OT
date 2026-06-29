@@ -1,0 +1,17 @@
+{% with request.resolver_match.url_name as current %}
+<a href="{% url 'checker_dashboard' %}" class="nav-item {% if current == 'checker_dashboard' %}active{% endif %}">
+  <i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard
+</a>
+<a href="{% url 'checker_budget' %}" class="nav-item {% if current == 'checker_budget' %}active{% endif %}">
+  <i data-lucide="wallet" style="width:20px;height:20px;"></i> ติดตามงบประมาณ
+</a>
+<a href="{% url 'checker_set_budget' %}" class="nav-item {% if current == 'checker_set_budget' %}active{% endif %}">
+  <i data-lucide="send" style="width:20px;height:20px;"></i> ตั้งเพดานงบประมาณ
+</a>
+<a href="{% url 'checker_history' %}" class="nav-item {% if current == 'checker_history' %}active{% endif %}">
+  <i data-lucide="history" style="width:20px;height:20px;"></i> ประวัติการตรวจสอบ
+</a>
+<a href="{% url 'checker_report' %}" class="nav-item {% if current == 'checker_report' %}active{% endif %}">
+  <i data-lucide="file-bar-chart" style="width:20px;height:20px;"></i> รายงานภาพรวม
+</a>
+{% endwith %}

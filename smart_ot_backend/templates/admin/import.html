@@ -2,155 +2,171 @@
 {% block title %}นำเข้าข้อมูลเวลา{% endblock %}
 {% block breadcrumb %}นำเข้าข้อมูลเวลา{% endblock %}
 {% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
-{% block content %}
 
+{% block content %}
 <div class="page-header">
-  <h1>นำเข้าข้อมูลเวลาเข้า-ออกงาน</h1>
-  {% if meta %}
-    <form method="post" action="{% url 'admin_import' %}" enctype="multipart/form-data" style="display:inline;">
-      {% csrf_token %}
-      <label class="btn-outline" style="cursor:pointer;">
-        <i data-lucide="upload" style="width:15px;height:15px;"></i> นำเข้าไฟล์ใหม่
-        <input type="file" name="file" accept=".xlsx,.csv" style="display:none;" onchange="this.form.submit()">
-      </label>
-    </form>
-  {% endif %}
+  <div><h1>นำเข้าข้อมูลเวลาเข้า-ออกงาน</h1></div>
 </div>
 
-{% if messages %}
-  {% for msg in messages %}
-    <div class="alert-{% if msg.tags == 'error' %}red{% else %}yellow{% endif %}" style="margin-bottom:16px;">{{ msg }}</div>
-  {% endfor %}
-{% endif %}
-
 {% if not has_data %}
-{# ── Upload zone ── #}
-<div class="card" style="max-width:680px;">
-  <form method="post" action="{% url 'admin_import' %}" enctype="multipart/form-data" id="importForm">
+<!-- Upload Zone -->
+<div class="card" style="margin-bottom:24px;">
+  <form method="post" action="{% url 'admin_import' %}" enctype="multipart/form-data">
     {% csrf_token %}
-    <div style="border:2px dashed var(--tu-red);border-radius:12px;height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--tu-red-soft);margin-bottom:16px;">
-      <i data-lucide="cloud-upload" style="width:52px;height:52px;color:var(--tu-red);"></i>
-      <p style="margin:0;color:var(--neutral-700);">ลากไฟล์ .xlsx หรือ .csv มาวางที่นี่ หรือ</p>
-      <label class="btn-red" style="cursor:pointer;">
-        <i data-lucide="upload" style="width:16px;height:16px;"></i> เลือกไฟล์
-        <input type="file" name="file" accept=".xlsx,.csv" style="display:none;"
-               onchange="document.getElementById('lbl').textContent=this.files[0].name; this.form.submit()">
-      </label>
-      <span id="lbl" style="font-size:13px;color:var(--neutral-500);"></span>
+    <div style="border:2px dashed var(--tu-red);border-radius:12px;height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(252,231,235,0.3);cursor:pointer;" onclick="document.getElementById('fileInput').click();">
+      <i data-lucide="cloud-upload" style="width:64px;height:64px;color:var(--tu-red);"></i>
+      <p style="color:var(--neutral-700);margin:0;">ลากไฟล์ .xlsx หรือ .csv มาวางที่นี่ หรือ</p>
+      <button type="button" class="btn-red" onclick="event.stopPropagation();document.getElementById('fileInput').click();">เลือกไฟล์</button>
     </div>
-    <div class="alert-yellow">
-      <i data-lucide="alert-triangle" style="width:16px;height:16px;color:var(--warning);flex-shrink:0;"></i>
-      <p style="margin:0;font-size:13px;">รองรับไฟล์จากเครื่องสแกนนิ้ว/ใบหน้า — คอลัมน์: ID, Name, Date, Week, Check-In, Check-Out, Overtime, Attendance Status</p>
+    <input type="file" id="fileInput" name="file" accept=".xlsx,.csv" style="display:none;" onchange="this.form.submit();" />
+    <p style="font-size:12px;color:var(--neutral-500);margin-top:12px;text-align:center;">
+      รองรับไฟล์จากเครื่องสแกนนิ้ว/ใบหน้า &mdash; ขนาดสูงสุด 50MB
+    </p>
+    <div class="alert-yellow" style="margin-top:24px;">
+      <i data-lucide="alert-triangle" style="width:20px;height:20px;color:var(--warning);flex-shrink:0;margin-top:2px;"></i>
+      <p style="margin:0;font-size:13px;">เมื่อนำเข้าไฟล์แล้ว <strong>ระบบจะไม่อนุญาตให้นำเข้าซ้ำ</strong> &mdash; หากต้องการแก้ไขข้อมูล ให้แก้ไขในตารางแทน</p>
     </div>
   </form>
 </div>
+{% endif %}
 
-{% else %}
-{# ── Data view ── #}
-
-{% if meta %}
+{% if has_data %}
+<!-- Alert: Already imported -->
 <div class="alert-yellow" style="margin-bottom:20px;">
-  <i data-lucide="info" style="width:16px;height:16px;color:var(--warning);flex-shrink:0;"></i>
-  <p style="margin:0;font-size:13px;">
-    นำเข้าข้อมูลแล้ว — ระบบไม่อนุญาตให้นำเข้าไฟล์ซ้ำสำหรับช่วงเดือนนี้
-    หากต้องการแก้ไขข้อมูลรายคน ให้แก้ไขในตารางด้านล่างแล้วกดบันทึก
+  <i data-lucide="alert-triangle" style="width:20px;height:20px;color:var(--warning);flex-shrink:0;margin-top:2px;"></i>
+  <p style="margin:0;font-size:13px;flex:1;">
+    <strong>นำเข้าข้อมูลแล้ว</strong> &mdash; {{ meta.filename }} พบ {{ meta.total }} รายการ หากต้องการแก้ไขข้อมูลรายคน ให้แก้ไขในตารางด้านล่างแล้วกดบันทึก
   </p>
 </div>
 
-{# KPI cards #}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
-  <div class="card" style="padding:20px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:12px;color:var(--neutral-500);">รายการทั้งหมด</p>
-    <p style="margin:0;font-size:32px;font-weight:700;color:var(--neutral-black);">{{ meta.total }}</p>
+<!-- KPI Summary -->
+<div class="grid-4" style="margin-bottom:24px;">
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รายการทั้งหมด</p>
+      <p class="kpi-value red">{{ meta.total|default:0 }}</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);">
+      <i data-lucide="list-checks" style="width:24px;height:24px;"></i>
+    </div>
   </div>
-  <div class="card" style="padding:20px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:12px;color:var(--neutral-500);">พนักงาน</p>
-    <p style="margin:0;font-size:32px;font-weight:700;color:var(--neutral-black);">{{ meta.employees }} <span style="font-size:16px;font-weight:400;">คน</span></p>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">พนักงาน</p>
+      <p class="kpi-value blue">{{ meta.employees|default:0 }} คน</p>
+    </div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
+      <i data-lucide="users" style="width:24px;height:24px;"></i>
+    </div>
   </div>
-  <div class="card" style="padding:20px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:12px;color:var(--neutral-500);">วันที่ครอบคลุม</p>
-    <p style="margin:0;font-size:20px;font-weight:700;color:var(--neutral-black);">{{ meta.date_range }}</p>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">วันที่ครอบคลุม</p>
+      <p class="kpi-value" style="font-size:16px;color:var(--warning);">{{ meta.date_range|default:"—" }}</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-yellow-soft);color:var(--warning);">
+      <i data-lucide="calendar-days" style="width:24px;height:24px;"></i>
+    </div>
   </div>
-  <div class="card" style="padding:20px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:12px;color:var(--neutral-500);">พบความผิดปกติ</p>
-    <p style="margin:0;font-size:32px;font-weight:700;color:{% if meta.anomalies %}var(--danger){% else %}var(--neutral-black){% endif %};">{{ meta.anomalies }}</p>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">พบความผิดปกติ</p>
+      <p class="kpi-value orange">{{ meta.anomalies|default:0 }}</p>
+    </div>
+    <div class="kpi-icon" style="background:#fff3e0;color:#F57C00;">
+      <i data-lucide="alert-triangle" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Search -->
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+  <form method="get" style="display:flex;gap:8px;flex:1;max-width:400px;">
+    <div style="position:relative;flex:1;">
+      <i data-lucide="search" style="width:16px;height:16px;position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--neutral-500);"></i>
+      <input type="text" name="q" value="{{ search|default:'' }}" placeholder="ค้นหาชื่อพนักงาน หรือ รหัสพนักงาน" style="padding-left:36px;height:40px;" />
+    </div>
+    <button type="submit" class="btn-outline" style="height:40px;">ค้นหา</button>
+  </form>
+  {% if search %}
+  <a href="{% url 'admin_import' %}" class="btn-outline btn-sm">ล้างการค้นหา</a>
+  {% endif %}
+  <span style="margin-left:auto;font-size:13px;color:var(--neutral-500);">พบ <strong>{{ page_obj.paginator.count }}</strong> รายการ</span>
+</div>
+
+<!-- Data Table -->
+<div class="card" style="padding:0;overflow:hidden;border-radius:12px;">
+  <table class="table-red">
+    <thead>
+      <tr>
+        <th>วันที่</th>
+        <th>รหัส</th>
+        <th>ชื่อ</th>
+        <th>แผนก</th>
+        <th>กะ</th>
+        <th>เข้า</th>
+        <th>ออก</th>
+        <th>ชม.OT</th>
+        <th>สถานะเข้างาน</th>
+        <th>สถานะข้อมูล</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in page_obj %}
+      <tr{% if row.flag %} style="background:var(--tu-red-soft);"{% endif %}>
+        <td class="font-mono">{{ row.date|default:"—" }}</td>
+        <td class="font-mono">{{ row.empId|default:"—" }}</td>
+        <td>{{ row.name|default:"—" }}</td>
+        <td>{{ row.dept|default:"—" }}</td>
+        <td style="font-size:12px;">{% if row.timePeriod == 'morning' %}กะเช้า{% else %}กะปกติ{% endif %}</td>
+        <td class="font-mono">{{ row.in|default:"—" }}</td>
+        <td class="font-mono">{{ row.out|default:"—" }}</td>
+        <td class="font-mono">{{ row.ot|default:"0" }}</td>
+        <td>
+          {% if row.attendanceStatus %}
+            <span class="badge-warning">{{ row.attendanceStatus }}</span>
+          {% else %}
+            <span class="badge-success">ปกติ</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.flag %}
+            <span style="color:var(--danger);display:flex;align-items:center;gap:4px;font-size:12px;">
+              <i data-lucide="alert-triangle" style="width:12px;height:12px;"></i>ตรวจสอบ
+            </span>
+          {% else %}
+            <span class="badge-success">ผ่าน</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่พบข้อมูล</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--neutral-500);">
+  <span>แสดง {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} จาก {{ page_obj.paginator.count }} รายการ</span>
+  <div style="display:flex;gap:4px;">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}" class="btn-outline btn-sm">&larr;</a>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}
+      <span class="btn-red btn-sm">{{ num }}</span>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num|add:0 >= page_obj.number|add:"-2" and num|add:0 <= page_obj.number|add:"2" %}
+      <a href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}" class="btn-outline btn-sm">{{ num }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}" class="btn-outline btn-sm">&rarr;</a>
+    {% endif %}
   </div>
 </div>
 {% endif %}
 
-{# Search + table #}
-<div class="card">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;">
-    <form method="get" style="flex:1;max-width:380px;">
-      <div style="position:relative;">
-        <i data-lucide="search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--neutral-500);pointer-events:none;"></i>
-        <input name="q" value="{{ search }}" placeholder="ค้นหาชื่อพนักงาน หรือรหัสพนักงาน (EMP-XXXX)"
-               style="width:100%;padding:8px 12px 8px 34px;border:1px solid var(--neutral-300);border-radius:8px;font-size:14px;">
-      </div>
-    </form>
-    <span style="font-size:13px;color:var(--neutral-500);">พบ {{ page_obj.paginator.count }} รายการ</span>
-  </div>
-
-  <div style="overflow-x:auto;">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>วันที่</th>
-          <th>รหัส</th>
-          <th>ชื่อ</th>
-          <th>วัน</th>
-          <th>เข้า</th>
-          <th>ออก</th>
-          <th style="text-align:right;">ชม. OT</th>
-          <th>สถานะ</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in page_obj %}
-        <tr>
-          <td style="white-space:nowrap;">{{ r.date }}</td>
-          <td style="font-family:monospace;font-size:13px;">{{ r.emp_id }}</td>
-          <td>{{ r.name }}</td>
-          <td style="color:var(--neutral-500);font-size:13px;">{{ r.week }}</td>
-          <td>{{ r.checkin }}</td>
-          <td>{{ r.checkout }}</td>
-          <td style="text-align:right;font-weight:600;{% if r.overtime != '0' %}color:var(--tu-red);{% endif %}">{{ r.overtime }}</td>
-          <td>
-            {% if r.status_kind == 'success' %}
-              <span class="badge" style="background:var(--success);color:#fff;">{{ r.status }}</span>
-            {% elif r.status_kind == 'warning' %}
-              <span class="badge" style="background:var(--tu-yellow-soft);color:var(--warning);">⚠ {{ r.status }}</span>
-            {% else %}
-              <span class="badge" style="background:var(--neutral-100);color:var(--neutral-700);">{{ r.status }}</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% empty %}
-          <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--neutral-500);">ไม่พบข้อมูลที่ค้นหา</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  {# Pagination #}
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:16px;border-top:1px solid var(--neutral-300);">
-    <span style="font-size:13px;color:var(--neutral-500);">
-      หน้า {{ page_obj.number }} จาก {{ page_obj.paginator.num_pages }}
-    </span>
-    <div style="display:flex;gap:4px;">
-      {% if page_obj.has_previous %}
-        <a href="?page=1{% if search %}&q={{ search }}{% endif %}" class="btn-outline" style="padding:6px 10px;font-size:13px;">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}" class="btn-outline" style="padding:6px 12px;font-size:13px;">‹ ก่อนหน้า</a>
-      {% endif %}
-      {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}" class="btn-outline" style="padding:6px 12px;font-size:13px;">ถัดไป ›</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}{% if search %}&q={{ search }}{% endif %}" class="btn-outline" style="padding:6px 10px;font-size:13px;">»</a>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-</div>
 {% endif %}
 {% endblock %}

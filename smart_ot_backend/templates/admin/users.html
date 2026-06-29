@@ -1,39 +1,128 @@
 {% extends "layout.html" %}
-{% block title %}จัดการผู้ใช้{% endblock %}
+{% block title %}จัดการผู้ใช้ — Admin{% endblock %}
 {% block breadcrumb %}จัดการผู้ใช้{% endblock %}
 {% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
+
 {% block content %}
 <div class="page-header">
-  <h1>จัดการผู้ใช้</h1>
-  <button class="btn-red" onclick="openModal('addUserModal')">
-    <i data-lucide="user-plus" style="width:16px;height:16px;"></i> เพิ่มผู้ใช้
-  </button>
+  <div><h1>จัดการผู้ใช้งาน</h1></div>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'admin_import' %}" class="btn-outline-red" style="display:inline-flex;align-items:center;gap:6px;">
+      <i data-lucide="upload" style="width:16px;height:16px;"></i> นำเข้าจาก Excel
+    </a>
+    <!-- เพิ่มผู้ใช้ผ่านหน้า import หรือ Django admin -->
+
+  </div>
 </div>
-<div class="card" style="padding:0;overflow:hidden;">
-  <table>
-    <thead><tr><th>ชื่อ</th><th>รหัสพนักงาน</th><th>แผนก</th><th>Role</th><th>สถานะ</th></tr></thead>
-    <tbody>
-      {% for u in users %}
-      <tr>
-        <td>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--tu-yellow);display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ u.first_name|first }}</div>
-            <div><p style="margin:0;font-weight:500;">{{ u.get_full_name }}</p><p style="margin:0;font-size:12px;color:var(--neutral-500);">{{ u.email }}</p></div>
-          </div>
-        </td>
-        <td style="font-size:12px;color:var(--neutral-500);">{{ u.employee_id }}</td>
-        <td>{{ u.department }}</td>
-        <td>
-          {% if u.role == 'admin' %}<span class="badge-danger">ผู้ดูแลระบบ</span>
-          {% elif u.role == 'depthead' %}<span style="background:#fff7ed;color:#c2410c;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">หัวหน้าแผนก</span>
-          {% elif u.role == 'checker' %}<span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">ผู้ตรวจสอบ</span>
-          {% elif u.role == 'executive' %}<span class="badge-success">ผู้บริหาร</span>
-          {% else %}<span class="badge-info">พนักงาน</span>{% endif %}
-        </td>
-        <td><span class="badge-success">ใช้งาน</span></td>
-      </tr>
+
+<div class="card">
+  <!-- Filters -->
+  <form method="get" style="display:grid;grid-template-columns:1fr 200px 180px;gap:12px;margin-bottom:16px;">
+    <div style="position:relative;">
+      <i data-lucide="search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--neutral-500);"></i>
+      <input type="text" name="search" value="{{ request.GET.search|default:'' }}" placeholder="ค้นหาชื่อ / username / อีเมล" style="padding-left:40px;height:40px;" />
+    </div>
+    <select name="dept" onchange="this.form.submit();" style="height:40px;">
+      <option value="">ทุกแผนก</option>
+      {% for d in depts %}
+      <option value="{{ d.id }}" {% if request.GET.dept == d.id|stringformat:"d" %}selected{% endif %}>{{ d.name }}</option>
       {% endfor %}
-    </tbody>
-  </table>
+    </select>
+    <select name="role" onchange="this.form.submit();" style="height:40px;">
+      <option value="">ทุก Role</option>
+      <option value="staff" {% if request.GET.role == "staff" %}selected{% endif %}>พนักงาน</option>
+      <option value="depthead" {% if request.GET.role == "depthead" %}selected{% endif %}>หัวหน้างาน</option>
+      <option value="deptrep" {% if request.GET.role == "deptrep" %}selected{% endif %}>ตัวแทนฝ่าย</option>
+      <option value="checker" {% if request.GET.role == "checker" %}selected{% endif %}>ผู้ตรวจสอบ</option>
+      <option value="executive" {% if request.GET.role == "executive" %}selected{% endif %}>ผู้บริหาร</option>
+      <option value="admin" {% if request.GET.role == "admin" %}selected{% endif %}>Admin</option>
+    </select>
+  </form>
+
+  <!-- Table -->
+  <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--neutral-300);">
+    <table class="table-red">
+      <thead>
+        <tr>
+          <th style="width:48px;"></th>
+          <th>ชื่อ-นามสกุล</th>
+          <th>Username</th>
+          <th>แผนก</th>
+          <th>Role</th>
+          <th>อีเมล</th>
+          <th>สถานะ</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <div class="avatar avatar-yellow" style="width:32px;height:32px;font-size:12px;">
+              {{ u.first_name|first|default:u.username|first }}
+            </div>
+          </td>
+          <td style="font-weight:500;">{{ u.get_full_name|default:u.username }}</td>
+          <td class="font-mono" style="color:var(--neutral-600);">{{ u.username }}</td>
+          <td>{% if u.department %}{{ u.department.name }}{% else %}<span style="color:var(--neutral-500);">&mdash;</span>{% endif %}</td>
+          <td>
+            {% if u.role == 'admin' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:var(--tu-red);color:white;">Admin</span>
+            {% elif u.role == 'staff' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#2563eb;color:white;">พนักงาน</span>
+            {% elif u.role == 'depthead' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#f97316;color:white;">หัวหน้างาน</span>
+            {% elif u.role == 'deptrep' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:var(--tu-yellow);color:black;">ตัวแทนฝ่าย</span>
+            {% elif u.role == 'checker' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#7c3aed;color:white;">ผู้ตรวจสอบ</span>
+            {% elif u.role == 'executive' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:var(--success);color:white;">ผู้บริหาร</span>
+            {% else %}
+              <span class="badge-neutral">{{ u.get_role_display|default:u.role }}</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--neutral-500);">{{ u.email|default:"—" }}</td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge-success">Active</span>
+            {% else %}
+              <span class="badge-neutral">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'admin_user_edit' u.id %}" style="width:28px;height:28px;border-radius:6px;display:inline-grid;place-items:center;color:var(--tu-red);cursor:pointer;" title="แก้ไขสิทธิ์">
+              <i data-lucide="pencil" style="width:16px;height:16px;"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่พบข้อมูล</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if users.has_other_pages %}
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--neutral-500);">
+    <span>แสดง <strong>{{ users.start_index }}</strong>&ndash;<strong>{{ users.end_index }}</strong> จาก <strong>{{ users.paginator.count }}</strong> รายการ</span>
+    <div style="display:flex;gap:4px;">
+      {% if users.has_previous %}
+      <a href="?page={{ users.previous_page_number }}&{{ request.GET.urlencode }}" class="btn-outline btn-sm">&larr;</a>
+      {% endif %}
+      {% for num in users.paginator.page_range %}
+        {% if num == users.number %}
+        <span class="btn-red btn-sm">{{ num }}</span>
+        {% elif num == 1 or num == users.paginator.num_pages or num >= users.number|add:"-1" and num <= users.number|add:"1" %}
+        <a href="?page={{ num }}&{{ request.GET.urlencode }}" class="btn-outline btn-sm">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if users.has_next %}
+      <a href="?page={{ users.next_page_number }}&{{ request.GET.urlencode }}" class="btn-outline btn-sm">&rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

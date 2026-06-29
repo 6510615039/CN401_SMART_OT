@@ -1,29 +1,173 @@
 {% extends "layout.html" %}
 {% block title %}Dashboard — ผู้ตรวจสอบ{% endblock %}
 {% block breadcrumb %}Dashboard{% endblock %}
-{% block sidebar_nav %}
-<a href="{% url 'checker_dashboard' %}" class="nav-item active"><i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard</a>
-{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_checker.html" %}{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Dashboard ผู้ตรวจสอบ</h1></div>
-<div class="card" style="padding:0;overflow:hidden;">
-  <div style="padding:16px 20px;border-bottom:1px solid var(--neutral-300);"><h3 style="margin:0;">คำร้อง OT รอตรวจสอบ ({{ to_check.count }})</h3></div>
-  <table>
-    <thead><tr><th>พนักงาน</th><th>แผนก</th><th>วันที่</th><th>ชั่วโมง</th><th>ค่าตอบแทน</th><th></th></tr></thead>
-    <tbody>
-      {% for ot in to_check %}
-      <tr>
-        <td>{{ ot.staff.get_full_name }}</td>
-        <td>{{ ot.department }}</td>
-        <td>{{ ot.work_date|date:"j M Y" }}</td>
-        <td>{{ ot.ot_hours }}</td>
-        <td>{{ ot.amount|floatformat:0 }} บาท</td>
-        <td><a href="{% url 'ot_detail' ot.id %}" style="color:var(--tu-red);text-decoration:none;font-size:12px;font-weight:500;">ตรวจสอบ →</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--neutral-500);">ไม่มีคำร้องรอตรวจสอบ</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="page-header">
+  <div><h1 style="margin:0;">Dashboard ผู้ตรวจสอบ</h1></div>
 </div>
+
+<!-- Alert: no OT depts -->
+{% if no_ot_depts %}
+<div class="alert-red" style="margin-bottom:24px;">
+  <i data-lucide="alert-triangle" style="width:20px;height:20px;color:var(--tu-red);flex-shrink:0;margin-top:2px;"></i>
+  <div>
+    <span style="font-weight:600;color:var(--tu-red);">แผนกที่ยังไม่ส่งเอกสารเดือนนี้ ({{ no_ot_depts|length }} แผนก):</span>
+    <span style="color:var(--danger);">
+      {% for d in no_ot_depts %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </span>
+  </div>
+</div>
+{% endif %}
+
+<!-- 4 KPI Cards -->
+<div class="grid-4" style="margin-bottom:24px;">
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รอตรวจสอบ</p>
+      <p class="kpi-value orange">{{ to_check_count|default:"0" }}</p>
+      <p class="kpi-label">รายการ</p>
+    </div>
+    <div class="kpi-icon" style="background:#fff7ed;color:#F57C00;">
+      <i data-lucide="clock" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รวมยอด OT รอตรวจ</p>
+      <p class="kpi-value red">{{ total_pending_amt|floatformat:0|default:"0" }}</p>
+      <p class="kpi-label">บาท</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);">
+      <i data-lucide="banknote" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">อนุมัติแล้ว</p>
+      <p class="kpi-value green">{{ approved_count|default:"0" }}</p>
+      <p class="kpi-label">รายการ</p>
+    </div>
+    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);">
+      <i data-lucide="check-circle-2" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">รายการทั้งหมด</p>
+      <p class="kpi-value blue">{{ total_all|default:"0" }}</p>
+      <p class="kpi-label">รายการ</p>
+    </div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
+      <i data-lucide="list-checks" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Dept table -->
+<div class="card">
+  <h3 class="section-title">สถานะการส่งจากตัวแทนฝ่าย</h3>
+  {% if by_dept %}
+  <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--neutral-300);">
+    <table class="table-red">
+      <thead>
+        <tr>
+          <th>แผนก</th>
+          <th>รายการรอตรวจ</th>
+          <th>ยอดเงิน</th>
+          <th>สถานะ</th>
+          <th>ตรวจสอบ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in by_dept %}
+        <tr>
+          <td style="font-weight:500;">{{ d.dept_name }}</td>
+          <td class="font-mono">{% if d.pending_count > 0 %}{{ d.pending_count }}{% else %}&mdash;{% endif %}</td>
+          <td class="font-mono">{% if d.pending_count > 0 %}{{ d.pending_amt|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
+          <td>
+            {% if d.pending_count > 0 %}
+            <span class="badge-warning">รอตรวจสอบ</span>
+            {% elif d.approved_count > 0 %}
+            <span class="badge-success">อนุมัติแล้ว</span>
+            {% else %}
+            <span class="badge-warning" style="background:#fff7ed;color:#F57C00;">ยังไม่ส่งเอกสาร</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.pending_count > 0 %}
+            <div style="display:flex;gap:8px;">
+              <form method="post" action="{% url 'checker_approve_dept' d.dept_id %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn-success btn-sm">
+                  <i data-lucide="check-circle-2" style="width:14px;height:14px;"></i> อนุมัติทั้งหมด ({{ d.pending_count }} รายการ)
+                </button>
+              </form>
+              <button class="btn-danger btn-sm" onclick="openRejectModal('{{ d.dept_id }}','{{ d.dept_name }}',{{ d.pending_count }})">
+                <i data-lucide="x" style="width:14px;height:14px;"></i> ตีกลับทั้งหมด
+              </button>
+            </div>
+            {% elif d.approved_count > 0 %}
+            <span style="font-size:11px;color:var(--success);font-weight:600;">อนุมัติแล้ว &#10003;</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:11px;color:var(--neutral-500);margin-top:8px;">เมื่ออนุมัติหรือตีกลับ สถานะจะอัปเดตทันที</p>
+  {% else %}
+  <p style="text-align:center;color:var(--neutral-500);padding:32px;font-size:13px;">ยังไม่มีรายการส่งมาจากตัวแทนฝ่าย</p>
+  {% endif %}
+</div>
+
+<!-- Reject Modal -->
+<div id="reject-modal" class="modal-overlay">
+  <div class="modal">
+    <h3 style="margin:0 0 16px;">ตีกลับ — <span id="reject-dept-name"></span></h3>
+    <div class="alert-red" style="margin-bottom:16px;">
+      <p style="margin:0;font-weight:600;color:var(--tu-red);font-size:13px;">
+        จะตีกลับ <span id="reject-count"></span> รายการ — ระบบจะแจ้งเตือนพนักงานและหัวหน้างาน
+      </p>
+    </div>
+    <form method="post" id="reject-form" action="">
+      {% csrf_token %}
+      <label>เหตุผลการตีกลับ *</label>
+      <textarea name="note" id="reject-note" rows="4" placeholder="ระบุเหตุผลที่ตีกลับ เพื่อให้พนักงานดำเนินการแก้ไข" style="width:100%;margin-bottom:4px;" oninput="validateRejectNote()"></textarea>
+      <p id="reject-note-err" style="font-size:12px;color:var(--danger);margin:0 0 12px;display:none;">กรุณากรอกอย่างน้อย 10 ตัวอักษร</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn-outline" onclick="closeModal('reject-modal')">ยกเลิก</button>
+        <button type="submit" class="btn-danger" id="reject-submit" disabled>
+          <i data-lucide="x" style="width:16px;height:16px;"></i> ยืนยันตีกลับ
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openRejectModal(deptId, deptName, count) {
+  document.getElementById('reject-dept-name').textContent = deptName;
+  document.getElementById('reject-count').textContent = count;
+  document.getElementById('reject-form').action = '/checker/reject/' + deptId + '/';
+  document.getElementById('reject-note').value = '';
+  document.getElementById('reject-submit').disabled = true;
+  openModal('reject-modal');
+}
+function validateRejectNote() {
+  var val = document.getElementById('reject-note').value;
+  var err = document.getElementById('reject-note-err');
+  var btn = document.getElementById('reject-submit');
+  if (val.length > 0 && val.length < 10) {
+    err.style.display = 'block';
+    btn.disabled = true;
+  } else {
+    err.style.display = 'none';
+    btn.disabled = val.length < 10;
+  }
+}
+</script>
 {% endblock %}

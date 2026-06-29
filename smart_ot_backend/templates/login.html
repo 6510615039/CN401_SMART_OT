@@ -3,16 +3,14 @@
 {% block body %}
 <div style="min-height:100vh;display:flex;background:white;">
 
-  <!-- Left Hero Panel -->
+  <!-- Left Hero Panel (55%) -->
   <div style="width:55%;background:var(--tu-red);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px;position:relative;overflow:hidden;">
-    <!-- Stripe pattern -->
     <div style="position:absolute;inset:0;opacity:0.15;pointer-events:none;background:repeating-linear-gradient(45deg,#FFD400 0 2px,transparent 2px 28px);"></div>
     <div style="position:relative;z-index:10;">
-      <!-- Logo -->
       <div style="width:128px;height:128px;border-radius:16px;background:black;display:grid;place-items:center;margin:0 auto 32px;">
         <span style="color:white;font-weight:700;font-size:28px;letter-spacing:4px;">RegTU</span>
       </div>
-      <h1 style="font-size:36px;color:var(--tu-yellow);margin:0 0 16px;">SMART OT SYSTEM</h1>
+      <h1 style="font-size:36px;color:var(--tu-yellow);margin:0 0 16px;line-height:1.2;">SMART OT SYSTEM</h1>
       <p style="color:white;font-size:16px;margin:0 0 8px;max-width:400px;">
         ระบบคำนวณและตรวจสอบค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ
       </p>
@@ -22,63 +20,76 @@
     </div>
   </div>
 
-  <!-- Right Form Panel -->
+  <!-- Right Form Panel (45%) -->
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;">
     <div style="width:100%;max-width:400px;">
       <h1 style="margin:0 0 8px;">เข้าสู่ระบบ</h1>
       <p style="color:var(--neutral-500);margin:0 0 32px;">กรุณากรอกข้อมูลเพื่อเข้าใช้งานระบบ SMART OT</p>
 
-      {% if form.errors or error %}
-      <div class="alert-red" style="margin-bottom:20px;">
-        <i data-lucide="alert-circle" style="width:18px;height:18px;color:var(--danger);flex-shrink:0;margin-top:2px;"></i>
-        <p style="margin:0;font-size:13px;color:var(--danger);">{{ error|default:"Username หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง" }}</p>
-      </div>
-      {% endif %}
-
-      <form method="post" action="{% url 'login' %}">
+      <form method="post" action="{% url 'login' %}" style="display:flex;flex-direction:column;gap:16px;">
         {% csrf_token %}
-        <div style="margin-bottom:16px;">
-          <label>Username</label>
+
+        <!-- Username -->
+        <div>
+          <label style="margin-bottom:6px;">อีเมลนักศึกษา / รหัสพนักงาน</label>
           <div style="position:relative;">
             <i data-lucide="user" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--neutral-500);"></i>
-            <input type="text" name="username" placeholder="กรอก Username เช่น s6512345678"
-              style="padding-left:40px;height:44px;" autocomplete="username"
-              value="{{ username|default:'' }}" required />
+            <input type="text" name="username" placeholder="เช่น s6512345678@dome.tu.ac.th"
+              style="padding-left:40px;height:44px;{% if form.errors or error %}border-color:var(--danger);{% endif %}"
+              autocomplete="username" value="{{ username|default:'' }}" required />
           </div>
-          <p style="margin:4px 0 0;font-size:12px;color:var(--neutral-500);">รองรับบัญชี @tu.ac.th และ @dome.tu.ac.th</p>
+          <p style="margin:4px 0 0;font-size:11px;color:var(--neutral-500);">รองรับ @dome.tu.ac.th · @tu.ac.th · รหัสพนักงาน</p>
         </div>
 
-        <div style="margin-bottom:16px;">
-          <label>รหัสผ่าน</label>
+        <!-- Password -->
+        <div>
+          <label style="margin-bottom:6px;">รหัสผ่าน</label>
           <div style="position:relative;">
             <i data-lucide="key-round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--neutral-500);"></i>
             <input type="password" name="password" id="pwField" placeholder="••••••••"
-              style="padding-left:40px;padding-right:40px;height:44px;" autocomplete="current-password" required />
+              style="padding-left:40px;padding-right:40px;height:44px;{% if form.errors or error %}border-color:var(--danger);{% endif %}"
+              autocomplete="current-password" required />
             <button type="button" onclick="togglePw()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;padding:0;">
               <i data-lucide="eye" id="eyeIcon" style="width:16px;height:16px;color:var(--neutral-500);"></i>
             </button>
           </div>
+          {% if form.errors or error %}
+          <p style="font-size:12px;color:var(--danger);margin:4px 0 0;display:flex;align-items:center;gap:4px;">
+            <span>&#9888;</span> {{ error|default:"อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง" }}
+          </p>
+          {% endif %}
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
-            <input type="checkbox" name="remember" style="width:auto;accent-color:var(--tu-red);"> จดจำการเข้าสู่ระบบ
+        <!-- Remember / Forgot -->
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;font-size:13px;margin:0;">
+            <input type="checkbox" name="remember" checked style="width:auto;accent-color:var(--tu-red);"> จดจำการเข้าสู่ระบบ
           </label>
           <a href="{% url 'forgot_password' %}" style="font-size:13px;color:var(--tu-red);font-weight:500;text-decoration:none;">ลืมรหัสผ่าน?</a>
         </div>
 
+        <!-- Submit -->
         <button type="submit" class="btn-red" style="width:100%;height:48px;justify-content:center;font-size:15px;" id="loginBtn">
-          <i data-lucide="log-in" style="width:18px;height:18px;"></i>
           เข้าสู่ระบบด้วย TU Account
         </button>
 
-        <p style="font-size:12px;color:var(--neutral-500);text-align:center;margin-top:16px;">
-          ระบบเชื่อมต่อกับ TU REST API • สิทธิ์การใช้งานถูกกำหนดโดยผู้ดูแลระบบ
+        <!-- Test accounts -->
+        <div style="background:var(--neutral-100);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--neutral-500);line-height:1.9;">
+          <strong style="color:var(--neutral-700);">บัญชีทดสอบ (username / password):</strong><br>
+          <span style="color:var(--neutral-600);">admin</span> / admin1234 &nbsp;&bull;&nbsp;
+          <span style="color:var(--neutral-600);">somchai</span> / staff1234<br>
+          <span style="color:var(--neutral-600);">onanong</span> / head1234 &nbsp;&bull;&nbsp;
+          <span style="color:var(--neutral-600);">checker</span> / chk1234<br>
+          <span style="color:var(--neutral-500);font-size:11px;">นักศึกษา: ใช้ email เต็ม เช่น s6512345678@dome.tu.ac.th</span>
+        </div>
+
+        <p style="font-size:12px;color:var(--neutral-500);text-align:center;margin:0;">
+          ระบบเชื่อมต่อกับ Django API &bull; สิทธิ์การใช้งานถูกกำหนดโดยผู้ดูแลระบบ
         </p>
       </form>
 
       <p style="font-size:12px;color:var(--neutral-500);text-align:center;margin-top:32px;">
-        © 2569 สำนักงานทะเบียนนักศึกษา มธ.
+        &copy; 2569 สำนักงานทะเบียนนักศึกษา มธ.
       </p>
     </div>
   </div>
@@ -87,14 +98,14 @@
 {% block extra_js %}
 <script>
 function togglePw() {
-  const f = document.getElementById('pwField');
-  const ic = document.getElementById('eyeIcon');
+  var f = document.getElementById('pwField');
+  var ic = document.getElementById('eyeIcon');
   if (f.type === 'password') { f.type = 'text'; ic.setAttribute('data-lucide','eye-off'); }
   else { f.type = 'password'; ic.setAttribute('data-lucide','eye'); }
   lucide.createIcons();
 }
-document.querySelector('form').addEventListener('submit', () => {
-  const btn = document.getElementById('loginBtn');
+document.querySelector('form').addEventListener('submit', function() {
+  var btn = document.getElementById('loginBtn');
   btn.innerHTML = '<i data-lucide="loader-2" style="width:18px;height:18px;animation:spin 1s linear infinite;"></i> กำลังตรวจสอบ...';
   btn.disabled = true;
   lucide.createIcons();

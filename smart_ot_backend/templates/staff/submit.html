@@ -4,45 +4,83 @@
 {% block sidebar_nav %}{% include "includes/nav_staff.html" %}{% endblock %}
 
 {% block content %}
-<div class="page-header"><h1>ยื่นคำร้อง OT</h1></div>
+<div class="page-header">
+  <h1 style="margin:0;">ยื่นคำร้องขอเบิกค่า OT</h1>
+</div>
+
+<!-- OT Rules -->
+<div class="alert-yellow" style="margin-bottom:20px;">
+  <i data-lucide="alert-triangle" style="width:20px;height:20px;color:var(--warning);flex-shrink:0;"></i>
+  <p style="margin:0;font-size:13px;"><strong>ข้อกำหนด:</strong> วันธรรมดา OT สูงสุด 4 ชม./วัน | วันหยุดสูงสุด 7 ชม./วัน</p>
+</div>
 
 <div class="card" style="max-width:640px;">
-  <form method="post" action="{% url 'staff_submit' %}">
+  <h3 class="section-title">แบบฟอร์มยื่นคำร้อง</h3>
+  <form method="post" action="">
     {% csrf_token %}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
       <div>
-        <label>วันที่ทำงาน OT</label>
-        <input type="date" name="work_date" required />
+        <label for="work_date">วันที่</label>
+        <input type="date" id="work_date" name="work_date" required style="border:1px solid var(--neutral-300);border-radius:8px;padding:9px 12px;font-size:14px;width:100%;">
       </div>
       <div>
-        <label>สถานที่</label>
-        <input type="text" name="location" placeholder="เช่น อาคารโดม ชั้น 2" />
+        <label for="location">สถานที่</label>
+        <input type="text" id="location" name="location" value="สำนักงานทะเบียนนักศึกษา">
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
       <div>
-        <label>เวลาเริ่ม</label>
-        <input type="time" name="start_time" required />
+        <label for="start_time">เวลาเริ่ม</label>
+        <input type="time" id="start_time" name="start_time" required style="border:1px solid var(--neutral-300);border-radius:8px;padding:9px 12px;font-size:14px;width:100%;">
       </div>
       <div>
-        <label>เวลาสิ้นสุด</label>
-        <input type="time" name="end_time" required />
+        <label for="end_time">เวลาสิ้นสุด</label>
+        <input type="time" id="end_time" name="end_time" required style="border:1px solid var(--neutral-300);border-radius:8px;padding:9px 12px;font-size:14px;width:100%;">
       </div>
     </div>
     <div style="margin-bottom:16px;">
-      <label>รายละเอียดงาน</label>
-      <textarea name="work_detail" rows="4" placeholder="อธิบายงานที่ทำในช่วง OT..." required></textarea>
+      <label for="work_detail">รายละเอียดงาน</label>
+      <textarea id="work_detail" name="work_detail" rows="4" placeholder="ระบุรายละเอียดงานที่ปฏิบัติ" required style="resize:vertical;"></textarea>
     </div>
-    <div class="alert-yellow" style="margin-bottom:20px;">
-      <i data-lucide="info" style="width:16px;height:16px;color:var(--warning);flex-shrink:0;"></i>
-      <p style="margin:0;font-size:12px;">ระบบจะคำนวณชั่วโมง OT และค่าตอบแทนโดยอัตโนมัติจากเวลาที่กรอก</p>
+
+    <!-- Day type info -->
+    <div id="day-type-info" class="alert-blue" style="margin-bottom:20px;display:none;">
+      <i data-lucide="info" style="width:18px;height:18px;color:var(--info);flex-shrink:0;"></i>
+      <p style="margin:0;font-size:13px;" id="day-type-text"></p>
     </div>
+
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <a href="{% url 'staff_dashboard' %}" class="btn-outline">ยกเลิก</a>
       <button type="submit" class="btn-red">
-        <i data-lucide="send" style="width:16px;height:16px;"></i> ยื่นคำร้อง
+        <i data-lucide="send" style="width:16px;height:16px;"></i> ส่งคำร้อง
       </button>
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var dateInput = document.getElementById('work_date');
+  if (dateInput) {
+    dateInput.addEventListener('change', function() {
+      var d = new Date(this.value);
+      var dayOfWeek = d.getDay();
+      var info = document.getElementById('day-type-info');
+      var text = document.getElementById('day-type-text');
+      if (this.value) {
+        info.style.display = 'flex';
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          text.innerHTML = '<strong>วันหยุด</strong> — อัตรา OT 70 บาท/ชม. (สูงสุด 7 ชม.)';
+        } else {
+          text.innerHTML = '<strong>วันธรรมดา</strong> — อัตรา OT 60 บาท/ชม. (สูงสุด 4 ชม.)';
+        }
+      } else {
+        info.style.display = 'none';
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

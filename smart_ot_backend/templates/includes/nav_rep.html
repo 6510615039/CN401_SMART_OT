@@ -1,0 +1,14 @@
+{% with request.resolver_match.url_name as current %}
+<a href="{% url 'rep_dashboard' %}" class="nav-item {% if current == 'rep_dashboard' %}active{% endif %}">
+  <i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i> Dashboard
+</a>
+<a href="{% url 'rep_export' %}" class="nav-item {% if current == 'rep_export' or current == 'rep_export_preview' %}active{% endif %}">
+  <i data-lucide="file-spreadsheet" style="width:20px;height:20px;"></i> ส่งออก Excel
+</a>
+<a href="{% url 'rep_history' %}" class="nav-item {% if current == 'rep_history' %}active{% endif %}">
+  <i data-lucide="history" style="width:20px;height:20px;"></i> ประวัติส่งออก
+</a>
+<a href="{% url 'rep_members' %}" class="nav-item {% if current == 'rep_members' %}active{% endif %}">
+  <i data-lucide="users" style="width:20px;height:20px;"></i> สมาชิกในแผนก
+</a>
+{% endwith %}

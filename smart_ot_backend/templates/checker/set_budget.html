@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block title %}ตั้งเพดานงบประมาณ — ผู้ตรวจสอบ{% endblock %}
+{% block breadcrumb %}ตั้งเพดานงบประมาณ{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_checker.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 style="margin:0;">ตั้งงบประมาณ OT รายแผนก</h1></div>
+</div>
+
+{% if messages %}
+<div style="margin-bottom:16px;">
+  {% for message in messages %}
+  <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:10px;border:1px solid var(--success);background:#dcfce7;color:var(--success);font-size:13px;">
+    <i data-lucide="check-circle-2" style="width:16px;height:16px;"></i> {{ message }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 class="section-title">งบประมาณ OT แต่ละแผนก</h3>
+  <form method="post" action="{% url 'checker_set_budget' %}">
+    {% csrf_token %}
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      {% for d in depts %}
+      <div style="display:flex;align-items:center;gap:16px;padding:12px;background:var(--neutral-100);border-radius:12px;">
+        <div style="flex:1;min-width:0;">
+          <p style="font-weight:500;font-size:13px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ d.name }}</p>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <div class="progress" style="flex:1;">
+              <div class="progress-fill" style="width:{% if d.pct > 100 %}100{% else %}{{ d.pct|default:0 }}{% endif %}%;background:var(--tu-red);"></div>
+            </div>
+            <span style="font-size:11px;color:var(--neutral-500);white-space:nowrap;">{{ d.used|floatformat:0|default:"0" }} / {{ d.budget|floatformat:0|default:"0" }} บ.</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" name="budget_{{ d.id }}" value="{{ d.budget|floatformat:0|default:'0' }}" style="width:120px;text-align:right;" min="0" step="1000">
+          <span style="font-size:12px;color:var(--neutral-500);">บาท</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+      <button type="submit" class="btn-red">บันทึกงบประมาณ</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
-{% block title %}Dashboard — หัวหน้าแผนก{% endblock %}
-{% block breadcrumb %}Dashboard{% endblock %}
+{% block title %}คำร้องรออนุมัติ — หัวหน้าแผนก{% endblock %}
+{% block breadcrumb %}คำร้องรออนุมัติ{% endblock %}
 {% block sidebar_nav %}{% include "includes/nav_head.html" %}{% endblock %}
 
 {% block content %}
@@ -8,80 +8,24 @@
 <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--neutral-500);margin-bottom:16px;">
   <span>หัวหน้างาน</span>
   <i data-lucide="chevron-right" style="width:12px;height:12px;"></i>
-  <span style="color:var(--neutral-black);font-weight:500;">Dashboard</span>
+  <span style="color:var(--neutral-black);font-weight:500;">คำร้องรออนุมัติ</span>
 </div>
 
 <div class="page-header">
-  <h1 style="margin:0;">Dashboard หัวหน้างาน</h1>
+  <h1 style="margin:0;">คำร้องรออนุมัติ</h1>
+  <p style="color:var(--neutral-500);margin:4px 0 0;font-size:13px;">{{ pending.count }} รายการ รอการพิจารณา</p>
 </div>
 
-<!-- 4 KPI Cards -->
-<div class="grid-4" style="margin-bottom:24px;">
-  <!-- รอตรวจสอบ (orange) -->
-  <div class="kpi-card">
-    <div>
-      <p class="kpi-label">รอตรวจสอบ</p>
-      <p class="kpi-value orange">{{ pending_count|default:"0" }}</p>
-      <a href="{% url 'head_pending' %}" class="btn-red btn-sm" style="margin-top:8px;text-decoration:none;display:inline-flex;">
-        ไปอนุมัติ <i data-lucide="chevron-right" style="width:14px;height:14px;"></i>
-      </a>
-    </div>
-    <div class="kpi-icon" style="background:#FFF3E0;color:#F57C00;">
-      <i data-lucide="inbox" style="width:24px;height:24px;"></i>
-    </div>
-  </div>
-
-  <!-- อนุมัติแล้ว (green) -->
-  <div class="kpi-card">
-    <div>
-      <p class="kpi-label">อนุมัติแล้ว</p>
-      <p class="kpi-value green">{{ approved_count|default:"0" }}</p>
-      <p class="kpi-label">รายการ</p>
-    </div>
-    <div class="kpi-icon" style="background:#dcfce7;color:var(--success);">
-      <i data-lucide="check-circle" style="width:24px;height:24px;"></i>
-    </div>
-  </div>
-
-  <!-- ตีกลับ (red) -->
-  <div class="kpi-card">
-    <div>
-      <p class="kpi-label">ตีกลับ</p>
-      <p class="kpi-value red">{{ rejected_count|default:"0" }}</p>
-      <p class="kpi-label">รายการ</p>
-    </div>
-    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);">
-      <i data-lucide="x-circle" style="width:24px;height:24px;"></i>
-    </div>
-  </div>
-
-  <!-- ชม. OT รวม (blue) -->
-  <div class="kpi-card">
-    <div>
-      <p class="kpi-label">ชม. OT รวม</p>
-      <p class="kpi-value blue">{{ total_hours|default:"0" }}</p>
-      <p class="kpi-label">ชั่วโมง</p>
-    </div>
-    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
-      <i data-lucide="timer" style="width:24px;height:24px;"></i>
-    </div>
-  </div>
-</div>
-
-<!-- Pending OT Table -->
 <form id="bulkForm" method="post" action="{% url 'head_bulk_approve' %}">
 {% csrf_token %}
 <div class="card" style="padding:0;overflow:hidden;">
-  <div style="padding:16px 20px;border-bottom:1px solid var(--neutral-300);">
-    <h3 style="margin:0;">คำร้อง OT รอตรวจสอบ ({{ pending_count }})</h3>
-  </div>
   {% if pending %}
   <table class="table-red">
     <thead>
       <tr>
         <th style="width:40px;"><input type="checkbox" id="selectAll"></th>
         <th>พนักงาน</th>
-        <th>วันที่ OT</th>
+        <th>วันที่ทำ OT</th>
         <th>ประเภท</th>
         <th>ชม.</th>
         <th>รวมเงิน</th>

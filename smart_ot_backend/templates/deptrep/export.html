@@ -1,0 +1,106 @@
+{% extends "layout.html" %}
+{% block title %}ส่งออก Excel — ตัวแทนแผนก{% endblock %}
+{% block breadcrumb %}ส่งออก Excel{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_rep.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 style="margin:0;">ส่งออกข้อมูลเป็น Excel</h1></div>
+</div>
+
+<!-- Step Bar -->
+<div class="step-bar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="step-circle active">1</span>
+    <span style="font-size:14px;font-weight:600;color:var(--tu-red);">เลือกข้อมูล</span>
+  </div>
+  <div class="step-line"></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="step-circle pending">2</span>
+    <span style="font-size:14px;color:var(--neutral-500);">ตรวจสอบ</span>
+  </div>
+  <div class="step-line"></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="step-circle pending">3</span>
+    <span style="font-size:14px;color:var(--neutral-500);">ส่งต่อ</span>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  {% if to_forward %}
+  <form method="post" action="{% url 'rep_export_preview' %}" id="export-form">
+    {% csrf_token %}
+    <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--neutral-300);">
+      <table class="table-red">
+        <thead>
+          <tr>
+            <th style="width:40px;"><input type="checkbox" id="select-all" checked onchange="toggleAll(this)"></th>
+            <th>ชื่อ-สกุล</th>
+            <th>วันที่</th>
+            <th>ชั่วโมง</th>
+            <th>จำนวนเงิน</th>
+            <th>ประเภท</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in to_forward %}
+          <tr>
+            <td><input type="checkbox" name="selected_ids" value="{{ r.id }}" class="row-cb" checked onchange="updateSummary()"></td>
+            <td>{{ r.staff_name }}</td>
+            <td style="color:var(--neutral-500);">{{ r.work_date|date:"d-m-y" }}</td>
+            <td class="font-mono">{{ r.ot_hours|floatformat:0 }} ชม.</td>
+            <td class="font-mono" style="font-weight:600;">{{ r.amount|floatformat:0 }}</td>
+            <td>
+              {% if r.day_type == 'holiday' %}
+              <span class="badge-warning">วันหยุด</span>
+              {% else %}
+              <span class="badge-info">วันธรรมดา</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Summary bar -->
+    <div style="margin-top:16px;background:var(--neutral-100);border-radius:8px;padding:12px 16px;">
+      <p style="margin:0;font-size:13px;">
+        เลือก <strong id="sel-count">{{ to_forward|length }}</strong> รายการ
+        &bull; รวม <strong id="sel-total" style="color:var(--success);">0</strong> บาท
+      </p>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:24px;">
+      <button type="submit" class="btn-red" id="submit-btn">ตรวจสอบและส่งออก <i data-lucide="chevron-right" style="width:16px;height:16px;"></i></button>
+    </div>
+  </form>
+  {% else %}
+  <p style="text-align:center;color:var(--neutral-500);padding:32px;font-size:13px;">ไม่มีคำร้องที่ผ่านการอนุมัติในเดือนนี้</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleAll(el) {
+  document.querySelectorAll('.row-cb').forEach(function(cb) { cb.checked = el.checked; });
+  updateSummary();
+}
+function updateSummary() {
+  var checks = document.querySelectorAll('.row-cb:checked');
+  document.getElementById('sel-count').textContent = checks.length;
+  document.getElementById('submit-btn').disabled = checks.length === 0;
+  // Recalc total from data attributes would require server data; keep simple
+  var rows = document.querySelectorAll('.row-cb');
+  var total = 0;
+  rows.forEach(function(cb) {
+    if (cb.checked) {
+      var amt = cb.closest('tr').querySelectorAll('td')[4].textContent.replace(/[^0-9]/g, '');
+      total += parseInt(amt) || 0;
+    }
+  });
+  document.getElementById('sel-total').textContent = total.toLocaleString();
+}
+document.addEventListener('DOMContentLoaded', updateSummary);
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% block title %}ประวัติการอนุมัติ — หัวหน้าแผนก{% endblock %}
+{% block breadcrumb %}ประวัติการอนุมัติ{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_head.html" %}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--neutral-500);margin-bottom:16px;">
+  <span>หัวหน้างาน</span>
+  <i data-lucide="chevron-right" style="width:12px;height:12px;"></i>
+  <span style="color:var(--neutral-black);font-weight:500;">ประวัติการอนุมัติ</span>
+</div>
+
+<div class="page-header">
+  <h1 style="margin:0;">ประวัติการอนุมัติ</h1>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  {% if history %}
+  <table class="table-red">
+    <thead>
+      <tr>
+        <th>ชื่อ</th>
+        <th>วันที่</th>
+        <th>ชม.</th>
+        <th>จำนวนเงิน</th>
+        <th>สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ot in history %}
+      <tr>
+        <td style="font-weight:500;">{{ ot.staff.get_full_name }}</td>
+        <td>{{ ot.work_date|date:"d-m-y" }}</td>
+        <td class="font-mono">{{ ot.ot_hours|floatformat:0 }}</td>
+        <td class="font-mono" style="font-weight:600;">{{ ot.amount|floatformat:0 }} บาท</td>
+        <td>
+          {% if ot.status == 'head_approved' %}
+          <span class="badge-success">อนุมัติแล้ว</span>
+          {% elif ot.status == 'head_rejected' %}
+          <span class="badge-danger">ตีกลับ</span>
+          {% elif ot.status == 'rep_forwarded' %}
+          <span class="badge-info">ส่งต่อแล้ว</span>
+          {% elif ot.status == 'checker_approved' or ot.status == 'completed' %}
+          <span class="badge-success">เสร็จสิ้น</span>
+          {% elif ot.status == 'checker_rejected' %}
+          <span class="badge-danger">ปฏิเสธโดยผู้ตรวจสอบ</span>
+          {% else %}
+          <span class="badge-neutral">{{ ot.get_status_display }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:60px;text-align:center;color:var(--neutral-500);">
+    <p style="font-weight:600;margin:0;">ยังไม่มีประวัติการอนุมัติ</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

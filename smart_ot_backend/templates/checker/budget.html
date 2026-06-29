@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+{% block title %}ติดตามงบประมาณ — ผู้ตรวจสอบ{% endblock %}
+{% block breadcrumb %}ติดตามงบประมาณ{% endblock %}
+{% block sidebar_nav %}{% include "includes/nav_checker.html" %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 style="margin:0;">ติดตามงบประมาณ</h1></div>
+</div>
+
+<!-- 3 KPI Cards -->
+<div class="grid-3" style="margin-bottom:24px;">
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">งบรวมทั้งหมด</p>
+      <p class="kpi-value blue">{{ total_budget|floatformat:0|default:"0" }}</p>
+      <p class="kpi-label">บาท</p>
+    </div>
+    <div class="kpi-icon" style="background:#dbeafe;color:var(--info);">
+      <i data-lucide="wallet" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">ใช้ไปแล้ว</p>
+      <p class="kpi-value red">{{ total_used|floatformat:0|default:"0" }}</p>
+      <p class="kpi-label">บาท</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-red-soft);color:var(--tu-red);">
+      <i data-lucide="trending-up" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <p class="kpi-label">% ใช้งบ</p>
+      <p class="kpi-value yellow">{{ total_pct|default:"0" }}%</p>
+    </div>
+    <div class="kpi-icon" style="background:var(--tu-yellow-soft);color:var(--warning);">
+      <i data-lucide="percent" style="width:24px;height:24px;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Bar Chart: 6 months trend -->
+<div class="card" style="margin-bottom:24px;">
+  <h3 class="section-title">เปรียบเทียบยอด OT รายเดือน (6 เดือนย้อนหลัง)</h3>
+  <canvas id="budgetTrendChart" style="width:100%;height:300px;"></canvas>
+</div>
+
+<!-- Department progress bars -->
+<div class="card">
+  <h3 class="section-title">งบประมาณรายแผนก</h3>
+  {% if dept_data %}
+  <div class="grid-2">
+    {% for d in dept_data %}
+    <div style="border:1px solid var(--neutral-300);border-radius:12px;padding:20px;background:white;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <h3 style="margin:0;font-size:15px;">{{ d.name }}</h3>
+        <span style="font-weight:700;{% if d.pct > 90 %}color:var(--danger);{% endif %}">{{ d.pct }}%</span>
+      </div>
+      <div class="progress" style="margin-bottom:8px;">
+        <div class="progress-fill" style="width:{% if d.pct > 100 %}100{% else %}{{ d.pct }}{% endif %}%;background:{% if d.pct > 90 %}var(--danger){% elif d.pct > 70 %}var(--tu-yellow){% else %}var(--success){% endif %};"></div>
+      </div>
+      <p style="font-size:12px;color:var(--neutral-500);margin:0;">ใช้ {{ d.used|floatformat:0 }} / {{ d.budget|floatformat:0 }} &bull; คงเหลือ {{ d.remaining|floatformat:0 }}</p>
+      {% if d.pct > 90 %}
+      <p style="font-size:12px;color:var(--danger);margin:8px 0 0;font-weight:600;">&#9888; ใช้งบ {{ d.pct }}%</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="text-align:center;color:var(--neutral-500);padding:32px;font-size:13px;">ยังไม่มีข้อมูล OT เดือนนี้</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var ctx = document.getElementById('budgetTrendChart');
+  if (!ctx) return;
+  var labels = {{ chart_labels|safe|default:"[]" }};
+  var values = {{ chart_values|safe|default:"[]" }};
+  new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'ยอด OT (บาท)',
+        data: values,
+        backgroundColor: '#B8001F',
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: function(v) { return v >= 1000 ? (v/1000).toFixed(0) + 'K' : v; } }
+        }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% block title %}จัดการวันหยุด{% endblock %}
+{% block title %}จัดการวันหยุด — Admin{% endblock %}
 {% block breadcrumb %}จัดการวันหยุด{% endblock %}
 {% block sidebar_nav %}{% include "includes/nav_admin.html" %}{% endblock %}
 
@@ -7,118 +7,105 @@
 <div class="page-header">
   <div>
     <h1>จัดการวันหยุดประจำปี</h1>
-    <p style="color:var(--neutral-500);margin:4px 0 0;">วันหยุดราชการโหลดอัตโนมัติ — เพิ่มเฉพาะวันหยุดชดเชยและวันพิเศษ</p>
+    <p style="font-size:13px;color:var(--neutral-500);margin:4px 0 0;">จัดการวันหยุดประจำปี &mdash; ลบหรือแก้ไขได้ทุกวันหยุดตามต้องการ</p>
   </div>
-  <div style="display:flex;align-items:center;gap:10px;">
+  <div style="display:flex;align-items:center;gap:8px;">
     <form method="get" style="display:inline;">
-      <select name="year" onchange="this.form.submit()" style="height:38px;width:130px;">
-        {% for y in years %}
-        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>ปี {{ y }}</option>
+      <select name="year" onchange="this.form.submit();" style="width:140px;height:40px;">
+        {% for y in year_choices %}
+        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>พ.ศ. {{ y }}</option>
         {% endfor %}
       </select>
     </form>
-    <button class="btn-red" onclick="openModal('addHolidayModal')">
+    <!-- ซิงค์วันหยุดผ่าน management command -->
+    <a href="{% url 'admin_holiday_add' %}?year={{ selected_year }}" class="btn-red">
       <i data-lucide="plus" style="width:16px;height:16px;"></i> เพิ่มวันหยุด
-    </button>
+    </a>
   </div>
 </div>
 
-<!-- Info Banner -->
-<div class="alert-blue" style="margin-bottom:20px;">
-  <i data-lucide="info" style="width:18px;height:18px;color:var(--info);flex-shrink:0;"></i>
-  <p style="margin:0;font-size:13px;">ระบบโหลดวันหยุดราชการ <strong>{{ official_count }} วัน</strong> ให้อัตโนมัติ — วันหยุดชดเชยและวันพิเศษต้องเพิ่มด้วยตนเอง</p>
+<!-- Info banner -->
+<div style="display:flex;align-items:flex-start;gap:12px;padding:16px;margin-bottom:20px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;">
+  <i data-lucide="info" style="width:20px;height:20px;color:var(--info);flex-shrink:0;margin-top:2px;"></i>
+  <p style="margin:0;font-size:13px;color:#1e40af;">
+    กด "ซิงค์วันหยุดราชการ" เพื่อโหลดวันหยุดตามปฏิทิน &mdash; จากนั้นลบวันที่หน่วยงานไม่หยุดออกได้เลย เช่น วันแรงงาน
+    วันหยุดชดเชยและวันพิเศษเพิ่มด้วยตนเองตามประกาศราชกิจจาฯ
+  </p>
 </div>
 
-<!-- Summary Chips -->
-<div style="display:flex;gap:10px;margin-bottom:20px;">
-  <span class="badge-lock">🔒 วันหยุดราชการ {{ official_count }} วัน</span>
-  <span class="badge-warning">วันหยุดชดเชย {{ compensation_count }} วัน</span>
-  <span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">วันหยุดพิเศษ {{ special_count }} วัน</span>
+<!-- KPI chips -->
+<div style="display:flex;gap:12px;margin-bottom:20px;">
+  <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9999px;background:var(--neutral-100);border:1px solid var(--neutral-300);font-size:13px;font-weight:600;color:var(--neutral-600);">
+    <i data-lucide="lock" style="width:12px;height:12px;"></i> วันหยุดราชการ {{ count_official }} วัน
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9999px;background:#ffedd5;border:1px solid #fdba74;font-size:13px;font-weight:600;color:#c2410c;">
+    <i data-lucide="calendar-days" style="width:14px;height:14px;"></i> วันหยุดชดเชย {{ count_compensation }} วัน
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9999px;background:#f3e8ff;border:1px solid #c084fc;font-size:13px;font-weight:600;color:#7c3aed;">
+    <i data-lucide="calendar-days" style="width:14px;height:14px;"></i> วันหยุดพิเศษ {{ count_special }} วัน
+  </span>
 </div>
 
 <!-- Table -->
-<div class="card" style="padding:0;overflow:hidden;">
-  <table>
-    <thead>
-      <tr>
-        <th>วันที่</th><th>วัน</th><th>ชื่อวันหยุด</th><th>ประเภท</th><th style="text-align:center;">จัดการ</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for h in holidays %}
-      <tr style="{% if h.is_system %}background:#fafafa;{% endif %}">
-        <td>{{ h.date|date:"j M Y" }}</td>
-        <td style="color:var(--neutral-500);">{{ h.date|date:"l" }}</td>
-        <td>{{ h.name }}</td>
-        <td>
-          {% if h.holiday_type == 'official' %}
-            <span class="badge-lock"><i data-lucide="lock" style="width:10px;height:10px;display:inline;"></i> วันหยุดราชการ</span>
-          {% elif h.holiday_type == 'compensation' %}
-            <span class="badge-warning">วันหยุดชดเชย</span>
-          {% else %}
-            <span style="background:#f3e8ff;color:#7c3aed;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">วันหยุดพิเศษ</span>
-          {% endif %}
-        </td>
-        <td style="text-align:center;">
-          {% if not h.is_system %}
-          <div style="display:flex;gap:6px;justify-content:center;">
-            <a href="{% url 'admin_holiday_edit' h.id %}" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--neutral-300);display:grid;place-items:center;color:var(--neutral-700);text-decoration:none;">
-              <i data-lucide="pencil" style="width:14px;height:14px;"></i>
-            </a>
-            <form method="post" action="{% url 'admin_holiday_delete' h.id %}" style="display:inline;" onsubmit="return confirm('ลบวันหยุดนี้?')">
-              {% csrf_token %}
-              <button type="submit" style="width:32px;height:32px;border-radius:8px;border:1px solid #fca5a5;background:white;cursor:pointer;display:grid;place-items:center;color:var(--danger);">
-                <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
-              </button>
-            </form>
-          </div>
-          {% else %}
-          <span style="color:var(--neutral-300);font-size:12px;">—</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" style="text-align:center;color:var(--neutral-500);padding:40px;">ไม่มีข้อมูลวันหยุด</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<!-- Add Modal -->
-<div id="addHolidayModal" class="modal-overlay">
-  <div class="modal">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <h2 style="margin:0;">เพิ่มวันหยุด</h2>
-      <button onclick="closeModal('addHolidayModal')" style="border:none;background:none;cursor:pointer;">
-        <i data-lucide="x" style="width:20px;height:20px;"></i>
-      </button>
-    </div>
-    <div class="alert-yellow" style="margin-bottom:20px;">
-      <i data-lucide="alert-triangle" style="width:16px;height:16px;color:var(--warning);flex-shrink:0;"></i>
-      <p style="margin:0;font-size:12px;">สำหรับวันหยุดชดเชยและวันพิเศษเท่านั้น — วันหยุดราชการระบบจัดการให้อัตโนมัติ</p>
-    </div>
-    <form method="post" action="{% url 'admin_holiday_add' %}">
-      {% csrf_token %}
-      <div style="margin-bottom:16px;">
-        <label>วันที่</label>
-        <input type="date" name="date" required />
-      </div>
-      <div style="margin-bottom:16px;">
-        <label>ชื่อวันหยุด</label>
-        <input type="text" name="name" placeholder="เช่น ชดเชยวันสงกรานต์" required />
-      </div>
-      <div style="margin-bottom:24px;">
-        <label>ประเภท</label>
-        <select name="holiday_type">
-          <option value="compensation">วันหยุดชดเชย</option>
-          <option value="special">วันหยุดพิเศษ</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button type="button" class="btn-outline" onclick="closeModal('addHolidayModal')">ยกเลิก</button>
-        <button type="submit" class="btn-red">บันทึก</button>
-      </div>
-    </form>
+<div class="card">
+  {% if holidays %}
+  <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--neutral-300);">
+    <table class="table-red">
+      <thead>
+        <tr>
+          <th>วันที่</th>
+          <th>วัน</th>
+          <th>ชื่อวันหยุด</th>
+          <th>ประเภท</th>
+          <th>จัดการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in holidays %}
+        <tr style="{% if h.is_system %}background:var(--neutral-100);{% endif %}">
+          <td class="font-mono" style="{% if h.is_system %}color:var(--neutral-500);{% else %}font-weight:500;{% endif %}">
+            {{ h.date|date:"j M" }}
+          </td>
+          <td style="{% if h.is_system %}color:var(--neutral-500);{% else %}color:var(--neutral-600);{% endif %}">
+            {{ h.thai_day }}
+          </td>
+          <td style="{% if h.is_system %}color:var(--neutral-500);{% endif %}">{{ h.name }}</td>
+          <td>
+            {% if h.holiday_type == 'official' %}
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:var(--neutral-100);border:1px solid var(--neutral-300);color:var(--neutral-500);">
+                <i data-lucide="lock" style="width:10px;height:10px;"></i> วันหยุดราชการ
+              </span>
+            {% elif h.holiday_type == 'compensation' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#ffedd5;border:1px solid #fdba74;color:#c2410c;">วันหยุดชดเชย</span>
+            {% elif h.holiday_type == 'special' %}
+              <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#f3e8ff;border:1px solid #c084fc;color:#7c3aed;">วันหยุดพิเศษ</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:4px;">
+              <a href="{% url 'admin_holiday_edit' h.id %}" style="width:28px;height:28px;border-radius:6px;display:inline-grid;place-items:center;color:var(--tu-red);cursor:pointer;" title="แก้ไข">
+                <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+              </a>
+              <form method="post" action="{% url 'admin_holiday_delete' h.id %}" style="display:inline;" onsubmit="return confirm('ต้องการลบวันหยุด {{ h.name }} ออกจากระบบ?');">
+                {% csrf_token %}
+                <button type="submit" style="width:28px;height:28px;border-radius:6px;display:inline-grid;place-items:center;color:var(--danger);cursor:pointer;border:none;background:none;" title="ลบ">
+                  <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+  <p style="font-size:12px;color:var(--neutral-500);margin-top:12px;">แสดง {{ holidays|length }} รายการ</p>
+  {% else %}
+  <div style="padding:48px;text-align:center;">
+    <i data-lucide="calendar-days" style="width:40px;height:40px;color:var(--neutral-300);margin:0 auto 12px;display:block;"></i>
+    <p style="font-size:13px;color:var(--neutral-500);margin:0;">ยังไม่มีวันหยุดสำหรับ พ.ศ. {{ selected_year }}</p>
+    <p style="font-size:11px;color:var(--neutral-500);margin:4px 0 0;">กด "เพิ่มวันหยุด" เพื่อเพิ่มข้อมูล</p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
