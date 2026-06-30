@@ -177,6 +177,15 @@ export function Login({ onLogin, onForgot }: Props) {
               )}
             </Button>
 
+            {/* Test accounts hint */}
+            <div style={{ background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)', borderRadius: 8, padding: '10px 12px' }}>
+              <p className="text-[12px] text-[var(--neutral-600)] font-medium mb-1">บัญชีทดสอบ (รหัสพนักงาน / password)</p>
+              <p className="text-[12px] text-[var(--neutral-500)]">admin / admin1234</p>
+              <p className="text-[12px] text-[var(--neutral-500)]">somchai / staff1234</p>
+              <p className="text-[12px] text-[var(--neutral-500)]">onanong / head1234</p>
+              <p className="text-[12px] text-[var(--neutral-500)]">checker / chk1234</p>
+            </div>
+
             <p className="text-[12px] text-[var(--neutral-500)] text-center">
               ระบบเชื่อมต่อกับ Django API • สิทธิ์การใช้งานถูกกำหนดโดยผู้ดูแลระบบ
             </p>

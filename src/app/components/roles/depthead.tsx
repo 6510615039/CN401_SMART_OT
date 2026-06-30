@@ -121,22 +121,37 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
     Promise.all([
       fetch('/api/auth/me/', { headers: h }).then(r => r.ok ? r.json() : null),
       fetch('/api/ot-requests/', { headers: h }).then(r => r.ok ? r.json() : null),
-      fetch(`/api/checker/budget/?month=${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`, { headers: h }).then(r => r.ok ? r.json() : null),
       fetch('/api/no-ot-declaration/', { headers: h }).then(r => r.ok ? r.json() : []),
-    ]).then(([me, d, budgets, declarations]) => {
+    ]).then(([me, d, declarations]) => {
       const arr: any[] = Array.isArray(d) ? d : (d?.results || []);
       setAllRequests(arr);
-      if (me && budgets) {
-        const budgetList: any[] = Array.isArray(budgets) ? budgets : (budgets.departments || []);
-        const myDept = budgetList.find((b: any) => b.id === me.department || b.id === Number(me.department));
-        if (myDept) setBudget(myDept.ot_budget ?? myDept.budget ?? 0);
-      }
       if (Array.isArray(declarations)) {
         const keys = new Set<string>(declarations.map((dec: any) => `${dec.greg_year}-${dec.month}`));
         setNoOtDeclared(keys);
       }
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  // ดึงงบประมาณของเดือน/ปีที่เลือกใหม่ทุกครั้งที่ผู้ใช้เปลี่ยนตัวกรอง
+  // (งบเป็นแบบรายเดือนแล้ว ต้องดึงตามเดือนที่กำลังดูจริง ไม่ใช่ดึงครั้งเดียวตอนเปิดหน้า)
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    const h = { 'Authorization': `Bearer ${token}` };
+    const gregYear = parseInt(selThaiYear) - 543;
+    const monthNum = period === 'month' ? parseInt(selMonth) : _now.getMonth() + 1;
+    const actualGregYear = period === 'month' && monthNum >= 10 ? gregYear - 1 : gregYear;
+    const monthStr = `${actualGregYear}-${String(monthNum).padStart(2, '0')}`;
+
+    fetch('/api/auth/me/', { headers: h }).then(r => r.ok ? r.json() : null).then(me => {
+      if (!me) return;
+      fetch(`/api/checker/budget/?month=${monthStr}`, { headers: h }).then(r => r.ok ? r.json() : null).then(budgets => {
+        if (!budgets) { setBudget(null); return; }
+        const budgetList: any[] = Array.isArray(budgets) ? budgets : (budgets.departments || []);
+        const myDept = budgetList.find((b: any) => b.id === me.department || b.id === Number(me.department));
+        setBudget(myDept ? (myDept.ot_budget ?? myDept.budget ?? 0) : 0);
+      });
+    }).catch(() => {});
+  }, [selThaiYear, selMonth, period]);
 
   // ── ฟังก์ชัน filter เดียวกับ HeadReport ────────────────────────────────
   function inRangeDash(dateStr: string): boolean {
