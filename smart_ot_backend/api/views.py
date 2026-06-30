@@ -75,6 +75,58 @@ def _send_checker_notification(ot_list, note, sender):
         logging.getLogger(__name__).warning(f'send_checker_notification: {e}')
 
 
+def _send_email(user, subject: str, body: str):
+    """ส่งเมลให้ user คนเดียว (fail-silent) ใช้ notify_email ก่อน ถ้าไม่มีใช้ email"""
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings as djsettings
+        email = getattr(user, 'notify_email', '') or getattr(user, 'email', '')
+        if email:
+            send_mail(subject, body, djsettings.DEFAULT_FROM_EMAIL, [email], fail_silently=True)
+    except Exception:
+        pass
+
+
+def _push_ws(user_id: int, notif_data: dict):
+    """Push notification ไปยัง WebSocket channel layer ของ user (fail-silent)"""
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        layer = get_channel_layer()
+        if layer:
+            async_to_sync(layer.group_send)(
+                f'user_{user_id}',
+                {'type': 'notification.send', 'data': notif_data},
+            )
+    except Exception:
+        pass
+
+
+def _notify_ot(ot, notif_type, recipients, message):
+    """สร้าง Notification + ส่งอีเมล + push WebSocket (fail-silent) ให้ผู้รับที่ระบุ"""
+    for user in recipients:
+        notif = Notification.objects.create(
+            recipient=user,
+            message=message,
+            notif_type=notif_type,
+            ot_request=ot,
+        )
+        # Push real-time ผ่าน WebSocket
+        _push_ws(user.id, {
+            'id': notif.id,
+            'message': notif.message,
+            'notif_type': notif.notif_type,
+            'ot_request': ot.id if ot else None,
+            'ot_request_date': str(ot.work_date) if ot else None,
+            'is_read': False,
+            'created_at': notif.created_at.isoformat(),
+        })
+    # ส่งอีเมลทีละคน (ใช้ notify_email ก่อน ถ้าไม่มีใช้ email)
+    body = f'{message}\n\nวันที่ OT: {ot.work_date}  {float(ot.ot_hours):.1f} ชม.  {float(ot.amount):,.0f} บาท\n\nกรุณาเข้าสู่ระบบ SMART OT เพื่อดำเนินการ'
+    for user in recipients:
+        _send_email(user, f'[SMART OT] {message[:60]}', body)
+
+
 def log_action(user, action, model_name='', object_id='', detail='', request=None):
     ip = None
     if request:
@@ -336,7 +388,12 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         dept_p   = self.request.query_params.get('department')
         month_p  = self.request.query_params.get('month')  # YYYY-MM
         if status_p: qs = qs.filter(status=status_p)
+        status_in_p = self.request.query_params.get('status_in')
+        if status_in_p: qs = qs.filter(status__in=status_in_p.split(','))
         if dept_p:   qs = qs.filter(department_id=dept_p)
+        # checker ประวัติของตัวเอง
+        if self.request.query_params.get('approved_by_me'):
+            qs = qs.filter(checker_approved_by=user)
         if month_p:
             year, month = month_p.split('-')
             qs = qs.filter(work_date__year=year, work_date__month=month)
@@ -369,7 +426,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
 
         # คำนวณค่าตอบแทน: วันธรรมดา 60 บาท/ชม. max 4ชม, วันหยุด 70 บาท/ชม. max 7ชม
         max_hours = 7 if day_type == 'holiday' else 4
-        ot_hours_raw = float(serializer.validated_data.get('ot_hours', 0))
+        # ot_hours เป็น read_only ใน serializer → ต้องอ่านจาก request.data โดยตรง
+        ot_hours_raw = float(self.request.data.get('ot_hours', 0))
         ot_hours = min(ot_hours_raw, max_hours)  # cap ที่ ceiling เสมอ
         hourly_rate = 70 if day_type == 'holiday' else 60
         amount = ot_hours * hourly_rate
@@ -393,6 +451,15 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         )
         log_action(self.request.user, f'ยื่นคำร้อง OT วันที่ {ot.work_date}', 'OTRequest', ot.id, request=self.request)
 
+        # แจ้งหัวหน้าแผนก
+        staff_name = self.request.user.get_full_name() or self.request.user.username
+        deptheads = list(User.objects.filter(role='depthead', department=dept, is_active=True))
+        if deptheads:
+            _notify_ot(
+                ot, 'ot_submitted', deptheads,
+                f'{staff_name} ยื่นคำร้อง OT วันที่ {ot.work_date} จำนวน {float(ot_hours):.0f} ชม. ({float(amount):,.0f} บาท) รอการอนุมัติ',
+            )
+
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         ot = self.get_object()
@@ -400,13 +467,48 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         effective_role = get_effective_role(user, request)
         note = request.data.get('note', '')
 
+        head_name    = user.get_full_name() or user.username
+        staff_name_a = ot.staff.get_full_name() or ot.staff.username
+
         if effective_role == 'depthead' and ot.status == 'submitted':
+            # ตรวจเพดานงบก่อน approve
+            work_dt = ot.work_date
+            _year, _mon = work_dt.year, work_dt.month
+            try:
+                _mb = DepartmentMonthlyBudget.objects.get(department=ot.department, year=_year, month=_mon)
+                _monthly_budget = float(_mb.budget)
+            except DepartmentMonthlyBudget.DoesNotExist:
+                _monthly_budget = 0
+            if _monthly_budget > 0:
+                _used = sum(
+                    _calc_ot_amount(r.ot_hours, r.day_type)
+                    for r in OTRequest.objects.filter(
+                        department=ot.department,
+                        work_date__year=_year, work_date__month=_mon,
+                        status__in=['head_approved', 'rep_forwarded', 'checker_approved', 'completed'],
+                    )
+                )
+                _this = _calc_ot_amount(ot.ot_hours, ot.day_type)
+                if _used + _this > _monthly_budget:
+                    _over = _used + _this - _monthly_budget
+                    return Response(
+                        {'error': f'งบประมาณ OT แผนก {ot.department.name} เดือนนี้เต็มแล้ว '
+                                  f'(ใช้ไป {_used:,.0f} / {_monthly_budget:,.0f} บาท — '
+                                  f'คำร้องนี้ต้องการ {_this:,.0f} บาท เกิน {_over:,.0f} บาท)'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             ot.status = 'head_approved'
             ot.head_approved_by = user
             ot.head_approved_at = timezone.now()
             ot.head_note = note
             ot.save()
             log_action(user, f'อนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            # ไม่แจ้งพนักงานตอนนี้ — พนักงานจะรู้เมื่อ checker อนุมัติ/ตีกลับขั้นสุดท้ายเท่านั้น
+            # แจ้ง deptrep ในแผนกเดียวกัน (ใช้ type แยกจาก staff)
+            deptreps = list(User.objects.filter(role='deptrep', department=ot.department, is_active=True))
+            if deptreps:
+                _notify_ot(ot, 'ot_rep_action_needed', deptreps,
+                    f'{staff_name_a} ได้รับการอนุมัติจากหัวหน้างานแล้ว รอตัวแทนฝ่ายส่งต่อ')
             return Response({'message': 'อนุมัติสำเร็จ'})
 
         elif effective_role == 'deptrep' and ot.status == 'head_approved':
@@ -416,16 +518,59 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.rep_note = note
             ot.save()
             log_action(user, f'ส่งต่อคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            # แจ้งพนักงาน
+            _notify_ot(ot, 'ot_rep_forwarded', [ot.staff],
+                f'ตัวแทนฝ่ายส่งต่อคำร้อง OT วันที่ {ot.work_date} ของคุณให้ผู้ตรวจสอบแล้ว')
             return Response({'message': 'ส่งต่อสำเร็จ'})
 
         elif effective_role == 'checker' and ot.status == 'rep_forwarded':
+            # ตรวจสอบเพดานงบประมาณรายเดือนของแผนก
+            import datetime as _dt
+            work_dt = ot.work_date
+            year, mon = work_dt.year, work_dt.month
+            try:
+                mb = DepartmentMonthlyBudget.objects.get(
+                    department=ot.staff.department, year=year, month=mon
+                )
+                monthly_budget = float(mb.budget)
+            except DepartmentMonthlyBudget.DoesNotExist:
+                monthly_budget = 0
+
+            budget_warning = None
+            if monthly_budget > 0:
+                already_used = sum(
+                    _calc_ot_amount(r.ot_hours, r.day_type)
+                    for r in OTRequest.objects.filter(
+                        staff__department=ot.staff.department,
+                        work_date__year=year,
+                        work_date__month=mon,
+                        status__in=APPROVED_STATUSES,
+                    )
+                )
+                this_amount = _calc_ot_amount(ot.ot_hours, ot.day_type)
+                new_total = already_used + this_amount
+                if new_total > monthly_budget:
+                    over_by = new_total - monthly_budget
+                    pct = round(new_total / monthly_budget * 100)
+                    budget_warning = (
+                        f'⚠ ยอด OT แผนก {ot.staff.department.name} จะเกินเพดานงบ '
+                        f'{monthly_budget:,.0f} บาท ({pct}% — เกิน {over_by:,.0f} บาท)'
+                    )
+
             ot.status = 'checker_approved'
             ot.checker_approved_by = user
             ot.checker_approved_at = timezone.now()
             ot.checker_note = note
             ot.save()
             log_action(user, f'ผู้ตรวจสอบอนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
-            return Response({'message': 'อนุมัติสำเร็จ'})
+            # notification รายบุคคลสำหรับกรณีอนุมัติเดี่ยว (bulk ใช้ bulk_approve_view แทน)
+            checker_name = user.get_full_name() or user.username
+            _notify_ot(ot, 'ot_checker_approved', [ot.staff],
+                f'ผู้ตรวจสอบ ({checker_name}) อนุมัติคำร้อง OT วันที่ {ot.work_date} ของคุณแล้ว — {float(ot.amount):,.0f} บาท')
+            resp = {'message': 'อนุมัติสำเร็จ'}
+            if budget_warning:
+                resp['budget_warning'] = budget_warning
+            return Response(resp)
 
         return Response({'error': f'ไม่สามารถดำเนินการได้ (role={effective_role}, status={ot.status})'}, status=400)
 
@@ -436,11 +581,18 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         effective_role = get_effective_role(user, request)
         note = request.data.get('note', '')
 
+        actor_name   = user.get_full_name() or user.username
+        staff_name_r = ot.staff.get_full_name() or ot.staff.username
+
         if effective_role == 'depthead' and ot.status == 'submitted':
             ot.status = 'head_rejected'
             ot.head_note = note
             ot.save()
             log_action(user, f'ตีกลับคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            # แจ้งพนักงาน
+            reason_text = f' — เหตุผล: {note}' if note else ''
+            _notify_ot(ot, 'ot_head_rejected', [ot.staff],
+                f'หัวหน้างาน ({actor_name}) ตีกลับคำร้อง OT วันที่ {ot.work_date} ของคุณ{reason_text}')
             return Response({'message': 'ตีกลับสำเร็จ'})
 
         elif effective_role == 'checker' and ot.status == 'rep_forwarded':
@@ -448,6 +600,19 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.checker_note = note
             ot.save()
             log_action(user, f'ผู้ตรวจสอบตีกลับคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            # แจ้งพนักงานและหัวหน้าแผนก
+            reason_text = f' — เหตุผล: {note}' if note else ''
+            _notify_ot(ot, 'ot_checker_rejected', [ot.staff],
+                f'ผู้ตรวจสอบ ({actor_name}) ตีกลับคำร้อง OT วันที่ {ot.work_date} ของคุณ{reason_text}')
+            deptheads_r = list(User.objects.filter(role='depthead', department=ot.department, is_active=True))
+            if deptheads_r:
+                _notify_ot(ot, 'ot_checker_rejected', deptheads_r,
+                    f'คำร้อง OT ของ {staff_name_r} วันที่ {ot.work_date} ถูกผู้ตรวจสอบตีกลับ{reason_text}')
+            # แจ้ง deptrep ในแผนกเดียวกัน
+            deptreps_r = list(User.objects.filter(role='deptrep', department=ot.department, is_active=True))
+            if deptreps_r:
+                _notify_ot(ot, 'ot_checker_rejected', deptreps_r,
+                    f'ผู้ตรวจสอบ ({actor_name}) ตีกลับคำร้อง OT ของ {staff_name_r} วันที่ {ot.work_date}{reason_text}')
             return Response({'message': 'ตีกลับสำเร็จ'})
 
         return Response({'error': 'ไม่สามารถดำเนินการได้ในสถานะนี้'}, status=400)
@@ -479,6 +644,14 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         ot.save()
 
         log_action(request.user, f'ยื่นคำร้อง OT #{ot.id} ซ้ำหลังถูกตีกลับ วันที่ {ot.work_date}', 'OTRequest', ot.id, request=request)
+
+        # แจ้งหัวหน้าแผนกว่ามีการยื่นซ้ำ
+        staff_name_rs = request.user.get_full_name() or request.user.username
+        deptheads_rs = list(User.objects.filter(role='depthead', department=ot.department, is_active=True))
+        if deptheads_rs:
+            _notify_ot(ot, 'ot_submitted', deptheads_rs,
+                f'{staff_name_rs} ยื่นคำร้อง OT วันที่ {ot.work_date} ซ้ำหลังถูกตีกลับ จำนวน {float(ot.ot_hours):.0f} ชม. ({float(ot.amount):,.0f} บาท) รอการอนุมัติ')
+
         from .serializers import OTRequestSerializer as _S
         return Response(_S(ot).data)
 
@@ -961,6 +1134,17 @@ def import_timelog(request):
                 col_time_period = tmp_time_period
                 data_start_row = row_idx + 2  # next row (1-indexed)
                 break
+
+        # ถ้า col_time_period ยังไม่พบ (header ว่าง/None) — ลองตรวจจากค่า data
+        if col_time_period is None and col_id is not None:
+            SHIFT_VALS = {'ปกติ', 'เช้า', 'กลางวัน', 'บ่าย', 'ดึก', 'เย็น'}
+            for _row in ws.iter_rows(min_row=data_start_row, max_row=data_start_row + 10, values_only=True):
+                for _ci, _cv in enumerate(_row):
+                    if _cv and str(_cv).strip() in SHIFT_VALS:
+                        col_time_period = _ci
+                        break
+                if col_time_period is not None:
+                    break
 
         # Fallback: guess by position if auto-detect failed
         # Try to sniff from first data-like row
@@ -1486,6 +1670,154 @@ def staff_summary_view(request):
     })
 
 
+# ─── Budget Status (real-time) ───────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def budget_status_view(request):
+    """GET /api/budget-status/?department=<id>&month=YYYY-MM
+    คืน: budget, used, remaining สำหรับแสดง real-time บน depthead pending
+    used = ยอด OT ที่ head_approved ขึ้นไปแล้วในเดือนนั้น
+    """
+    dept_id  = request.query_params.get('department')
+    month_p  = request.query_params.get('month')   # "2026-03"
+    if not dept_id or not month_p:
+        return Response({'error': 'ต้องระบุ department และ month'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        year, mon = int(month_p[:4]), int(month_p[5:7])
+    except (ValueError, IndexError):
+        return Response({'error': 'รูปแบบ month ไม่ถูกต้อง (YYYY-MM)'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        mb = DepartmentMonthlyBudget.objects.get(department_id=dept_id, year=year, month=mon)
+        budget = float(mb.budget)
+    except DepartmentMonthlyBudget.DoesNotExist:
+        budget = 0
+
+    used = sum(
+        _calc_ot_amount(r.ot_hours, r.day_type)
+        for r in OTRequest.objects.filter(
+            department_id=dept_id,
+            work_date__year=year, work_date__month=mon,
+            status__in=['head_approved', 'rep_forwarded', 'checker_approved', 'completed'],
+        )
+    )
+    return Response({
+        'budget':    budget,
+        'used':      round(used, 2),
+        'remaining': round(budget - used, 2) if budget > 0 else None,
+    })
+
+
+# ─── Bulk Approve (checker) ──────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_approve_view(request):
+    """POST /api/ot-requests/bulk-approve/
+    checker อนุมัติหลาย OT พร้อมกัน + ส่ง notification รวมต่อแผนก (ไม่ spam ทีละรายการ)
+    body: { ids: [1,2,...], note: "" }
+    """
+    effective_role = get_effective_role(request.user, request)
+    if effective_role != 'checker':
+        return Response({'error': 'สิทธิ์ไม่เพียงพอ'}, status=status.HTTP_403_FORBIDDEN)
+
+    ids  = request.data.get('ids', [])
+    note = request.data.get('note', '')
+    if not ids:
+        return Response({'error': 'ไม่มีรายการที่เลือก'}, status=status.HTTP_400_BAD_REQUEST)
+
+    checker_name  = request.user.get_full_name() or request.user.username
+    approved_list = []
+    budget_warnings = []
+
+    for ot_id in ids:
+        try:
+            ot = OTRequest.objects.get(id=ot_id, status='rep_forwarded')
+        except OTRequest.DoesNotExist:
+            continue
+
+        # ตรวจเพดานงบ
+        work_dt = ot.work_date
+        year, mon = work_dt.year, work_dt.month
+        budget_warning = None
+        try:
+            mb = DepartmentMonthlyBudget.objects.get(department=ot.staff.department, year=year, month=mon)
+            monthly_budget = float(mb.budget)
+            if monthly_budget > 0:
+                already_used = sum(_calc_ot_amount(r.ot_hours, r.day_type)
+                    for r in OTRequest.objects.filter(staff__department=ot.staff.department,
+                        work_date__year=year, work_date__month=mon,
+                        status__in=['checker_approved', 'completed']))
+                new_total = already_used + _calc_ot_amount(ot.ot_hours, ot.day_type)
+                if new_total > monthly_budget:
+                    over_by = new_total - monthly_budget
+                    pct = round(new_total / monthly_budget * 100)
+                    budget_warning = (f'⚠ ยอด OT แผนก {ot.staff.department.name} จะเกินเพดานงบ '
+                        f'{monthly_budget:,.0f} บาท ({pct}% — เกิน {over_by:,.0f} บาท)')
+        except DepartmentMonthlyBudget.DoesNotExist:
+            pass
+
+        ot.status              = 'checker_approved'
+        ot.checker_approved_by = request.user
+        ot.checker_approved_at = timezone.now()
+        ot.checker_note        = note
+        ot.save()
+        log_action(request.user, f'ผู้ตรวจสอบอนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+        approved_list.append(ot)
+        if budget_warning:
+            budget_warnings.append(budget_warning)
+
+    # ── ส่ง notification รวมต่อแผนก (1 แจ้งเตือนต่อแผนก ไม่ใช่ต่อรายการ) ──
+    from collections import defaultdict
+    by_dept = defaultdict(list)
+    for ot in approved_list:
+        by_dept[ot.department_id].append(ot)
+
+    for dept_id, dept_ots in by_dept.items():
+        dept      = dept_ots[0].department
+        dept_name = dept.name
+        count     = len(dept_ots)
+        total_amt = sum(float(o.amount) for o in dept_ots)
+        month_str = dept_ots[0].work_date.strftime('%-m') if hasattr(dept_ots[0].work_date, 'strftime') else ''
+        try:
+            import datetime as _dt
+            wd = dept_ots[0].work_date
+            thai_month = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][wd.month - 1]
+            thai_year  = wd.year + 543
+            period     = f'{thai_month} {thai_year}'
+        except Exception:
+            period = ''
+
+        msg_depthead = (f'ผู้ตรวจสอบ ({checker_name}) อนุมัติ OT แผนก {dept_name} '
+                        f'ประจำ{period} จำนวน {count} รายการ รวม {total_amt:,.0f} บาท')
+        msg_deptrep  = msg_depthead
+
+        deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True))
+        deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True))
+
+        # แจ้งพนักงานแต่ละคน (ยังคงรายบุคคลเพราะเป็นเรื่องเงินของตัวเอง)
+        staff_map = defaultdict(list)
+        for ot in dept_ots:
+            staff_map[ot.staff_id].append(ot)
+        for staff_id, staff_ots in staff_map.items():
+            staff = staff_ots[0].staff
+            s_count = len(staff_ots)
+            s_amt   = sum(float(o.amount) for o in staff_ots)
+            _notify_ot(staff_ots[0], 'ot_checker_approved', [staff],
+                f'ผู้ตรวจสอบ ({checker_name}) อนุมัติ OT ของคุณ {s_count} รายการ รวม {s_amt:,.0f} บาท ({period})')
+
+        if deptheads:
+            _notify_ot(dept_ots[0], 'ot_checker_approved', deptheads, msg_depthead)
+        if deptreps:
+            _notify_ot(dept_ots[0], 'ot_checker_approved', deptreps, msg_deptrep)
+
+    resp = {'approved': len(approved_list)}
+    if budget_warnings:
+        resp['budget_warning'] = budget_warnings[-1]
+    return Response(resp)
+
+
 # ─── Bulk Forward (deptrep → checker) ───────────────────────────────────────
 
 @api_view(['POST'])
@@ -1500,11 +1832,22 @@ def bulk_forward_view(request):
     if effective_role != 'deptrep':
         return Response({'error': 'สิทธิ์ไม่เพียงพอ'}, status=status.HTTP_403_FORBIDDEN)
 
-    ids  = request.data.get('ids', [])
+    # รองรับทั้ง JSON body และ FormData (กรณีส่งพร้อมไฟล์)
+    raw_ids = request.data.get('ids', [])
+    if isinstance(raw_ids, str):
+        import json as _json
+        try:
+            raw_ids = _json.loads(raw_ids)
+        except Exception:
+            raw_ids = []
+    ids  = raw_ids
     note = request.data.get('note', '')
+    doc  = request.FILES.get('document')
 
     if not ids:
         return Response({'error': 'ไม่มีรายการที่เลือก'}, status=status.HTTP_400_BAD_REQUEST)
+
+    doc = request.FILES.get('document')
 
     forwarded_list = []
     for ot_id in ids:
@@ -1514,6 +1857,8 @@ def bulk_forward_view(request):
             ot.rep_forwarded_by = request.user
             ot.rep_forwarded_at = timezone.now()
             ot.rep_note         = note
+            if doc:
+                ot.rep_document = doc
             ot.save()
             log_action(request.user, f'ส่งต่อคำร้อง OT #{ot.id}',
                        'OTRequest', ot.id, request=request)
@@ -1521,12 +1866,22 @@ def bulk_forward_view(request):
         except OTRequest.DoesNotExist:
             pass
 
-    # ส่งอีเมลแจ้ง checker (fail-silent)
+    # แจ้ง checker ทุกคน (in-app + อีเมล)
     notified_emails = []
     if forwarded_list:
-        checkers = User.objects.filter(role='checker', is_active=True)
-        notified_emails = [u.notify_email or u.email for u in checkers if (u.notify_email or u.email)]
+        checkers_qs = list(User.objects.filter(role='checker', is_active=True))
+        notified_emails = [u.notify_email or u.email for u in checkers_qs if (u.notify_email or u.email)]
         _send_checker_notification(forwarded_list, note, request.user)
+
+        rep_name = request.user.get_full_name() or request.user.username
+        dept_name = forwarded_list[0].department.name if forwarded_list else ''
+        has_doc = bool(doc)
+        doc_text = ' (พร้อมไฟล์เอกสาร)' if has_doc else ''
+        # ใช้ OT แรกเป็นตัวแทน (checker จะเห็น batch ทั้งหมดในหน้า dashboard)
+        _notify_ot(
+            forwarded_list[0], 'ot_rep_forwarded', checkers_qs,
+            f'{rep_name} ส่งเอกสาร OT แผนก {dept_name} จำนวน {len(forwarded_list)} รายการ{doc_text} รอการตรวจสอบ',
+        )
 
     return Response({'forwarded': len(forwarded_list), 'notified_emails': notified_emails})
 
@@ -1656,10 +2011,24 @@ def _check_ot_deadline(thai_month: str) -> 'str | None':
 
 # ─── Notification API ──────────────────────────────────────────────────────────
 
+NOTIF_TYPES_BY_ROLE = {
+    'staff':     ['ot_head_approved', 'ot_head_rejected', 'ot_rep_forwarded', 'ot_checker_approved', 'ot_checker_rejected'],
+    'depthead':  ['ot_submitted', 'ot_checker_approved', 'ot_checker_rejected', 'budget_set', 'no_ot_declared'],
+    'deptrep':   ['ot_rep_action_needed', 'ot_checker_approved', 'ot_checker_rejected'],
+    'checker':   ['ot_rep_forwarded'],
+    'executive': None,  # ทุกประเภท
+    'admin':     None,
+}
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def notification_list_view(request):
-    notifs = Notification.objects.filter(recipient=request.user).order_by('-created_at')[:50]
+    acting_role = get_effective_role(request.user, request)
+    allowed_types = NOTIF_TYPES_BY_ROLE.get(acting_role)
+    qs = Notification.objects.filter(recipient=request.user)
+    if allowed_types is not None:
+        qs = qs.filter(notif_type__in=allowed_types)
+    notifs = qs.order_by('-created_at')[:50]
     data = [{
         'id': n.id,
         'message': n.message,
@@ -1688,6 +2057,66 @@ def notification_mark_read_view(request):
 def notification_mark_all_read_view(request):
     Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
     return Response({'status': 'ok'})
+
+
+# ─── DeptHead → DeptRep "ready to forward" notification ───────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def notify_rep_ready_view(request):
+    """POST /api/notify-rep-ready/  body: {month: "YYYY-MM"}
+    หัวหน้ากดปุ่ม "แจ้งตัวแทนว่าพร้อมส่งออก" — ส่ง notification ให้ deptrep ของแผนก
+    """
+    user = request.user
+    effective_role = get_effective_role(user, request)
+    if effective_role != 'depthead':
+        return Response({'error': 'depthead only'}, status=403)
+
+    month = request.data.get('month', '')  # "YYYY-MM"
+    dept = getattr(user, 'department', None)
+    if not dept:
+        return Response({'error': 'no department'}, status=400)
+
+    deptreps = User.objects.filter(department=dept, role='deptrep', is_active=True)
+    if not deptreps.exists():
+        deptreps = User.objects.filter(department=dept, extra_roles__contains=['deptrep'], is_active=True)
+
+    if not deptreps.exists():
+        return Response({'error': 'ไม่พบตัวแทนแผนกในแผนกนี้'}, status=404)
+
+    # หาตัวอย่าง OTRequest สำหรับ link ใน notification (ใช้รายการแรกของเดือนนั้น)
+    ot_ref = None
+    if month:
+        ot_ref = OTRequest.objects.filter(
+            department=dept, status='head_approved',
+            work_date__startswith=month
+        ).first()
+
+    dept_name = dept.name if dept else ''
+    month_label = month[5:7].lstrip('0') if len(month) >= 7 else ''
+    year_label = str(int(month[:4]) + 543) if len(month) >= 4 else ''
+    msg = f'หัวหน้างาน {dept_name} แจ้งว่าคำร้อง OT เดือน {month_label}/{year_label} พร้อมส่งออกแล้ว'
+
+    for rep in deptreps:
+        notif = Notification.objects.create(
+            recipient=rep,
+            message=msg,
+            notif_type='ot_rep_action_needed',
+            ot_request=ot_ref,
+            is_read=False,
+        )
+        _push_ws(rep.id, {
+            'id': notif.id,
+            'message': notif.message,
+            'notif_type': notif.notif_type,
+            'ot_request': ot_ref.id if ot_ref else None,
+            'ot_request_date': str(ot_ref.work_date) if ot_ref else None,
+            'is_read': False,
+            'created_at': notif.created_at.isoformat(),
+        })
+        _send_email(rep, f'[SMART OT] {msg[:60]}', msg)
+
+    return Response({'status': 'ok', 'sent_to': deptreps.count()})
 
 
 # ─── Checker Budget API ────────────────────────────────────────────────────────
@@ -1813,11 +2242,18 @@ def checker_budget_view(request):
     for dept, new_budget in updated_depts:
         depthead_users = User.objects.filter(role='depthead', is_active=True, department=dept)
         for u in depthead_users:
-            Notification.objects.create(
+            msg_budget = f'ผู้ตรวจสอบ ({checker_name}) ตั้งงบประมาณ OT แผนก {dept.name} เดือน{month_label} เป็น {float(new_budget):,.0f} บาท'
+            notif = Notification.objects.create(
                 recipient=u,
-                message=f'ผู้ตรวจสอบ ({checker_name}) ตั้งงบประมาณ OT แผนก {dept.name} เดือน{month_label} เป็น {float(new_budget):,.0f} บาท',
+                message=msg_budget,
                 notif_type='budget_set',
             )
+            _push_ws(u.id, {
+                'id': notif.id, 'message': notif.message, 'notif_type': notif.notif_type,
+                'ot_request': None, 'ot_request_date': None, 'is_read': False,
+                'created_at': notif.created_at.isoformat(),
+            })
+            _send_email(u, f'[SMART OT] {msg_budget[:60]}', msg_budget)
 
     return Response({'status': 'ok', 'updated': len(updated_depts), 'month': payload_month})
 
@@ -2047,11 +2483,17 @@ def no_ot_declaration_view(request):
     recipients = (deptreps | checkers).distinct()
 
     for recipient in recipients:
-        Notification.objects.create(
+        notif = Notification.objects.create(
             recipient=recipient,
             message=msg,
             notif_type='no_ot_declared',
         )
+        _push_ws(recipient.id, {
+            'id': notif.id, 'message': notif.message, 'notif_type': notif.notif_type,
+            'ot_request': None, 'ot_request_date': None, 'is_read': False,
+            'created_at': notif.created_at.isoformat(),
+        })
+        _send_email(recipient, f'[SMART OT] {msg[:60]}', msg)
 
     return Response({
         'id': decl.id,

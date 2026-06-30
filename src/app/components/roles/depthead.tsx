@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   LayoutDashboard, Inbox, History, Users, FileBarChart, ChevronRight,
-  CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock,
+  CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock, Bell,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
@@ -110,33 +110,59 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
   const [noOtConfirm, setNoOtConfirm]     = useState(false);
   const [noOtSending, setNoOtSending]     = useState(false);
   const [noOtToast, setNoOtToast]         = useState<{ ok: boolean; msg: string } | null>(null);
-  // เก็บ set ของ "gregYear-month" ที่แจ้งไปแล้ว
   const [noOtDeclared, setNoOtDeclared]   = useState<Set<string>>(new Set());
+  const [dashDeadline, setDashDeadline]   = useState<{ deadline_date: string } | null>(null);
 
   // ไม่ใช้ yearOptions แล้ว — เปลี่ยนเป็น input กรอกปีเอง
+
+  // budget month param — reactive กับ filter period/เดือน/ปี
+  const selGregYear   = parseInt(selThaiYear) - 543;
+  const selMonthNum   = parseInt(selMonth);
+  const selBudgetYear = selMonthNum >= 10 ? selGregYear - 1 : selGregYear;
+  const budgetMonthParam = `${selBudgetYear}-${selMonth}`;
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     const h = { 'Authorization': `Bearer ${token}` };
+    const now2 = new Date();
+    const curMonthStr = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
+    fetch(`/api/ot-deadline/?month=${curMonthStr}`, { headers: h })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const list = Array.isArray(d) ? d : (d?.results || []);
+        setDashDeadline(list.find((x: any) => x.month === curMonthStr) || null);
+      }).catch(() => {});
+
     Promise.all([
       fetch('/api/auth/me/', { headers: h }).then(r => r.ok ? r.json() : null),
       fetch('/api/ot-requests/', { headers: h }).then(r => r.ok ? r.json() : null),
-      fetch(`/api/checker/budget/?month=${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`, { headers: h }).then(r => r.ok ? r.json() : null),
       fetch('/api/no-ot-declaration/', { headers: h }).then(r => r.ok ? r.json() : []),
-    ]).then(([me, d, budgets, declarations]) => {
+    ]).then(([me, d, declarations]) => {
       const arr: any[] = Array.isArray(d) ? d : (d?.results || []);
       setAllRequests(arr);
-      if (me && budgets) {
-        const budgetList: any[] = Array.isArray(budgets) ? budgets : (budgets.departments || []);
-        const myDept = budgetList.find((b: any) => b.id === me.department || b.id === Number(me.department));
-        if (myDept) setBudget(myDept.ot_budget ?? myDept.budget ?? 0);
-      }
       if (Array.isArray(declarations)) {
         const keys = new Set<string>(declarations.map((dec: any) => `${dec.greg_year}-${dec.month}`));
         setNoOtDeclared(keys);
       }
+      if (me?.department) sessionStorage.setItem('_my_dept_id', String(me.department));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  // โหลด budget ใหม่ทุกครั้งที่เดือน/ปีเปลี่ยน
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    const h = { 'Authorization': `Bearer ${token}` };
+    fetch(`/api/checker/budget/?month=${budgetMonthParam}`, { headers: h })
+      .then(r => r.ok ? r.json() : null)
+      .then(budgets => {
+        if (!budgets) return;
+        const deptId = Number(sessionStorage.getItem('_my_dept_id'));
+        const budgetList: any[] = Array.isArray(budgets) ? budgets : (budgets.departments || []);
+        const myDept = budgetList.find((b: any) => b.id === deptId);
+        if (myDept) setBudget(myDept.ot_budget ?? myDept.budget ?? 0);
+        else setBudget(0);
+      }).catch(() => {});
+  }, [budgetMonthParam]);
 
   // ── ฟังก์ชัน filter เดียวกับ HeadReport ────────────────────────────────
   function inRangeDash(dateStr: string): boolean {
@@ -400,6 +426,24 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
         </div>
       </div>
 
+      {/* Deadline banner — เดือนปัจจุบัน */}
+      {dashDeadline && (() => {
+        const dlDate = new Date(dashDeadline.deadline_date);
+        const today = new Date(); today.setHours(0,0,0,0);
+        const isPast = dlDate < today;
+        const diffDays = Math.ceil((dlDate.getTime() - today.getTime()) / 86400000);
+        return (
+          <div className={`flex items-center gap-3 p-3 mb-4 rounded-xl border text-[13px] ${isPast ? 'bg-red-50 border-red-300 text-danger' : diffDays <= 3 ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+            <Clock className="size-4 shrink-0" />
+            <p>
+              <strong>เดดไลน์พนักงานยื่น OT เดือนนี้:</strong>{' '}
+              {fmtDate(dashDeadline.deadline_date)}{' '}
+              {isPast ? '— หมดเขตแล้ว' : diffDays === 0 ? '— วันนี้วันสุดท้าย!' : `(อีก ${diffDays} วัน)`}
+            </p>
+          </div>
+        );
+      })()}
+
       {/* alert banner ใต้ cards ทันที */}
       {overBudget && (
         <div className="bg-tu-red-soft border border-tu-red rounded-xl p-4 flex items-start gap-3 mb-5">
@@ -542,7 +586,23 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const [rejectReason, setRejectReason] = useState('');
   const [search, setSearch] = useState('');
   const [actionMsg, setActionMsg] = useState<{ kind: 'success' | 'danger'; text: string } | null>(null);
+  const [notifyingRep, setNotifyingRep] = useState(false);
+  const [budgetStatus, setBudgetStatus] = useState<{ budget: number; used: number; remaining: number | null } | null>(null);
+  const [deadline, setDeadline] = useState<{ deadline_date: string; month: string } | null>(null);
   const token = () => localStorage.getItem('access_token');
+
+  useEffect(() => {
+    // โหลด deadline ของเดือนปัจจุบัน
+    const gregYear = parseInt(thaiYear) - 543;
+    const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+    fetch(`/api/ot-deadline/?month=${monthStr}`, { headers: { 'Authorization': `Bearer ${token()}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const list = Array.isArray(d) ? d : (d?.results || []);
+        setDeadline(list.find((x: any) => x.month === monthStr) || null);
+      })
+      .catch(() => setDeadline(null));
+  }, [selMonth, thaiYear]);
 
   function loadRequests() {
     setLoading(true);
@@ -551,6 +611,17 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
       .then(d => { if (d) setRequests(Array.isArray(d) ? d : (d.results || [])); })
       .catch(() => {}).finally(() => setLoading(false));
   }
+
+  function loadBudget(deptId: number | string, year: number, month: number) {
+    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+    fetch(`/api/budget-status/?department=${deptId}&month=${monthStr}`, {
+      headers: { 'Authorization': `Bearer ${token()}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setBudgetStatus(d); else setBudgetStatus(null); })
+      .catch(() => setBudgetStatus(null));
+  }
+
   useEffect(() => { loadRequests(); }, []);
 
   const gregYearPending = parseInt(thaiYear) - 543;
@@ -560,21 +631,76 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
     const d = new Date(r.work_date);
     return d.getFullYear() === gregYearPending && d.getMonth() + 1 === selMonth;
   });
+
+  // โหลดงบทุกครั้งที่เดือน/ปีเปลี่ยน หรือ requests โหลดใหม่
+  useEffect(() => {
+    const deptId = requests.find(r => r.department)?.department;
+    if (deptId) loadBudget(deptId, gregYearPending, selMonth);
+    else setBudgetStatus(null);
+  }, [requests, gregYearPending, selMonth]);
+
   const all = filtered.length > 0 && sel.length === filtered.length;
   const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
+  // คำนวณ cumulative: เรียงตาม work_date แล้วหา ณ แต่ละแถวว่าถ้าอนุมัติจะเกินงบหรือยัง
+  const rowBudgetMap = (() => {
+    if (!budgetStatus || budgetStatus.remaining === null) return new Map<number, boolean>();
+    let cum = 0;
+    const m = new Map<number, boolean>();
+    const sorted = [...filtered].sort((a, b) => a.work_date.localeCompare(b.work_date));
+    for (const r of sorted) {
+      const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+      cum += amt;
+      m.set(r.id, cum > (budgetStatus.remaining ?? 0));
+    }
+    return m;
+  })();
+
+  async function doApprove(id: number): Promise<string | null> {
+    const res = await fetch(`/api/ot-requests/${id}/approve/`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return d.error || 'เกิดข้อผิดพลาด';
+    }
+    return null;
+  }
+
   async function handleApprove() {
-    const tok = token();
+    const errors: string[] = [];
     for (const id of sel) {
-      await fetch(`/api/ot-requests/${id}/approve/`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      const err = await doApprove(id);
+      if (err) errors.push(err);
     }
     setSel([]);
-    setActionMsg({ kind: 'success', text: `อนุมัติ ${sel.length} คำร้องเรียบร้อยแล้ว` });
-    setTimeout(() => setActionMsg(null), 3000);
+    if (errors.length > 0) {
+      setActionMsg({ kind: 'danger', text: errors[0] });
+    } else {
+      setActionMsg({ kind: 'success', text: `อนุมัติ ${sel.length} คำร้องเรียบร้อยแล้ว` });
+    }
+    setTimeout(() => setActionMsg(null), 5000);
     loadRequests();
+  }
+
+  async function handleNotifyRep() {
+    setNotifyingRep(true);
+    const gregYear = parseInt(thaiYear) - 543;
+    const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+    const res = await fetch('/api/notify-rep-ready/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: monthStr }),
+    });
+    setNotifyingRep(false);
+    if (res.ok) {
+      setActionMsg({ kind: 'success', text: 'แจ้งตัวแทนแผนกเรียบร้อยแล้ว' });
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setActionMsg({ kind: 'danger', text: d.error || 'ไม่สามารถแจ้งตัวแทนได้' });
+    }
+    setTimeout(() => setActionMsg(null), 4000);
   }
 
   async function handleRejectConfirm() {
@@ -626,6 +752,59 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
         </div>
       )}
 
+      {/* Deadline banner */}
+      {deadline && (() => {
+        const dlDate = new Date(deadline.deadline_date);
+        const today = new Date(); today.setHours(0,0,0,0);
+        const isPast = dlDate < today;
+        const diffDays = Math.ceil((dlDate.getTime() - today.getTime()) / 86400000);
+        return (
+          <div className={`flex items-center gap-3 p-3 mb-4 rounded-xl border text-[13px] ${isPast ? 'bg-red-50 border-red-300 text-danger' : diffDays <= 3 ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+            <Clock className="size-4 shrink-0" />
+            <p>
+              <strong>เดดไลน์พนักงานยื่นคำร้อง OT:</strong>{' '}
+              {fmtDate(deadline.deadline_date)}{' '}
+              {isPast ? '(หมดเขตแล้ว — พนักงานไม่สามารถยื่นได้อีก)' : `(อีก ${diffDays} วัน)`}
+            </p>
+          </div>
+        );
+      })()}
+
+      {/* Budget bar */}
+      {budgetStatus && budgetStatus.budget > 0 && (() => {
+        const pct = Math.min(100, Math.round((budgetStatus.used / budgetStatus.budget) * 100));
+        const selAmt = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+        const afterPct = Math.min(100, Math.round(((budgetStatus.used + selAmt) / budgetStatus.budget) * 100));
+        const willExceed = budgetStatus.used + selAmt > budgetStatus.budget;
+        return (
+          <div className={`mb-4 p-4 rounded-xl border ${willExceed ? 'bg-red-50 border-red-300' : 'bg-[var(--neutral-50)] border-[var(--neutral-200)]'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[13px] font-semibold text-[var(--neutral-700)]">งบประมาณ OT เดือนนี้</span>
+              <span className={`text-[13px] font-bold ${willExceed ? 'text-danger' : pct >= 80 ? 'text-orange-500' : 'text-success'}`}>
+                {budgetStatus.used.toLocaleString()} / {budgetStatus.budget.toLocaleString()} บาท
+              </span>
+            </div>
+            <div className="relative h-3 bg-[var(--neutral-200)] rounded-full overflow-hidden">
+              <div className="absolute left-0 top-0 h-full bg-success/70 rounded-full transition-all" style={{ width: `${pct}%` }} />
+              {selAmt > 0 && (
+                <div className={`absolute top-0 h-full rounded-full transition-all ${willExceed ? 'bg-danger/60' : 'bg-orange-400/60'}`}
+                  style={{ left: `${pct}%`, width: `${afterPct - pct}%` }} />
+              )}
+            </div>
+            <div className="flex justify-between mt-1.5 text-[11px] text-[var(--neutral-500)]">
+              <span>ใช้ไปแล้ว {pct}%</span>
+              {budgetStatus.remaining !== null && (
+                <span className={willExceed ? 'text-danger font-semibold' : ''}>
+                  {willExceed
+                    ? `เกินงบ ${(budgetStatus.used + selAmt - budgetStatus.budget).toLocaleString()} บาท`
+                    : `คงเหลือ ${budgetStatus.remaining.toLocaleString()} บาท`}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       <SectionCard>
         <div className="mb-4">
           <Input placeholder="ค้นหาชื่อพนักงาน" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[300px]" />
@@ -671,15 +850,21 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                     <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                     <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDateTime(r.created_at)}</td>
                     <td className="px-3 py-2 flex gap-1">
-                      <Button size="sm" className="bg-success text-white h-7" onClick={async () => {
-                        await fetch(`/api/ot-requests/${r.id}/approve/`, {
-                          method: 'POST', headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
-                          body: JSON.stringify({}),
-                        });
-                        setActionMsg({ kind: 'success', text: 'อนุมัติเรียบร้อยแล้ว' });
-                        setTimeout(() => setActionMsg(null), 3000);
-                        loadRequests();
-                      }}>✓</Button>
+                      {rowBudgetMap.get(r.id) ? (
+                        <div title={`งบคงเหลือไม่พอสำหรับคำร้องนี้`}>
+                          <Button size="sm" disabled className="h-7 opacity-50 cursor-not-allowed">
+                            <X className="size-3 mr-1 text-danger" />งบเต็ม
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" className="bg-success text-white h-7" onClick={async () => {
+                          const err = await doApprove(r.id);
+                          if (err) setActionMsg({ kind: 'danger', text: err });
+                          else setActionMsg({ kind: 'success', text: 'อนุมัติเรียบร้อยแล้ว' });
+                          setTimeout(() => setActionMsg(null), 5000);
+                          loadRequests();
+                        }}>อนุมัติ</Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => onDetail(r.id)} className="border-tu-red text-tu-red h-7">ดู</Button>
                     </td>
                   </tr>
@@ -689,6 +874,19 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
           </div>
         )}
       </SectionCard>
+
+      {/* ปุ่มแจ้งตัวแทนว่าพร้อมส่งออก */}
+      <div className="mt-4 flex justify-end">
+        <Button
+          variant="outline"
+          className="border-blue-400 text-blue-700 hover:bg-blue-50 gap-2"
+          onClick={handleNotifyRep}
+          disabled={notifyingRep}
+        >
+          <Bell className="size-4" />
+          {notifyingRep ? 'กำลังแจ้ง…' : 'แจ้งตัวแทนว่าพร้อมส่งออก'}
+        </Button>
+      </div>
 
       {sel.length > 0 && (
         <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-white border-t border-[var(--neutral-300)] shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex items-center justify-between mt-6">
@@ -909,7 +1107,7 @@ export function HeadHistory() {
       <HeadBreadcrumb page="history" />
       <PageHeader
         title="ประวัติการอนุมัติ"
-        subtitle={`${filtered.length} รายการ · ${THAI_MONTHS_FULL[selMonth - 1]} ${thaiYear}`}
+        subtitle={`${filtered.length} รายการ · กรองตาม วันที่ทำ OT ของ${THAI_MONTHS_FULL[selMonth - 1]} ${thaiYear}`}
         right={
           <div className="flex items-center gap-2">
             <Input
@@ -977,11 +1175,15 @@ export function HeadHistory() {
 }
 
 export function HeadMembers() {
+  const _now = new Date();
   const [members, setMembers] = useState<any[]>([]);
   const [otMap, setOtMap] = useState<Record<number, any[]>>({});
   const [deptName, setDeptName] = useState('');
   const [detailMember, setDetailMember] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  // detail view filter
+  const [detailThaiYear, setDetailThaiYear] = useState(String(_now.getFullYear() + 543));
+  const [detailMonth, setDetailMonth] = useState<number | 0>(0); // 0 = ทุกเดือน
   const token = () => localStorage.getItem('access_token');
   const headers = { 'Authorization': `Bearer ${token()}` };
 
@@ -1023,7 +1225,14 @@ export function HeadMembers() {
 
   // ─── Subpage: รายละเอียด OT ของสมาชิก ───────────────────────────────────
   if (detailMember) {
-    const reqs = otMap[detailMember.id] || [];
+    const allReqs = otMap[detailMember.id] || [];
+    const detailGregYear = parseInt(detailThaiYear) - 543;
+    const reqs = allReqs.filter((r: any) => {
+      const d = new Date(r.work_date);
+      if (d.getFullYear() !== detailGregYear) return false;
+      if (detailMonth !== 0 && d.getMonth() + 1 !== detailMonth) return false;
+      return true;
+    });
     const totalDetailAmt = reqs.reduce((s: number, r: any) =>
       s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
@@ -1040,7 +1249,7 @@ export function HeadMembers() {
               {(detailMember.first_name || '?').charAt(0)}
             </AvatarFallback>
           </Avatar>
-          <div>
+          <div className="flex-1">
             <h1 className="text-[20px] font-bold">
               OT ของ {detailMember.first_name} {detailMember.last_name}
             </h1>
@@ -1048,12 +1257,30 @@ export function HeadMembers() {
               {detailMember.employee_id || detailMember.username} · {deptName}
             </p>
           </div>
+          {/* ตัวกรองเดือน / ปี */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Select value={String(detailMonth)} onValueChange={v => setDetailMonth(Number(v))}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">ทุกเดือน</SelectItem>
+                {THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              value={detailThaiYear}
+              onChange={e => setDetailThaiYear(e.target.value)}
+              className="w-[90px] text-center"
+              min={2560} max={2599}
+              placeholder="ปี พ.ศ."
+            />
+          </div>
         </div>
 
         {reqs.length === 0 ? (
           <div className="text-center py-20 text-[var(--neutral-400)]">
             <Clock className="size-12 mx-auto mb-3 opacity-30" />
-            <p className="font-medium">ยังไม่มีคำขอ OT</p>
+            <p className="font-medium">ไม่มีคำขอ OT ในช่วงเวลาที่เลือก</p>
           </div>
         ) : (
           <SectionCard>
@@ -1110,13 +1337,7 @@ export function HeadMembers() {
   return (
     <>
       <HeadBreadcrumb page="members" />
-      <PageHeader title={`สมาชิกในแผนก${deptName ? ' — ' + deptName : ''}`} />
-      <div className="grid grid-cols-4 gap-5 mb-5">
-        <KpiCard label="จำนวนสมาชิก" value={members.length.toString()} accent="red" />
-        <KpiCard label="ทำ OT แล้ว" value={hasOt.toString()} accent="yellow" />
-        <KpiCard label="รวมชั่วโมง OT" value={Math.floor(totalHours).toString()} accent="blue" />
-        <KpiCard label="รวมยอด OT" value={Math.round(totalAmt).toLocaleString()} accent="green" />
-      </div>
+      <PageHeader title={`สมาชิกในแผนก${deptName ? ` — ${deptName} (${members.length} คน)` : ''}`} />
       {members.length === 0 ? (
         <div className="text-center py-16 text-[var(--neutral-500)]">ไม่พบสมาชิกในแผนก</div>
       ) : (

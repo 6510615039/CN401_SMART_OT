@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Wallet, History, FileBarChart, Send,
-  CheckCircle2, X, Eye, ChevronDown, ChevronUp,
+  CheckCircle2, X, Eye, ChevronDown, ChevronUp, AlertTriangle, Download,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate } from '../shared';
@@ -37,6 +37,9 @@ type OTReq = {
   ot_hours: string;
   amount: string;
   status: string;
+  checker_note?: string;
+  checker_approved_at?: string | null;
+  rep_document_url?: string | null;
 };
 
 type DeptGroup = {
@@ -137,16 +140,22 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
 
   useEffect(() => { load(monthStr, gregYear, selMonth); }, [monthStr]);
 
+  const [budgetWarning, setBudgetWarning] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   async function approveAll(requests: OTReq[]) {
     setProcessing(true);
-    for (const r of requests) {
-      await fetch(`/api/ot-requests/${r.id}/approve/`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-    }
+    setSuccessMsg(null);
+    const res = await fetch('/api/ot-requests/bulk-approve/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: requests.map(r => r.id) }),
+    });
+    const data = res.ok ? await res.json() : null;
     setProcessing(false);
+    if (data?.budget_warning) setBudgetWarning(data.budget_warning);
+    setSuccessMsg(`อนุมัติ ${requests.length} รายการเรียบร้อยแล้ว`);
+    setTimeout(() => setSuccessMsg(null), 4000);
     await load(monthStr, gregYear, selMonth);
   }
 
@@ -195,6 +204,29 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
         <KpiCard label="รายการทั้งหมด" value={String(groups.reduce((s, g) => s + g.pending.length + g.approved.length + g.rejected.length, 0))} hint="rep_forwarded+" accent="blue" />
       </div>
 
+      {/* Success toast */}
+      {successMsg && (
+        <div className="flex items-center gap-3 p-4 mb-4 bg-green-50 border border-green-400 rounded-xl text-[13px] animate-in fade-in">
+          <CheckCircle2 className="size-5 text-success shrink-0" />
+          <p className="font-semibold text-success flex-1">{successMsg}</p>
+          <button onClick={() => setSuccessMsg(null)} className="text-green-400 hover:text-success"><X className="size-4" /></button>
+        </div>
+      )}
+
+      {/* Budget over-limit warning */}
+      {budgetWarning && (
+        <div className="flex items-start gap-3 p-4 mb-4 bg-red-50 border border-red-400 rounded-xl text-[13px]">
+          <AlertTriangle className="size-5 text-danger shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-danger">เกินเพดานงบประมาณ</p>
+            <p className="text-red-700 mt-0.5">{budgetWarning}</p>
+          </div>
+          <button onClick={() => setBudgetWarning(null)} className="text-red-400 hover:text-danger">
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
       {/* แผนกที่แจ้งไม่ประสงค์ส่ง OT เดือนนี้ (NoOTDeclaration) */}
       {noOtDeclarations.length > 0 && (
         <div className="p-4 mb-4 bg-blue-50 border border-blue-300 rounded-xl text-[13px]">
@@ -230,7 +262,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
           <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
             <table className="w-full text-[13px]">
               <thead className="bg-tu-red text-white">
-                <tr>{['แผนก', 'รายการรอตรวจ', 'ยอดเงิน', 'สถานะ', 'ดูรายการ', 'ตรวจสอบ'].map(h =>
+                <tr>{['แผนก', 'รายการรอตรวจ', 'ยอดเงิน', 'สถานะ', 'เอกสาร', 'ดูรายการ', 'ตรวจสอบ'].map(h =>
                   <th key={h} className="text-left px-3 py-3">{h}</th>
                 )}</tr>
               </thead>
@@ -253,6 +285,18 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           {isApproved && <StatusChip kind="success">อนุมัติแล้ว</StatusChip>}
                           {isRejected && <StatusChip kind="danger">ตีกลับแล้ว</StatusChip>}
                           {!hasPending && !isApproved && !isRejected && <StatusChip kind="warning">ยังไม่ส่งเอกสาร</StatusChip>}
+                        </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const docUrl = [...g.pending, ...g.approved, ...g.rejected].find(r => r.rep_document_url)?.rep_document_url;
+                            return docUrl ? (
+                              <a href={docUrl} target="_blank" rel="noreferrer">
+                                <Button size="sm" variant="outline" className="h-7 px-2 border-blue-400 text-blue-600 hover:bg-blue-50">
+                                  <Download className="size-3 mr-1" />ดาวน์โหลด
+                                </Button>
+                              </a>
+                            ) : <span className="text-[12px] text-[var(--neutral-400)]">—</span>;
+                          })()}
                         </td>
                         <td className="px-3 py-2">
                           {(g.pending.length > 0 || g.approved.length > 0 || g.rejected.length > 0) && (
@@ -429,37 +473,54 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
 // ─── CheckerHistory ───────────────────────────────────────────────────────────
 
 export function CheckerHistory() {
+  const _now = new Date();
+  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
   const [requests, setRequests] = useState<OTReq[]>([]);
   const [loading, setLoading] = useState(true);
   const token = () => localStorage.getItem('access_token');
 
+  const gregYear = parseInt(thaiYear) - 543;
+
   useEffect(() => {
-    const fetch2 = async () => {
-      const all: OTReq[] = [];
-      for (const s of ['checker_approved', 'checker_rejected', 'completed']) {
-        const res = await fetch(`/api/ot-requests/?status=${s}`, { headers: { 'Authorization': `Bearer ${token()}` } });
-        if (res.ok) { const d = await res.json(); all.push(...(Array.isArray(d) ? d : d.results || [])); }
-      }
-      setRequests(all.sort((a, b) => b.id - a.id));
-      setLoading(false);
-    };
-    fetch2();
-  }, []);
+    setLoading(true);
+    const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+    fetch(
+      `/api/ot-requests/?status_in=checker_approved,checker_rejected,completed&approved_by_me=1&month=${monthStr}`,
+      { headers: { 'Authorization': `Bearer ${token()}` } }
+    )
+      .then(r => r.ok ? r.json() : { results: [] })
+      .then(d => {
+        const list: OTReq[] = Array.isArray(d) ? d : (d.results || []);
+        setRequests(list.sort((a, b) => b.id - a.id));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [thaiYear, selMonth]);
 
   return (
     <>
-      <PageHeader title="ประวัติการตรวจสอบ" />
+      <PageHeader title="ประวัติการตรวจสอบ" right={
+        <div className="flex items-center gap-2">
+          <Input type="number" value={thaiYear} onChange={e => setThaiYear(e.target.value)}
+            className="w-[90px] text-center" min={2560} max={2599} />
+          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      } />
       <SectionCard>
         {loading ? (
           <div className="flex items-center justify-center h-32 gap-3 text-[var(--neutral-500)]">
             <div className="size-7 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
           </div>
         ) : requests.length === 0 ? (
-          <p className="text-center text-[var(--neutral-500)] py-10">ยังไม่มีประวัติการตรวจสอบ</p>
+          <p className="text-center text-[var(--neutral-500)] py-10">ไม่มีประวัติในเดือน {THAI_MONTHS[selMonth - 1]} {thaiYear}</p>
         ) : (
           <div className="relative pl-8">
             <div className="absolute left-3 top-2 bottom-2 w-px bg-[var(--neutral-300)]" />
-            {requests.map((r, i) => {
+            {requests.map(r => {
               const approved = r.status === 'checker_approved' || r.status === 'completed';
               return (
                 <div key={r.id} className="relative mb-5 pl-2">
@@ -475,6 +536,11 @@ export function CheckerHistory() {
                   <p className="text-[12px] text-[var(--neutral-500)]">
                     วันที่ทำ OT: {fmtDate(r.work_date)} • {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} บาท
                   </p>
+                  {r.checker_approved_at && (
+                    <p className="text-[11px] text-[var(--neutral-400)] mt-0.5">
+                      วันที่ตรวจสอบ: {new Date(r.checker_approved_at).toLocaleString('th-TH', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -617,17 +683,29 @@ export function CheckerReport() {
   const [budgetData, setBudgetData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const gregYear = parseInt(thaiYear) - 543;
+  // ดึงเดือนที่เกี่ยวข้องกับช่วงที่เลือก เพื่อ query budget ให้ตรง
+  const budgetMonthParam = (() => {
+    if (period === 'month') {
+      const mn = parseInt(thaiMonth);
+      const y = mn >= 10 ? gregYear - 1 : gregYear;
+      return `${y}-${String(mn).padStart(2,'0')}`;
+    }
+    // สำหรับ quarter/half/year ใช้เดือนแรกของช่วง
+    return `${gregYear}-01`;
+  })();
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
       fetch('/api/ot-requests/', { headers: { 'Authorization': `Bearer ${token()}` } }).then(r => r.json()),
-      fetch('/api/checker/budget/', { headers: { 'Authorization': `Bearer ${token()}` } }).then(r => r.json()),
+      fetch(`/api/checker/budget/?month=${budgetMonthParam}`, { headers: { 'Authorization': `Bearer ${token()}` } }).then(r => r.json()),
     ]).then(([otData, bd]) => {
       const all: any[] = Array.isArray(otData) ? otData : (otData.results || []);
       setRequests(all.filter(r => ['checker_approved','completed'].includes(r.status)));
       setBudgetData(bd);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [budgetMonthParam]);
 
   // ─── Date filter ──────────────────────────────────────────────────────────
   function inRange(dateStr: string): boolean {
@@ -681,7 +759,7 @@ export function CheckerReport() {
     <>
       <PageHeader title="รายงานภาพรวม" right={
         <div className="flex items-center gap-2">
-          <Select value={period} onValueChange={setPeriod}>
+          <Select value={period} onValueChange={v => { setPeriod(v); if (v === 'half') setQuarter('1'); }}>
             <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -698,8 +776,11 @@ export function CheckerReport() {
             </Select>
           )}
           {(period === 'quarter' || period === 'half') && (
-            <Select value={quarter} onValueChange={setQuarter}>
-              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+            <Select
+              value={quarter}
+              onValueChange={setQuarter}
+            >
+              <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {period === 'quarter'
                   ? ['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)

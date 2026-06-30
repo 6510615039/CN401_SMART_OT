@@ -53,7 +53,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 export const STAFF_NAV: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard',         icon: <LayoutDashboard /> },
   { key: 'timelog',   label: 'เวลาเข้า-ออกของฉัน',  icon: <Clock /> },
-  { key: 'submit',    label: 'ยื่นคำร้อง OT',         icon: <FilePlus /> },
+  { key: 'submit',    label: 'ยื่นคำร้องขอเบิกค่า OT', icon: <FilePlus /> },
   { key: 'status',    label: 'สถานะคำร้อง',         icon: <ListChecks /> },
   { key: 'profile',   label: 'โปรไฟล์',             icon: <UserCircle /> },
 ];
@@ -118,7 +118,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
     rep_forwarded:'ส่งต่อแล้ว', checker_approved:'อนุมัติแล้ว', checker_rejected:'ถูกปฏิเสธ', completed:'เสร็จสิ้น',
   };
   const STATUS_KIND: Record<string,string> = {
-    submitted:'info', head_approved:'info', head_rejected:'danger',
+    submitted:'warning', head_approved:'orange', head_rejected:'danger',
     rep_forwarded:'info', checker_approved:'success', checker_rejected:'danger', completed:'success',
   };
 
@@ -598,7 +598,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
                     checker_rejected:'ถูกปฏิเสธ', head_rejected:'ถูกตีกลับ', completed:'เสร็จสิ้น',
                   };
                   const REQ_STATUS_KIND: Record<string,string> = {
-                    submitted:'warning', head_approved:'warning', rep_forwarded:'warning',
+                    submitted:'warning', head_approved:'orange', rep_forwarded:'info',
                     checker_approved:'success', checker_rejected:'danger', head_rejected:'danger', completed:'success',
                   };
 
@@ -735,8 +735,8 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: (id: number, date: 
     checker_approved:'ผู้ตรวจสอบอนุมัติ', checker_rejected:'ผู้ตรวจสอบตีกลับ', completed:'เสร็จสิ้น',
   };
   const STATUS_KIND: Record<string,string> = {
-    draft:'neutral', submitted:'warning', head_approved:'warning',
-    head_rejected:'danger', rep_forwarded:'warning',
+    draft:'neutral', submitted:'warning', head_approved:'orange',
+    head_rejected:'danger', rep_forwarded:'info',
     checker_approved:'warning', checker_rejected:'danger', completed:'success',
   };
   const isRejected = (s: string) => s === 'head_rejected' || s === 'checker_rejected';

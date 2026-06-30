@@ -24,13 +24,27 @@ interface Props {
   children: ReactNode;
   notifications?: NotificationItem[];
   onMarkRead?: (ids?: number[]) => void;
+  onProfile?: () => void;
+}
+
+/** แปลง notif_type → page key ที่ควร navigate ไป (ขึ้นอยู่กับ role) */
+function notifTargetPage(type: string, role: Role): string | null {
+  if (type === 'ot_submitted')         return role === 'depthead' ? 'pending' : null;
+  if (type === 'ot_head_approved')     return role === 'deptrep'  ? 'export'  : role === 'staff' ? 'status' : null;
+  if (type === 'ot_head_rejected')     return role === 'staff'    ? 'status'  : null;
+  if (type === 'ot_rep_forwarded')     return role === 'checker'  ? 'dashboard' : null;
+  if (type === 'ot_rep_action_needed') return role === 'deptrep'  ? 'export'  : null;
+  if (type === 'ot_checker_approved')  return role === 'staff'    ? 'status'  : role === 'depthead' ? 'history' : role === 'deptrep' ? 'history' : null;
+  if (type === 'ot_checker_rejected')  return role === 'deptrep'  ? 'history' : null;
+  return null;
 }
 
 /** แปลง notif_type → สีวงกลม icon */
 function notifColor(type: string) {
-  if (type.includes('approved'))  return 'bg-green-100 text-green-700';
-  if (type.includes('rejected'))  return 'bg-red-100 text-tu-red';
-  if (type.includes('forwarded')) return 'bg-blue-100 text-blue-700';
+  if (type.includes('approved'))     return 'bg-green-100 text-green-700';
+  if (type.includes('rejected'))     return 'bg-red-100 text-tu-red';
+  if (type.includes('forwarded'))    return 'bg-blue-100 text-blue-700';
+  if (type === 'ot_rep_action_needed') return 'bg-orange-100 text-orange-600';
   return 'bg-tu-yellow-soft text-yellow-700';
 }
 
@@ -54,7 +68,7 @@ const ROLE_LABELS: Record<Role, string> = {
   admin:     'แอดมิน',
 };
 
-export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead }: Props) {
+export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead, onProfile }: Props) {
   const fallback = ROLE_INFO[role];
   const [userInfo, setUserInfo] = useState<{ name: string; dept: string; empId: string } | null>(null);
   const [profileImage, setProfileImage] = useState<string>(() => localStorage.getItem('profile_image_cache') || '');
@@ -138,13 +152,19 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
               <div className="max-h-[400px] overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="py-10 text-center text-[13px] text-[var(--neutral-500)]">ไม่มีการแจ้งเตือน</div>
-                ) : notifications.slice(0, 20).map(n => (
+                ) : notifications.slice(0, 20).map(n => {
+                  const targetPage = notifTargetPage(n.notif_type, role);
+                  return (
                   <button
                     key={n.id}
-                    onClick={() => !n.is_read && onMarkRead?.([n.id])}
+                    onClick={() => {
+                      if (!n.is_read) onMarkRead?.([n.id]);
+                      if (targetPage) onNavigate(targetPage);
+                    }}
                     className={cn(
                       'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',
-                      !n.is_read ? 'bg-[#fffbe6] hover:bg-[#fff8d6]' : 'hover:bg-[var(--neutral-100)]'
+                      !n.is_read ? 'bg-[#fffbe6] hover:bg-[#fff8d6]' : 'hover:bg-[var(--neutral-100)]',
+                      targetPage ? 'cursor-pointer' : 'cursor-default',
                     )}
                   >
                     <div className={cn('size-9 rounded-full grid place-items-center shrink-0 text-[13px] font-bold', notifColor(n.notif_type))}>
@@ -157,9 +177,13 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                       )}
                       <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">{relativeTime(n.created_at)}</p>
                     </div>
-                    {!n.is_read && <span className="size-2 rounded-full bg-tu-yellow shrink-0 self-center mt-1" />}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {!n.is_read && <span className="size-2 rounded-full bg-tu-yellow" />}
+                      {targetPage && <span className="text-[10px] text-blue-500">คลิกเพื่อดู →</span>}
+                    </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </PopoverContent>
           </Popover>
@@ -185,7 +209,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                 <p className="text-[11px] text-[var(--neutral-500)] font-normal mt-0.5">{info.empId} • {info.dept}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem><UserIcon className="size-4 mr-2" />โปรไฟล์</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onProfile?.()}><UserIcon className="size-4 mr-2" />โปรไฟล์</DropdownMenuItem>
               {otherRoles.length > 0 && (
                 <>
                   <DropdownMenuSeparator />

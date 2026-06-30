@@ -25,7 +25,7 @@ export const ADMIN_NAV: NavItem[] = [
   { key: 'users',       label: 'จัดการผู้ใช้',         icon: <Users /> },
   { key: 'depts',       label: 'จัดการแผนก',          icon: <Building2 /> },
   { key: 'holidays',    label: 'จัดการวันหยุด',        icon: <CalendarDays /> },
-  { key: 'deadlines',   label: 'กำหนดวันปิดรับโอที',    icon: <Clock /> },
+  { key: 'deadlines',   label: 'กำหนดวันปิดรับ OT',    icon: <Clock /> },
   { key: 'settings',    label: 'ตั้งค่าระบบ',           icon: <Settings /> },
   { key: 'history',     label: 'ประวัติการนำเข้า',     icon: <History /> },
   { key: 'audit',       label: 'Audit Log',           icon: <ListChecks /> },
@@ -62,11 +62,10 @@ export function AdminDashboard() {
   return (
     <>
       <PageHeader title="Dashboard ผู้ดูแลระบบ" right={<span className="text-[var(--neutral-500)]">วันที่ {new Date().toLocaleDateString('th-TH', {day:'numeric',month:'long',year:'numeric'})}</span>} />
-      <div className="grid grid-cols-4 gap-5 mb-6">
+      <div className="grid grid-cols-3 gap-5 mb-6">
         <KpiCard label="ผู้ใช้ทั้งหมด" value={summary ? (summary.total_users ?? 0).toString() : '—'} icon={<Users className="size-6" />} accent="red" />
         <KpiCard label="นำเข้าข้อมูลล่าสุด" value={importLabel} icon={<Upload className="size-6" />} accent="yellow" hint={importHint} />
         <KpiCard label="คำร้องในระบบเดือนนี้" value={summary ? (summary.ot_requests ?? 0).toString() : '—'} icon={<ListChecks className="size-6" />} accent="blue" />
-        <KpiCard label="สถานะระบบ" value={<span className="flex items-center gap-2 text-[20px]"><span className="size-3 rounded-full bg-success animate-pulse" />ปกติ</span>} icon={<CheckCircle2 className="size-6" />} accent="green" />
       </div>
 
       <div className="grid grid-cols-2 gap-5 mb-6">
@@ -98,7 +97,7 @@ export function AdminDashboard() {
             ) : (
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>
+                  <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} paddingAngle={2}>
                     {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
                   <Tooltip formatter={(v: any) => [`${v} คน`]} />
@@ -383,11 +382,10 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   return (
     <>
     <SectionCard title={`ข้อมูลเวลาเข้า-ออก ${thaiMonthLabel(month)}`}>
-      <div className="grid grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-3 gap-4 mb-5">
         <KpiCard label="รายการทั้งหมด" value={rows.length.toLocaleString()} accent="red" />
         <KpiCard label="พนักงาน" value={`${new Set(rows.map(r => r.empId)).size} คน`} accent="blue" />
         <KpiCard label="วันที่ครอบคลุม" value={thaiMonthLabel(month)} accent="yellow" />
-        <KpiCard label="พบความผิดปกติ" value={rows.filter(r => r.flag).length.toString()} accent="orange" />
       </div>
 
       {/* Search bar */}
@@ -396,7 +394,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
           <Input
             className="pl-10"
-            placeholder="ค้นหาชื่อพนักงาน หรือ รหัสพนักงาน (EMP-XXXX)"
+            placeholder="ค้นหาชื่อพนักงาน หรือ รหัสพนักงาน"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
           />
@@ -789,7 +787,7 @@ export function AdminUsers() {
           url = d?.next || null;
         }
       }
-      if (!cancelled) setAllUsers(all);
+      if (!cancelled) setAllUsers(all.sort((a, b) => (a.username || '').localeCompare(b.username || '', undefined, { numeric: true })));
     }
 
     loadAll()
@@ -1576,9 +1574,11 @@ function importStatusKind(s: ImportRec['status']): 'success'|'warning'|'danger' 
 }
 
 export function AdminHistory() {
+  const _now = new Date();
   const [records, setRecords] = useState<ImportRec[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterMonth, setFilterMonth] = useState(''); // "YYYY-MM"
+  const [filterMon, setFilterMon]   = useState(0);   // 0 = ทุกเดือน, 1–12
+  const [filterYear, setFilterYear] = useState(String(_now.getFullYear() + 543));
   const [expandId, setExpandId] = useState<number|null>(null);
 
   useEffect(() => {
@@ -1592,21 +1592,36 @@ export function AdminHistory() {
       .catch(() => setLoading(false));
   }, []);
 
-  const filtered = filterMonth
-    ? records.filter(r => r.imported_at.startsWith(filterMonth))
-    : records;
+  const gregYear = parseInt(filterYear) - 543;
+  const filtered = records.filter(r => {
+    const d = new Date(r.imported_at);
+    if (d.getFullYear() !== gregYear) return false;
+    if (filterMon !== 0 && d.getMonth() + 1 !== filterMon) return false;
+    return true;
+  });
 
   return (
     <>
       <PageHeader
         title="ประวัติการนำเข้า"
         right={
-          <Input
-            type="month"
-            className="w-[180px]"
-            value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
-          />
+          <div className="flex items-center gap-2">
+            <Select value={String(filterMon)} onValueChange={v => setFilterMon(Number(v))}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">ทุกเดือน</SelectItem>
+                {THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              value={filterYear}
+              onChange={e => setFilterYear(e.target.value)}
+              className="w-[90px] text-center"
+              min={2560} max={2599}
+              placeholder="ปี พ.ศ."
+            />
+          </div>
         }
       />
       <SectionCard>
@@ -1938,6 +1953,7 @@ export function AdminHolidays() {
   });
   const [deleteDlg, setDeleteDlg] = useState<HolidayRec | null>(null);
   const [seeding, setSeeding]     = useState(false);
+  const [typeFilter, setTypeFilter] = useState<HolidayType | 'all'>('all');
 
   const token = () => localStorage.getItem('access_token');
 
@@ -2060,14 +2076,16 @@ export function AdminHolidays() {
         subtitle="จัดการวันหยุดประจำปี — ลบหรือแก้ไขได้ทุกวันหยุดตามต้องการ"
         right={
           <div className="flex items-center gap-2">
-            <Select value={year} onValueChange={setYear}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {yearOptions.map(y => (
-                  <SelectItem key={y} value={String(y)}>พ.ศ. {y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1">
+              <span className="text-[13px] text-[var(--neutral-500)]">พ.ศ.</span>
+              <Input
+                type="number"
+                value={year}
+                onChange={e => setYear(e.target.value)}
+                className="w-[90px] text-center"
+                min={2560} max={2599}
+              />
+            </div>
             <Button
               variant="outline"
               className="border-tu-red text-tu-red"
@@ -2099,17 +2117,19 @@ export function AdminHolidays() {
         </div>
       )}
 
-      {/* Summary chips */}
-      <div className="flex gap-3 mb-5">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--neutral-100)] border border-[var(--neutral-300)] text-[13px] font-semibold text-[var(--neutral-600)]">
-          <Lock className="size-3" />วันหยุดราชการ {counts.official} วัน
-        </span>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-100 border border-orange-300 text-[13px] font-semibold text-orange-700">
-          <CalendarDays className="size-3.5" />วันหยุดชดเชย {counts.compensation} วัน
-        </span>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-100 border border-purple-300 text-[13px] font-semibold text-purple-700">
-          <CalendarDays className="size-3.5" />วันหยุดพิเศษ {counts.special} วัน
-        </span>
+      {/* Summary chips — คลิกเพื่อกรองประเภท */}
+      <div className="flex gap-3 mb-5 flex-wrap">
+        {([
+          { key: 'all' as const,           label: `ทั้งหมด ${holidays.length} วัน`,            cls: typeFilter==='all' ? 'bg-tu-red text-white border-tu-red' : 'bg-[var(--neutral-100)] border-[var(--neutral-300)] text-[var(--neutral-600)] hover:bg-[var(--neutral-200)]' },
+          { key: 'official' as const,      label: `วันหยุดราชการ ${counts.official} วัน`,     cls: typeFilter==='official' ? 'bg-[var(--neutral-700)] text-white border-[var(--neutral-700)]' : 'bg-[var(--neutral-100)] border-[var(--neutral-300)] text-[var(--neutral-600)] hover:bg-[var(--neutral-200)]' },
+          { key: 'compensation' as const,  label: `วันหยุดชดเชย ${counts.compensation} วัน`, cls: typeFilter==='compensation' ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200' },
+          { key: 'special' as const,       label: `วันหยุดพิเศษ ${counts.special} วัน`,      cls: typeFilter==='special' ? 'bg-purple-600 text-white border-purple-600' : 'bg-purple-100 border-purple-300 text-purple-700 hover:bg-purple-200' },
+        ]).map(chip => (
+          <button key={chip.key} onClick={() => setTypeFilter(chip.key)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[13px] font-semibold cursor-pointer transition-colors ${chip.cls}`}>
+            {chip.label}
+          </button>
+        ))}
       </div>
 
       <SectionCard>
@@ -2134,7 +2154,7 @@ export function AdminHolidays() {
                   ))}</tr>
                 </thead>
                 <tbody>
-                  {holidays.map(h => {
+                  {holidays.filter(h => typeFilter === 'all' || h.holiday_type === typeFilter).map(h => {
                     const isRO = h.is_system;
                     return (
                       <tr key={h.id} className={`border-t border-[var(--neutral-300)] ${isRO ? 'bg-[var(--neutral-50)]' : 'bg-white'}`}>
@@ -2370,7 +2390,7 @@ export function AdminDeadlines() {
   }
 
   async function deleteDeadline(rec: DeadlineRec) {
-    if (!window.confirm(`ลบกำหนดวันปิดรับโอที เดือน ${thaiMonthFull(rec.thai_month)}?`)) return;
+    if (!window.confirm(`ลบกำหนดวันปิดรับ OT เดือน ${thaiMonthFull(rec.thai_month)}?`)) return;
     setSaving(true);
     await fetch(`/api/ot-deadline/${rec.id}/delete/`, { method: 'DELETE', headers: authH() });
     setSaving(false);
@@ -2384,7 +2404,7 @@ export function AdminDeadlines() {
   return (
     <>
       <PageHeader
-        title="กำหนดวันปิดรับคำร้องโอที"
+        title="กำหนดวันปิดรับคำร้อง OT"
         right={
           <Button className="bg-tu-red text-white" onClick={openAdd}>
             <Plus className="size-4 mr-1" />ตั้งวันปิดรับ
@@ -2398,8 +2418,8 @@ export function AdminDeadlines() {
           <div>
             <p className="font-medium">กฎของระบบ</p>
             <p className="text-[var(--neutral-600)] mt-0.5">
-              เมื่อเลยวันปิดรับแล้ว พนักงานจะยื่นคำร้องโอทีสำหรับเดือนนั้นไม่ได้
-              (ทั้ง frontend และ backend) ถ้าเดือนใดไม่ได้ตั้งไว้ จะยื่นได้ตลอด
+              เมื่อเลยวันปิดรับแล้ว พนักงานจะยื่นคำร้อง OT สำหรับเดือนนั้นไม่ได้
+              ถ้าเดือนใดไม่ได้ตั้งไว้ จะยื่นได้ตลอด
             </p>
           </div>
         </div>
@@ -2478,7 +2498,7 @@ export function AdminDeadlines() {
       <Dialog open={dlg.open} onOpenChange={open => { if (!open) setDlg(d => ({ ...d, open: false })); }}>
         <DialogContent className="max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>{dlg.id ? 'แก้ไขวันปิดรับ' : 'ตั้งวันปิดรับโอที'}</DialogTitle>
+            <DialogTitle>{dlg.id ? 'แก้ไขวันปิดรับ' : 'ตั้งวันปิดรับ OT'}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
