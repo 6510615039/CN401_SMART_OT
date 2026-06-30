@@ -122,6 +122,8 @@ type ImportRow = {
   in: string; out: string; ot: string; flag: boolean;
   attendanceStatus?: string;
   timePeriod?: string;
+  shiftStart?: string;
+  shiftEnd?: string;
   dayType?: string;
   holidayName?: string;
   holidayType?: string;
@@ -452,7 +454,12 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
                       ? <Input value={draft.out} onChange={e => setDraft(d => ({ ...d, out: e.target.value }))} className="w-24 h-7 font-mono text-[12px]" />
                       : <span className="font-mono">{r.out}</span>}
                   </td>
-                  <td className="px-3 py-2 text-center">{r.timePeriod || ''}</td>
+                  <td className="px-3 py-2 text-center">
+                    {r.timePeriod || ''}
+                    {r.shiftStart && (
+                      <div className="text-[11px] text-[var(--neutral-500)]">เริ่ม {r.shiftStart} น.</div>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     {isEditing
                       ? <Input value={draft.ot} onChange={e => setDraft(d => ({ ...d, ot: e.target.value }))} className="w-20 h-7 font-mono text-[12px]" />

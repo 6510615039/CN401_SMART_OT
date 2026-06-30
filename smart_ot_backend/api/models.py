@@ -150,13 +150,30 @@ class OTRequest(models.Model):
         return f'{self.staff.get_full_name()} - {self.work_date} ({self.status})'
 
 
+class Shift(models.Model):
+    name        = models.CharField(max_length=50, unique=True, verbose_name='ชื่อกะ')
+    start_time  = models.TimeField(verbose_name='เวลาเริ่มงาน')
+    end_time    = models.TimeField(verbose_name='เวลาเลิกงาน')
+    grace_minutes = models.PositiveSmallIntegerField(default=0, verbose_name='เวลาผ่อนผันสาย (นาที)')
+    is_active   = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['start_time']
+        verbose_name = 'กะการทำงาน'
+        verbose_name_plural = 'กะการทำงาน'
+
+    def __str__(self):
+        return f'{self.name} ({self.start_time}-{self.end_time})'
+
+
 class TimeLog(models.Model):
     user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_logs')
     log_date    = models.DateField(verbose_name='วันที่')
     check_in    = models.TimeField(null=True, blank=True, verbose_name='เวลาเข้า')
     check_out   = models.TimeField(null=True, blank=True, verbose_name='เวลาออก')
     source_file       = models.CharField(max_length=200, blank=True, verbose_name='ไฟล์ต้นทาง')
-    time_period       = models.CharField(max_length=10, choices=[('เช้า', 'เช้า'), ('ปกติ', 'ปกติ')], blank=True, verbose_name='กะการทำงาน')
+    shift             = models.ForeignKey(Shift, on_delete=models.SET_NULL, null=True, blank=True, related_name='time_logs', verbose_name='กะการทำงาน')
+    time_period       = models.CharField(max_length=10, choices=[('เช้า', 'เช้า'), ('ปกติ', 'ปกติ')], blank=True, verbose_name='กะการทำงาน (ข้อความเดิม)')
     attendance_status = models.CharField(max_length=50, blank=True, verbose_name='สถานะเข้างาน')
     imported_at       = models.DateTimeField(auto_now_add=True)
 

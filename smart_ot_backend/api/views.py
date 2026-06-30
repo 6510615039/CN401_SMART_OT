@@ -12,7 +12,7 @@ import openpyxl
 from .models import (
     User, Department, OTRequest, Holiday,
     SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline,
-    Notification, NoOTDeclaration, DepartmentMonthlyBudget,
+    Notification, NoOTDeclaration, DepartmentMonthlyBudget, Shift,
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -898,6 +898,14 @@ def import_timelog(request):
         except Exception:
             return 0.0
 
+    # ── กะการทำงานมาตรฐาน (ปกติ=8:30 / เช้า=8:00) — แคชไว้ใช้ทั้งไฟล์ ──
+    shift_cache = {s.name: s for s in Shift.objects.all()}
+
+    def resolve_shift(time_period_text):
+        """จับคู่ข้อความกะจากไฟล์ (เช่น 'ปกติ', 'เช้า') กับ Shift ที่ตั้งไว้ในระบบ"""
+        key = (time_period_text or '').strip()
+        return shift_cache.get(key)
+
     def looks_like_id(val):
         """Return True if val looks like an employee ID (numeric or EMP-xxx format)."""
         if val is None:
@@ -979,6 +987,26 @@ def import_timelog(request):
                 break
             if col_id is None:
                 col_id = 0; col_name = None; col_date = 2; col_in = 4; col_out = 5; col_status = 7
+
+        # Fallback: ถ้าหาคอลัมน์กะจากชื่อหัวตารางไม่เจอ ให้เดาจาก "เนื้อหา" แทน
+        # (บางเดือนใส่กะมาในคอลัมน์ เช่น J แต่ไม่ได้ตั้งชื่อหัวตารางว่า Time Period)
+        if col_time_period is None:
+            known_shift_names = set(Shift.objects.values_list('name', flat=True)) or {'ปกติ', 'เช้า'}
+            used_cols = {c for c in (col_id, col_name, col_date, col_in, col_out, col_status) if c is not None}
+            sample_rows = list(ws.iter_rows(min_row=data_start_row, max_row=data_start_row + 50, values_only=True))
+            max_cols = max((len(r) for r in sample_rows), default=0)
+            best_col, best_hits = None, 0
+            for ci in range(max_cols):
+                if ci in used_cols:
+                    continue
+                hits = sum(
+                    1 for r in sample_rows
+                    if ci < len(r) and str(r[ci] or '').strip() in known_shift_names
+                )
+                if hits > best_hits:
+                    best_col, best_hits = ci, hits
+            if best_col is not None and best_hits >= 3:
+                col_time_period = best_col
 
         total = success = errors = skipped_users = 0
         error_lines = []
@@ -1085,11 +1113,13 @@ def import_timelog(request):
             success += 1
             db_name   = (f'{user.first_name} {user.last_name}'.strip()) or user.username
             dept_name = (user.department.name if getattr(user, 'department', None) else None) or 'ไม่ระบุ'
+            matched_shift = resolve_shift(time_period_val)
             try:
                 TimeLog.objects.update_or_create(
                     user=user, log_date=date_val or date_str,
                     defaults={'check_in': check_in, 'check_out': check_out, 'source_file': f.name,
-                              'time_period': time_period_val, 'attendance_status': att_status}
+                              'time_period': time_period_val, 'attendance_status': att_status,
+                              'shift': matched_shift}
                 )
             except Exception as e:
                 error_lines.append(f'แถว {total}: บันทึก timelog ไม่ได้ — {e}')
@@ -1100,6 +1130,8 @@ def import_timelog(request):
                 'dept': dept_name, 'in': in_str, 'out': out_str,
                 'ot': str(ot_val), 'flag': flag,
                 'timePeriod':   time_period_val,
+                'shiftStart':   fmt_time(matched_shift.start_time) if matched_shift else '',
+                'shiftEnd':     fmt_time(matched_shift.end_time) if matched_shift else '',
                 'attendanceStatus': att_status,
                 'dayType':      row_day_type,
                 'holidayName':  row_holiday_name,

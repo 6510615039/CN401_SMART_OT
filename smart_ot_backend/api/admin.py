@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Department, OTRequest, Holiday, SystemSettings, TimeLog, ImportHistory, AuditLog
+from .models import User, Department, OTRequest, Holiday, SystemSettings, TimeLog, ImportHistory, AuditLog, Shift
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -17,3 +17,4 @@ admin.site.register(OTRequest)
 admin.site.register(TimeLog)
 admin.site.register(ImportHistory)
 admin.site.register(AuditLog)
+admin.site.register(Shift)

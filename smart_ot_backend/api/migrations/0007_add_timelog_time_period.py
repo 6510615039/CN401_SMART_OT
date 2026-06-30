@@ -9,15 +9,7 @@ class Migration(migrations.Migration):
         ('api', '0006_add_ot_deadline_and_rep_note'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='timelog',
-            name='attendance_status',
-            field=models.CharField(blank=True, max_length=50, verbose_name='สถานะเข้างาน'),
-        ),
-        migrations.AddField(
-            model_name='timelog',
-            name='time_period',
-            field=models.CharField(blank=True, choices=[('เช้า', 'เช้า'), ('ปกติ', 'ปกติ')], max_length=10, verbose_name='กะการทำงาน'),
-        ),
-    ]
+    # หมายเหตุ: เดิมมี AddField ซ้ำกับ 0009_add_time_period_attendance_status_to_timelog
+    # (เกิดจาก merge conflict เก่า) — เอา operations ออกเพื่อไม่ให้ชนกันตอนสร้างฐานข้อมูลใหม่
+    # ฐานข้อมูลเดิม (sqlite dev) มี migration นี้ถูก mark ว่า applied ไปแล้วจึงไม่กระทบ
+    operations = []
