@@ -1198,77 +1198,18 @@ function thaiNumber(n: number): string {
   return result + 'บาทถ้วน';
 }
 
-function buildOtSheet(
-  wb: XLSX.WorkBook,
-  employees: { seq: number; name: string; reqs: any[]; weekdayHrs: number; weekendHrs: number; amount: number }[],
-  deptName: string,
-  signatoryName: string,
-  month: string,
-  carryover: number,
-  pageIdx: number,
-  totalPages: number,
-  grandTotalAmount: number,
-) {
-  const startDay    = pageIdx * 5;
-  const endDay      = startDay + 5;
-  const isFirstPage = pageIdx === 0;
-  const sheetName   = totalPages > 1 ? `หน้า ${pageIdx + 1}` : 'OT Report';
+// ── Excel generation (ตามแบบฟอร์มจริง — 16 คอลัมน์ A-P เหมือนหน้าตัวแทนฝ่าย) ──
+const HEAD_DATES_PER_ROW = 8;
 
-  const rows: any[][] = [];
-  rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ']);
-  rows.push([`${deptName}  ประจำเดือน ${month}`]);
-  if (totalPages > 1) rows.push([`(หน้า ${pageIdx + 1} / ${totalPages})`]);
-  rows.push([]);
-  if (isFirstPage && carryover > 0) {
-    rows.push(['ยอดยกมาจากเดือนที่แล้ว', '', '', '', '', '', '', '', '', carryover, '', '', '']);
-  }
-  const dayLabels = Array.from({ length: 5 }, (_, i) => `วันที่ ${startDay + i + 1}`);
-  rows.push(['ลำดับที่', 'ชื่อ-สกุล', ...dayLabels, 'วันปกติ(ชม.)', 'วันหยุด(ชม.)', 'จำนวนเงิน', 'ว.ด.ป.ที่รับเงิน', 'ลายมือชื่อ', 'หมายเหตุ']);
-  const empHere = isFirstPage ? employees : employees.filter(e => e.reqs.length > startDay);
-  empHere.forEach(emp => {
-    const dr: any[] = [emp.seq, emp.name];
-    for (let i = startDay; i < endDay; i++) dr.push(emp.reqs[i]?.work_date ?? '');
-    if (isFirstPage) dr.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount, '', '', '');
-    else             dr.push('', '', '', '', '', '');
-    rows.push(dr);
-    const tr: any[] = ['', ''];
-    for (let i = startDay; i < endDay; i++) {
-      const r = emp.reqs[i];
-      tr.push(r ? `${r.start_time || ''}-${r.end_time || ''} น.` : '');
-    }
-    tr.push('', '', '', '', '', '');
-    rows.push(tr);
-  });
-  rows.push([]);
-  if (isFirstPage) {
-    rows.push(['', '', 'รวมเงินทั้งสิ้น', '', '', '', '', 'รวมเป็นเงิน', '', grandTotalAmount, '', '', '']);
-    rows.push(['', '', '', '', '', '', '', '', '', `(${thaiNumber(grandTotalAmount)})`, '', '', '']);
-    if (carryover > 0) {
-      rows.push(['', '', '', '', '', '', '', 'ยอดยกมา', '', carryover, '', '', '']);
-      rows.push(['', '', '', '', '', '', '', 'ยอดสุทธิเดือนนี้', '', grandTotalAmount - carryover, '', '', '']);
-    }
-  }
-  rows.push([]);
-  rows.push(['ขอรับรองว่า ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง']);
-  rows.push([]);
-  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน']);
-  rows.push(['', '', '', `(${signatoryName})`]);
-  rows.push(['ตำแหน่ง', '', '', `หัวหน้า${deptName}`]);
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:8},{wch:30},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:18},{wch:12}];
-  const merges: any[] = [
-    { s:{r:0,c:0}, e:{r:0,c:12} },
-    { s:{r:1,c:0}, e:{r:1,c:12} },
-  ];
-  if (totalPages > 1) merges.push({ s:{r:2,c:0}, e:{r:2,c:12} });
-  ws['!merges'] = merges;
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+function headThaiDate(s: string) {
+  const d = new Date(s);
+  return `${d.getDate()} ${THAI_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
 function generateHeadXlsx(requests: any[], deptName: string, signatoryName: string, carryover = 0) {
   const now = new Date();
-  const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  const month = `${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543}`;
+  const month = `${THAI_MONTHS_FULL[now.getMonth()]} ${now.getFullYear() + 543}`;
+
   const byStaff: Record<string, { name: string; reqs: any[] }> = {};
   for (const r of requests) {
     const key = r.staff || r.staff_name;
@@ -1276,23 +1217,87 @@ function generateHeadXlsx(requests: any[], deptName: string, signatoryName: stri
     byStaff[key].reqs.push(r);
   }
   Object.values(byStaff).forEach(s => s.reqs.sort((a, b) => a.work_date.localeCompare(b.work_date)));
+
   const employees = Object.values(byStaff).map((s, idx) => {
-    const weekdayHrs = s.reqs.filter(r => r.day_type !== 'holiday')
-      .reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)), 0);
-    const weekendHrs = s.reqs.filter(r => r.day_type === 'holiday')
-      .reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)), 0);
-    const amount = s.reqs.reduce(
-      (sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)) * (r.day_type === 'holiday' ? 70 : 60), 0
-    );
-    return { seq: idx + 1, name: s.name, reqs: s.reqs, weekdayHrs, weekendHrs, amount };
+    const days = s.reqs.map(r => ({
+      date: headThaiDate(r.work_date),
+      time: `${(r.start_time || '').slice(0, 5)}-${(r.end_time || '').slice(0, 5)} น.`,
+      isWeekend: r.day_type === 'holiday',
+    }));
+    const weekdayHrs = s.reqs.filter(r => r.day_type !== 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
+    const weekendHrs = s.reqs.filter(r => r.day_type === 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
+    const amount = s.reqs.reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)) * (r.day_type === 'holiday' ? 70 : 60), 0);
+    return { seq: idx + 1, name: s.name, days, weekdayHrs: Math.round(weekdayHrs * 10) / 10, weekendHrs: Math.round(weekendHrs * 10) / 10, amount: Math.round(amount) };
   });
-  const grandTotalAmount = employees.reduce((s, e) => s + e.amount, 0);
-  const maxDays    = Math.max(...employees.map(e => e.reqs.length), 1);
-  const totalPages = Math.ceil(maxDays / 5);
+
+  const grandTotal = employees.reduce((s, e) => s + e.amount, 0) + carryover;
   const wb = XLSX.utils.book_new();
-  for (let page = 0; page < totalPages; page++) {
-    buildOtSheet(wb, employees, deptName, signatoryName, month, carryover, page, totalPages, grandTotalAmount);
+  const rows: any[][] = [];
+  const C = 16;
+  const pad = (n: number) => Array(n).fill('');
+
+  rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ', ...pad(C - 1)]);
+  rows.push([`  ${deptName}  ประจำเดือน ${month}`, ...pad(C - 1)]);
+  rows.push(['ลำดับที่', 'ชื่อ-สกุล', 'วันปฏิบัติงานนอกเวลาราชการ', '', '', '', '', '', '', '', 'รวมเวลา', '', 'จำนวนเงิน', '', '', 'หมายเหตุ']);
+  rows.push(['', '', '', '', '', '', '', '', '', '', 'ปฏิบัติงาน', '', '', 'ว.ด.ป.', 'ลายมือชื่อ', '']);
+  rows.push(['', '', '', '', '', '', '', '', '', '', 'วันปกติ', 'วันหยุด', '', 'ที่รับเงิน', 'ผู้รับเงิน', '']);
+  rows.push(['', '', '', '', '', '', '', '', '', '', '(ชั่วโมง)', '(ชั่วโมง)', '', '', '', '']);
+  if (carryover > 0) {
+    rows.push(['', 'ยอดยกมาจากเดือนที่แล้ว', '', '', '', '', '', '', '', '', '', '', carryover.toLocaleString(), '', '', '']);
   }
+
+  employees.forEach(emp => {
+    const chunks: typeof emp.days[] = [];
+    for (let i = 0; i < emp.days.length; i += HEAD_DATES_PER_ROW) chunks.push(emp.days.slice(i, i + HEAD_DATES_PER_ROW));
+    if (chunks.length === 0) chunks.push([]);
+
+    chunks.forEach((chunk, ci) => {
+      const isLast = ci === chunks.length - 1;
+      const dateRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
+      for (let i = 0; i < HEAD_DATES_PER_ROW; i++) dateRow.push(chunk[i]?.date ?? '');
+      if (isLast) dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', '');
+      else        dateRow.push('', '', '', '', '', '');
+      rows.push(dateRow);
+
+      const timeRow: any[] = ['', ''];
+      for (let i = 0; i < HEAD_DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
+      timeRow.push('', '', '', '', '', '');
+      rows.push(timeRow);
+    });
+  });
+
+  const sumRow: any[] = ['', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiNumber(grandTotal)}-`];
+  for (let i = 0; i < HEAD_DATES_PER_ROW; i++) sumRow.push('');
+  sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
+  rows.push(sumRow);
+
+  rows.push([]);
+  rows.push(['ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C - 1)]);
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', '', '', '', '', '', '', '', '', '']);
+  rows.push(['', `(${signatoryName})`, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+  rows.push(['ตำแหน่ง', `หัวหน้า${deptName}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 8 }, { wch: 40 }, { wch: 16 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 },
+    { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 13 }, { wch: 11 },
+  ];
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
+    { s: { r: 2, c: 0 }, e: { r: 5, c: 0 } },
+    { s: { r: 2, c: 1 }, e: { r: 5, c: 1 } },
+    { s: { r: 2, c: 2 }, e: { r: 2, c: 9 } },
+    { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } },
+    { s: { r: 3, c: 10 }, e: { r: 3, c: 11 } },
+    { s: { r: 4, c: 10 }, e: { r: 4, c: 11 } },
+    { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
+    { s: { r: 2, c: 12 }, e: { r: 5, c: 12 } },
+    { s: { r: 2, c: 13 }, e: { r: 5, c: 13 } },
+    { s: { r: 2, c: 14 }, e: { r: 5, c: 14 } },
+    { s: { r: 2, c: 15 }, e: { r: 5, c: 15 } },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
   downloadXlsx(wb, `OT-${deptName}-${month}.xlsx`);
 }
 
