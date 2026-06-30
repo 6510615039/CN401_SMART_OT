@@ -238,6 +238,7 @@ class Notification(models.Model):
         ('ot_checker_approved', 'ผู้ตรวจสอบอนุมัติ'),
         ('ot_checker_rejected', 'ผู้ตรวจสอบตีกลับ'),
         ('no_ot_declared',      'แจ้งไม่มีโอทีประจำเดือน'),
+        ('budget_set',          'ผู้ตรวจสอบตั้งงบประมาณ OT'),
     ]
 
     recipient  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -269,3 +270,20 @@ class NoOTDeclaration(models.Model):
 
     def __str__(self):
         return f'{self.department} {self.greg_year}/{self.month:02d}'
+
+
+class DepartmentMonthlyBudget(models.Model):
+    department  = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='monthly_budgets')
+    year        = models.PositiveIntegerField(verbose_name='ปี (Gregorian)')
+    month       = models.PositiveSmallIntegerField(verbose_name='เดือน (1-12)')
+    budget      = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='งบประมาณ OT (บาท)')
+    set_by      = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='budgets_set')
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('department', 'year', 'month')
+        ordering = ['-year', '-month']
+        verbose_name = 'งบประมาณ OT รายเดือน'
+
+    def __str__(self):
+        return f'{self.department.name} {self.year}/{self.month:02d} = {self.budget}'

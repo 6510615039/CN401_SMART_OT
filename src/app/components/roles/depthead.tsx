@@ -121,14 +121,15 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
     Promise.all([
       fetch('/api/auth/me/', { headers: h }).then(r => r.ok ? r.json() : null),
       fetch('/api/ot-requests/', { headers: h }).then(r => r.ok ? r.json() : null),
-      fetch('/api/checker/budget/', { headers: h }).then(r => r.ok ? r.json() : null),
+      fetch(`/api/checker/budget/?month=${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`, { headers: h }).then(r => r.ok ? r.json() : null),
       fetch('/api/no-ot-declaration/', { headers: h }).then(r => r.ok ? r.json() : []),
     ]).then(([me, d, budgets, declarations]) => {
       const arr: any[] = Array.isArray(d) ? d : (d?.results || []);
       setAllRequests(arr);
-      if (me && Array.isArray(budgets)) {
-        const myDept = budgets.find((b: any) => b.id === me.department);
-        if (myDept) setBudget(myDept.ot_budget || 0);
+      if (me && budgets) {
+        const budgetList: any[] = Array.isArray(budgets) ? budgets : (budgets.departments || []);
+        const myDept = budgetList.find((b: any) => b.id === me.department || b.id === Number(me.department));
+        if (myDept) setBudget(myDept.ot_budget ?? myDept.budget ?? 0);
       }
       if (Array.isArray(declarations)) {
         const keys = new Set<string>(declarations.map((dec: any) => `${dec.greg_year}-${dec.month}`));
@@ -530,6 +531,10 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
 }
 
 export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
+  const _n = new Date();
+  const _curThaiYearPending = _n.getFullYear() + 543;
+  const [thaiYear, setThaiYear] = useState(String(_curThaiYearPending));
+  const [selMonth, setSelMonth] = useState(_n.getMonth() + 1);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number[]>([]);
@@ -548,9 +553,13 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   }
   useEffect(() => { loadRequests(); }, []);
 
-  const filtered = requests.filter(r =>
-    !search || (r.staff_name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const gregYearPending = parseInt(thaiYear) - 543;
+
+  const filtered = requests.filter(r => {
+    if (search && !(r.staff_name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    const d = new Date(r.work_date);
+    return d.getFullYear() === gregYearPending && d.getMonth() + 1 === selMonth;
+  });
   const all = filtered.length > 0 && sel.length === filtered.length;
   const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
@@ -589,8 +598,25 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
       <HeadBreadcrumb page="pending" />
       <PageHeader
         title="คำร้องรออนุมัติ"
-        subtitle={`${filtered.length} รายการ รอการพิจารณา`}
-        right={null}
+        subtitle={`${filtered.length} รายการ รอการพิจารณา · ${THAI_MONTHS_FULL[selMonth - 1]} ${thaiYear}`}
+        right={
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              value={thaiYear}
+              onChange={e => { setThaiYear(e.target.value); setSel([]); }}
+              className="w-[90px] text-center"
+              min={2560}
+              max={2599}
+            />
+            <Select value={String(selMonth)} onValueChange={v => { setSelMonth(Number(v)); setSel([]); }}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        }
       />
 
       {actionMsg && (
@@ -849,8 +875,12 @@ const STATUS_HIST: Record<string, { kind: 'success' | 'danger' | 'warning' | 'ne
 };
 
 export function HeadHistory() {
+  const _n = new Date();
+  const [thaiYear, setThaiYear] = useState(String(_n.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState(_n.getMonth() + 1);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const token = () => localStorage.getItem('access_token');
 
   useEffect(() => {
@@ -866,19 +896,51 @@ export function HeadHistory() {
       .finally(() => setLoading(false));
   }, []);
 
+  const gregYearHist = parseInt(thaiYear) - 543;
+
+  const filtered = history.filter(r => {
+    if (search && !(r.staff_name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    const d = new Date(r.work_date);
+    return d.getFullYear() === gregYearHist && d.getMonth() + 1 === selMonth;
+  });
+
   return (
     <>
       <HeadBreadcrumb page="history" />
-      <PageHeader title="ประวัติการอนุมัติ" />
+      <PageHeader
+        title="ประวัติการอนุมัติ"
+        subtitle={`${filtered.length} รายการ · ${THAI_MONTHS_FULL[selMonth - 1]} ${thaiYear}`}
+        right={
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              value={thaiYear}
+              onChange={e => setThaiYear(e.target.value)}
+              className="w-[90px] text-center"
+              min={2560}
+              max={2599}
+            />
+            <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      />
       <SectionCard>
+        <div className="mb-4">
+          <Input placeholder="ค้นหาชื่อพนักงาน" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[300px]" />
+        </div>
         {loading ? (
           <div className="flex items-center justify-center h-40 gap-3 text-[var(--neutral-500)]">
             <div className="size-7 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
             <span>กำลังโหลด...</span>
           </div>
-        ) : history.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-[var(--neutral-500)]">
-            <p className="font-semibold">ยังไม่มีประวัติการอนุมัติ</p>
+            <p className="font-semibold">ไม่มีประวัติในเดือนนี้</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
@@ -889,7 +951,7 @@ export function HeadHistory() {
                 ))}</tr>
               </thead>
               <tbody>
-                {history.map((r: any) => {
+                {filtered.map((r: any) => {
                   const st = STATUS_HIST[r.status] || { kind: 'neutral' as const, label: r.status };
                   const note = r.head_note || r.checker_note || '—';
                   return (

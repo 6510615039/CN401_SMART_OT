@@ -39,12 +39,41 @@ export function Login({ onLogin, onForgot }: Props) {
       }
 
       const { access, refresh, user } = await res.json();
+      // เก็บเฉพาะ field ที่จำเป็น เพื่อไม่ให้ localStorage เต็ม
+      const userToStore = {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        role: user.role,
+        available_roles: user.available_roles,
+        department: user.department,
+        department_name: user.department_name,
+        // ไม่เก็บ profile_image เพราะอาจเป็น base64 ขนาดใหญ่มาก
+      };
+      // ล้าง cache เก่าก่อน โดยเฉพาะ profile_image_cache ที่อาจมีขนาดใหญ่
+      localStorage.removeItem('profile_image_cache');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify(userToStore));
       onLogin(user.role as Role);
 
-    } catch {
+    } catch (err) {
+      console.error('[Login] catch error:', err);
+      // ถ้า token ถูก save ไปแล้ว (fetch สำเร็จ แต่ onLogin throw) ให้ transition เลย
+      const savedToken = localStorage.getItem('access_token');
+      const savedUser = localStorage.getItem('user');
+      if (savedToken && savedUser) {
+        try {
+          const u = JSON.parse(savedUser);
+          if (u.role) { onLogin(u.role as Role); return; }
+        } catch {}
+      }
       setState('error');
       setErrorMsg('ไม่สามารถเชื่อมต่อกับ server ได้');
     }
@@ -80,21 +109,20 @@ export function Login({ onLogin, onForgot }: Props) {
           <p className="text-[var(--neutral-500)] mb-8">กรุณากรอกข้อมูลเพื่อเข้าใช้งานระบบ SMART OT</p>
 
           <div className="space-y-4">
-            {/* Username / Email */}
+            {/* Username */}
             <div>
-              <label className="block mb-1.5">อีเมลนักศึกษา / รหัสพนักงาน</label>
+              <label className="block mb-1.5">รหัสพนักงาน</label>
               <div className="relative">
                 <User className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
                 <Input
                   className={`pl-10 h-11 ${isError ? 'border-danger focus-visible:ring-danger' : ''}`}
-                  placeholder="เช่น s6512345678@dome.tu.ac.th"
+                  placeholder="เช่น 0001"
                   value={username}
                   onChange={e => { setUsername(e.target.value); if (isError) setState('idle'); }}
                   disabled={isLoading}
                   onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                 />
               </div>
-              <p className="text-[11px] text-[var(--neutral-500)] mt-1">รองรับ @dome.tu.ac.th · @tu.ac.th · รหัสพนักงาน</p>
             </div>
 
             {/* Password */}
@@ -148,18 +176,6 @@ export function Login({ onLogin, onForgot }: Props) {
                 'เข้าสู่ระบบด้วย TU Account'
               )}
             </Button>
-
-            {/* Test accounts hint */}
-            <div style={{background:'var(--neutral-50)',borderRadius:8,padding:'10px 14px',fontSize:12,color:'var(--neutral-500)',lineHeight:1.9}}>
-              <strong style={{color:'var(--neutral-700)'}}>บัญชีทดสอบ (username / password):</strong><br/>
-              <span style={{color:'var(--neutral-600)'}}>admin</span> / admin1234 &nbsp;•&nbsp;
-              <span style={{color:'var(--neutral-600)'}}>somchai</span> / staff1234<br/>
-              <span style={{color:'var(--neutral-600)'}}>onanong</span> / head1234 &nbsp;•&nbsp;
-              <span style={{color:'var(--neutral-600)'}}>checker</span> / chk1234<br/>
-              <span style={{color:'var(--neutral-400)',fontSize:11}}>
-                นักศึกษา: ใช้ email เต็ม เช่น s6512345678@dome.tu.ac.th
-              </span>
-            </div>
 
             <p className="text-[12px] text-[var(--neutral-500)] text-center">
               ระบบเชื่อมต่อกับ Django API • สิทธิ์การใช้งานถูกกำหนดโดยผู้ดูแลระบบ

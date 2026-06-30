@@ -91,8 +91,12 @@ function BudgetGauge({ percent }: { percent: number }) {
 // ─── CheckerDashboard ─────────────────────────────────────────────────────────
 
 export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp: any) => void }) {
+  const _now = new Date();
+  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
   const [groups, setGroups] = useState<DeptGroup[]>([]);
   const [noOtDepts, setNoOtDepts] = useState<{ id: number; name: string; code: string }[]>([]);
+  const [noOtDeclarations, setNoOtDeclarations] = useState<{ dept_id: number; dept_name: string; declared_by: string; note: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDept, setExpandedDept] = useState<number | null>(null);
   const [rejectDlg, setRejectDlg] = useState<{ open: boolean; requests: OTReq[]; dept: string }>({ open: false, requests: [], dept: '' });
@@ -100,7 +104,10 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
   const [processing, setProcessing] = useState(false);
   const token = () => localStorage.getItem('access_token');
 
-  const load = useCallback(async () => {
+  const gregYear = parseInt(thaiYear) - 543;
+  const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+
+  const load = useCallback(async (mStr: string, gYear: number, mon: number) => {
     setLoading(true);
     try {
       const statuses = ['rep_forwarded', 'checker_approved', 'checker_rejected', 'completed'];
@@ -109,19 +116,26 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
         const res = await fetch(`/api/ot-requests/?status=${s}`, { headers: { 'Authorization': `Bearer ${token()}` } });
         if (res.ok) { const d = await res.json(); all.push(...(Array.isArray(d) ? d : d.results || [])); }
       }
-      setGroups(groupByDept(all));
+      // กรองตามเดือน/ปีที่เลือก
+      const inMonth = all.filter(r => {
+        const d = new Date(r.work_date);
+        return d.getFullYear() === gYear && d.getMonth() + 1 === mon;
+      });
+      setGroups(groupByDept(inMonth));
 
-      // ดึงรายชื่อแผนกที่ยังไม่มีการเบิก OT เดือนนี้
-      const noOtRes = await fetch('/api/checker/no-ot-departments/', { headers: { 'Authorization': `Bearer ${token()}` } });
+      const noOtRes = await fetch(`/api/checker/no-ot-departments/?month=${mStr}`, { headers: { 'Authorization': `Bearer ${token()}` } });
       if (noOtRes.ok) {
         const noOtData = await noOtRes.json();
-        setNoOtDepts(noOtData.departments || []);
+        const decls: { dept_id: number; dept_name: string }[] = noOtData.declarations || [];
+        const declDeptIds = new Set(decls.map((d: any) => d.dept_id));
+        setNoOtDepts((noOtData.departments || []).filter((d: any) => !declDeptIds.has(d.id)));
+        setNoOtDeclarations(decls);
       }
     } catch {}
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(monthStr, gregYear, selMonth); }, [monthStr]);
 
   async function approveAll(requests: OTReq[]) {
     setProcessing(true);
@@ -133,7 +147,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
       });
     }
     setProcessing(false);
-    await load();
+    await load(monthStr, gregYear, selMonth);
   }
 
   async function rejectAll() {
@@ -149,7 +163,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
     setProcessing(false);
     setRejectDlg({ open: false, requests: [], dept: '' });
     setRejectNote('');
-    await load();
+    await load(monthStr, gregYear, selMonth);
   }
 
   const totalPending = groups.reduce((s, g) => s + g.pending.length, 0);
@@ -158,13 +172,43 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
 
   return (
     <>
-      <PageHeader title="Dashboard ผู้ตรวจสอบ" />
+      <PageHeader title="Dashboard ผู้ตรวจสอบ" subtitle={`${THAI_MONTHS[selMonth - 1]} ${thaiYear}`} right={
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            value={thaiYear}
+            onChange={e => setThaiYear(e.target.value)}
+            className="w-[90px] text-center"
+            min={2560}
+            max={2599}
+          />
+          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      } />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <KpiCard label="รอตรวจสอบ" value={String(groups.filter(g => g.pending.length > 0).length) + ' แผนก'} hint={`${totalPending} รายการ`} accent="orange" />
         <KpiCard label="รวมยอด OT รอตรวจ" value={`${fmtAmt(totalAmt)} ฿`} hint="ทุกแผนก" accent="red" />
         <KpiCard label="อนุมัติแล้ว" value={String(approvedDepts) + ' แผนก'} hint="เดือนนี้" accent="green" />
         <KpiCard label="รายการทั้งหมด" value={String(groups.reduce((s, g) => s + g.pending.length + g.approved.length + g.rejected.length, 0))} hint="rep_forwarded+" accent="blue" />
       </div>
+
+      {/* แผนกที่แจ้งไม่ประสงค์ส่ง OT เดือนนี้ (NoOTDeclaration) */}
+      {noOtDeclarations.length > 0 && (
+        <div className="p-4 mb-4 bg-blue-50 border border-blue-300 rounded-xl text-[13px]">
+          <p className="text-blue-700 font-semibold mb-2">ℹ แผนกที่แจ้งไม่ประสงค์ส่ง OT เดือนนี้ ({noOtDeclarations.length} แผนก)</p>
+          <div className="space-y-1">
+            {noOtDeclarations.map(d => (
+              <div key={d.dept_id} className="flex items-center gap-2 text-blue-800">
+                <span className="font-medium">{d.dept_name}</span>
+                <span className="text-blue-500 text-[11px]">— แจ้งโดย {d.declared_by}{d.note ? ` · "${d.note}"` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* แผนกที่ยังไม่มีการเบิก OT เดือนนี้ */}
       {noOtDepts.length > 0 && (
@@ -447,15 +491,20 @@ export function CheckerBudget() {
   const token = () => localStorage.getItem('access_token');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const now = new Date();
+  const [thaiYear, setThaiYear] = useState(String(now.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
 
   useEffect(() => {
     setLoading(true);
-    fetch('/api/checker/budget/', { headers: { 'Authorization': `Bearer ${token()}` } })
+    const gregYear = parseInt(thaiYear) - 543;
+    const m = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+    fetch(`/api/checker/budget/?month=${m}`, { headers: { 'Authorization': `Bearer ${token()}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setData(d); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [thaiYear, selMonth]);
 
   if (loading) return (
     <div className="flex items-center justify-center h-60 gap-3 text-[var(--neutral-500)]">
@@ -472,7 +521,22 @@ export function CheckerBudget() {
 
   return (
     <>
-      <PageHeader title="ติดตามงบประมาณ" />
+      <PageHeader title="ติดตามงบประมาณ" right={
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            value={thaiYear}
+            onChange={e => setThaiYear(e.target.value)}
+            className="w-[90px] text-center"
+            min={2560}
+            max={2599}
+          />
+          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      } />
       {noOt.length > 0 && (
         <div className="flex items-start gap-2 p-3 mb-5 bg-amber-50 border border-amber-300 rounded-xl text-[13px]">
           <span className="text-amber-600 font-semibold">⚠ แผนกที่ยังไม่มี OT เดือนนี้:</span>
@@ -702,43 +766,52 @@ export function CheckerReport() {
 export function CheckerSetBudget() {
   const token = () => localStorage.getItem('access_token');
   const h = () => ({ 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' });
+  const _now = new Date();
 
-  const [depts, setDepts]   = useState<any[]>([]);
-  const [budgets, setBudgets] = useState<Record<number, string>>({});
-  const [usedMap, setUsedMap] = useState<Record<number, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
+  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
+  const [depts, setDepts]       = useState<any[]>([]);
+  const [budgets, setBudgets]   = useState<Record<number, string>>({});
+  const [usedMap, setUsedMap]   = useState<Record<number, number>>({});
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+
+  const gregYear = parseInt(thaiYear) - 543;
+  const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       fetch('/api/departments/', { headers: { 'Authorization': `Bearer ${token()}` } }).then(r => r.json()),
-      fetch('/api/checker/budget/', { headers: { 'Authorization': `Bearer ${token()}` } }).then(r => r.json()),
+      fetch(`/api/checker/budget/?month=${monthStr}`, { headers: { 'Authorization': `Bearer ${token()}` } }).then(r => r.json()),
     ]).then(([deptData, budgetData]) => {
       const list = Array.isArray(deptData) ? deptData : (deptData.results || []);
+      const budgetDepts: any[] = budgetData?.departments || [];
+      const budgetById: Record<number, any> = Object.fromEntries(budgetDepts.map((b: any) => [b.id, b]));
       setDepts(list);
-      // initialize budgets from dept.ot_budget
-      setBudgets(Object.fromEntries(list.map((d: any) => [d.id, String(d.ot_budget || 0)])));
-      // used from budget API
+      setBudgets(Object.fromEntries(list.map((d: any) => [d.id, String(budgetById[d.id]?.ot_budget ?? 0)])));
       const um: Record<number, number> = {};
-      for (const bd of (budgetData?.departments || [])) {
-        um[bd.id] = bd.used;
-      }
+      for (const bd of budgetDepts) { um[bd.id] = bd.used; }
       setUsedMap(um);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [monthStr]);
 
   async function handleSave() {
     setSaving(true);
-    const payload = depts.map((d: any) => ({ dept_id: d.id, budget: Number(budgets[d.id]) || 0 }));
-    await fetch('/api/checker/budget/set/', {
-      method: 'POST',
-      headers: h(),
-      body: JSON.stringify({ budgets: payload }),
-    }).catch(() => {});
+    const payload = {
+      month: monthStr,
+      budgets: depts.map((d: any) => ({ id: d.id, ot_budget: Number(budgets[d.id]) || 0 })),
+    };
+    try {
+      const res = await fetch('/api/checker/budget/', {
+        method: 'POST',
+        headers: h(),
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
+    } catch {}
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   }
 
   if (loading) return (
@@ -746,17 +819,32 @@ export function CheckerSetBudget() {
       <div className="size-8 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
       <span>กำลังโหลด...</span>
     </div>
-    );
+  );
 
   return (
     <>
-      <PageHeader title="ตั้งงบประมาณ OT รายแผนก" />
+      <PageHeader title="ตั้งงบประมาณ OT รายแผนก" right={
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            value={thaiYear}
+            onChange={e => setThaiYear(e.target.value)}
+            className="w-[90px] text-center"
+            min={2560}
+            max={2599}
+          />
+          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      } />
       {saved && (
         <div className="flex items-center gap-2 p-3 mb-4 rounded-xl border bg-green-50 border-success text-success">
-          <CheckCircle2 className="size-4" />บันทึกงบประมาณเรียบร้อยแล้ว
+          <CheckCircle2 className="size-4" />บันทึกงบประมาณเดือน {THAI_MONTHS[selMonth - 1]} {thaiYear} เรียบร้อยแล้ว
         </div>
       )}
-      <SectionCard title="งบประมาณ OT แต่ละแผนก">
+      <SectionCard title={`งบประมาณ OT รายแผนก — ${THAI_MONTHS[selMonth - 1]} ${thaiYear}`}>
         <div className="space-y-3">
           {depts.map((d: any) => {
             const used = usedMap[d.id] || 0;

@@ -12,7 +12,7 @@ import openpyxl
 from .models import (
     User, Department, OTRequest, Holiday,
     SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline,
-    Notification, NoOTDeclaration,
+    Notification, NoOTDeclaration, DepartmentMonthlyBudget,
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -126,6 +126,10 @@ def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
         # 2) หาจาก TU username
         if not user:
             user = User.objects.filter(username=username).first()
+
+        # 3) หาจาก employee_id (กรณี username ในระบบเป็น employee_id เช่น 0006)
+        if not user:
+            user = User.objects.filter(employee_id=username).first()
 
         if user:
             # อัปเดตชื่อ/email/dept แต่ไม่เปลี่ยน role
@@ -1688,26 +1692,134 @@ def notification_mark_all_read_view(request):
 
 # ─── Checker Budget API ────────────────────────────────────────────────────────
 
+THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
+APPROVED_STATUSES = ['checker_approved', 'completed']
+
+
+def _calc_ot_amount(ot_hours, day_type):
+    return int(float(ot_hours or 0)) * (70 if day_type == 'holiday' else 60)
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def checker_budget_view(request):
-    if request.method == 'GET':
-        depts = Department.objects.all().order_by('name')
-        data = [{'id': d.id, 'name': d.name, 'code': d.code, 'ot_budget': d.ot_budget or 0} for d in depts]
-        return Response(data)
+    import datetime
 
-    # POST — อัปเดต budget ของแต่ละแผนก
-    updates = request.data  # [{'id': 1, 'ot_budget': 50000}, ...]
+    if request.method == 'GET':
+        month_param = request.query_params.get('month')
+        if not month_param:
+            now = datetime.date.today()
+            month_param = now.strftime('%Y-%m')
+        year, mon = map(int, month_param.split('-'))
+
+        managed_ids = set(
+            User.objects.filter(role__in=['depthead', 'deptrep'], is_active=True)
+            .values_list('department_id', flat=True).distinct()
+        )
+        depts = list(Department.objects.filter(id__in=managed_ids).order_by('name'))
+
+        # โหลด monthly budget ทั้งหมดของเดือนนี้ใน 1 query
+        monthly_budgets = {
+            mb.department_id: float(mb.budget)
+            for mb in DepartmentMonthlyBudget.objects.filter(year=year, month=mon)
+        }
+
+        dept_list = []
+        total_budget = 0
+        total_used = 0
+
+        for d in depts:
+            budget = monthly_budgets.get(d.id, 0)
+            reqs = OTRequest.objects.filter(
+                staff__department=d,
+                work_date__year=year,
+                work_date__month=mon,
+                status__in=APPROVED_STATUSES,
+            )
+            used = sum(_calc_ot_amount(r.ot_hours, r.day_type) for r in reqs)
+            remaining = budget - used
+            pct = round(used / budget * 100) if budget > 0 else 0
+            dept_list.append({
+                'id': d.id, 'name': d.name, 'code': d.code,
+                'ot_budget': budget, 'budget': budget,
+                'used': used, 'remaining': remaining, 'pct': pct,
+            })
+            total_budget += budget
+            total_used += used
+
+        total_pct = round(total_used / total_budget * 100) if total_budget > 0 else 0
+
+        # Trend: past 6 months
+        today = datetime.date.today()
+        trend = []
+        for i in range(5, -1, -1):
+            m2 = today.month - i
+            y2 = today.year
+            while m2 <= 0:
+                m2 += 12
+                y2 -= 1
+            reqs2 = OTRequest.objects.filter(
+                work_date__year=y2, work_date__month=m2,
+                status__in=APPROVED_STATUSES,
+            )
+            a2 = sum(_calc_ot_amount(r.ot_hours, r.day_type) for r in reqs2)
+            trend.append({'m': THAI_MONTHS_SHORT[m2 - 1], 'a': a2})
+
+        # no_ot_depts: dept names without any OT requests this month
+        depts_with_ot = set(
+            OTRequest.objects.filter(work_date__year=year, work_date__month=mon)
+            .values_list('staff__department_id', flat=True).distinct()
+        )
+        no_ot_dept_names = [d.name for d in depts if d.id not in depts_with_ot]
+
+        return Response({
+            'month': month_param,
+            'departments': dept_list,
+            'total_budget': total_budget,
+            'total_used': total_used,
+            'total_pct': total_pct,
+            'trend': trend,
+            'no_ot_depts': no_ot_dept_names,
+        })
+
+    # POST — อัปเดต monthly budget
+    # payload: {'month': 'YYYY-MM', 'budgets': [{'id': dept_id, 'ot_budget': 50000}, ...]}
+    import datetime as _dt
+    payload_month = request.data.get('month') if isinstance(request.data, dict) else None
+    if not payload_month:
+        payload_month = _dt.date.today().strftime('%Y-%m')
+    updates = request.data.get('budgets') if isinstance(request.data, dict) else request.data
     if not isinstance(updates, list):
-        return Response({'error': 'expected list'}, status=400)
+        return Response({'error': 'expected list in budgets field'}, status=400)
+
+    p_year, p_mon = map(int, payload_month.split('-'))
+    updated_depts = []
     for item in updates:
         try:
             dept = Department.objects.get(id=item['id'])
-            dept.ot_budget = item.get('ot_budget', dept.ot_budget)
-            dept.save()
+            new_budget = item.get('ot_budget', 0)
+            DepartmentMonthlyBudget.objects.update_or_create(
+                department=dept, year=p_year, month=p_mon,
+                defaults={'budget': new_budget, 'set_by': request.user},
+            )
+            updated_depts.append((dept, new_budget))
         except Department.DoesNotExist:
             pass
-    return Response({'status': 'ok'})
+
+    # แจ้งเตือน depthead ทุกคนในแผนกที่อัปเดตงบ
+    checker_name = request.user.get_full_name() or request.user.username
+    thai_month_names = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม']
+    month_label = f'{thai_month_names[p_mon - 1]} {p_year + 543}'
+    for dept, new_budget in updated_depts:
+        depthead_users = User.objects.filter(role='depthead', is_active=True, department=dept)
+        for u in depthead_users:
+            Notification.objects.create(
+                recipient=u,
+                message=f'ผู้ตรวจสอบ ({checker_name}) ตั้งงบประมาณ OT แผนก {dept.name} เดือน{month_label} เป็น {float(new_budget):,.0f} บาท',
+                notif_type='budget_set',
+            )
+
+    return Response({'status': 'ok', 'updated': len(updated_depts), 'month': payload_month})
 
 
 # ─── No-OT Departments (Checker) ──────────────────────────────────────────────
@@ -1727,9 +1839,28 @@ def no_ot_departments_view(request):
         work_date__month=mon,
     ).values_list('staff__department_id', flat=True).distinct()
 
-    no_ot = Department.objects.exclude(id__in=depts_with_ot).order_by('name')
+    # เฉพาะแผนกที่มี depthead หรือ deptrep ผูกอยู่ (แผนก "จริง" ในระบบ)
+    managed_dept_ids = set(
+        User.objects.filter(role__in=['depthead', 'deptrep'], is_active=True)
+        .values_list('department_id', flat=True).distinct()
+    )
+    no_ot = Department.objects.exclude(id__in=depts_with_ot).filter(id__in=managed_dept_ids).order_by('name')
+    # แผนกที่แจ้งไม่ประสงค์ส่ง OT เดือนนี้ (NoOTDeclaration)
+    declarations = NoOTDeclaration.objects.filter(
+        greg_year=year, month=mon,
+    ).select_related('department', 'declared_by')
+
+    declared_dept_ids = set(d.department_id for d in declarations)
     data = [{'id': d.id, 'name': d.name, 'code': d.code} for d in no_ot]
-    return Response({'month': month, 'departments': data})
+    decl_data = [{
+        'dept_id': d.department_id,
+        'dept_name': d.department.name,
+        'declared_by': d.declared_by.get_full_name() or d.declared_by.username,
+        'note': d.note,
+        'created_at': d.created_at.isoformat(),
+    } for d in declarations]
+
+    return Response({'month': month, 'departments': data, 'declarations': decl_data})
 
 
 # ─── Head Report ──────────────────────────────────────────────────────────────

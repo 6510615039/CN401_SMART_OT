@@ -75,7 +75,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
           // อัปเดต profile image จาก backend
           if (d.profile_image) {
             setProfileImage(d.profile_image);
-            localStorage.setItem('profile_image_cache', d.profile_image);
+            // ไม่ cache profile_image ใน localStorage เพราะ base64 ขนาดใหญ่ทำให้ quota เต็ม
           }
         }
       })
