@@ -71,13 +71,13 @@ export function KpiCard({ label, value, icon, accent, hint }: { label: string; v
     orange: 'bg-orange-100 text-orange-600',
   }[accent || 'red'];
   return (
-    <div className="bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] p-5 h-[110px] flex items-center justify-between">
-      <div className="flex flex-col gap-1">
+    <div className="bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] p-5 min-h-[110px] flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-1 min-w-0 flex-1">
         <span className="text-[12px] text-[var(--neutral-500)]">{label}</span>
-        <span className="text-[32px] leading-[40px] font-bold text-[var(--neutral-black)] tabular-nums">{value}</span>
+        <span className="text-[26px] leading-[32px] font-bold text-[var(--neutral-black)] tabular-nums break-words">{value}</span>
         {hint && <span className="text-[12px] text-[var(--neutral-500)]">{hint}</span>}
       </div>
-      {icon && <div className={cn('size-12 rounded-xl grid place-items-center', accentBg)}>{icon}</div>}
+      {icon && <div className={cn('size-12 rounded-xl grid place-items-center shrink-0', accentBg)}>{icon}</div>}
     </div>
   );
 }

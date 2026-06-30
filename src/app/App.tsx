@@ -24,7 +24,7 @@ import {
 } from './components/roles/staff';
 import {
   HEAD_NAV, HeadDashboard, HeadPending, HeadDetail, HeadHistory,
-  HeadMembers, HeadReport,
+  HeadMembers, HeadReport, HeadBudgetRequest,
 } from './components/roles/depthead';
 import {
   REP_NAV, RepDashboard, RepExportFlow, RepHistory, RepMembers,
@@ -125,10 +125,9 @@ export default function App() {
     return () => { window.fetch = _origFetch; };
   }, []);
 
-  // ─── โหลด notifications เมื่อ login + เชื่อม WebSocket ─────────────────────
+  // ─── โหลด notifications เมื่อ login หรือสลับ role ─────────────────────────
   useEffect(() => {
     if (screen !== 'app') {
-      // cleanup ws เมื่อ logout
       wsRef.current?.close();
       wsRef.current = null;
       return;
@@ -137,9 +136,13 @@ export default function App() {
     const token = localStorage.getItem('access_token');
     if (!token) return;
 
-    // โหลด notifications เดิมจาก API
+    // รีเซ็ตและโหลดใหม่ทุกครั้งที่ role เปลี่ยน
+    setNotifications([]);
     fetch('/api/notifications/', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Acting-Role': role,
+      },
     })
       .then(r => r.json())
       .then((data: NotificationItem[]) => {
@@ -147,7 +150,8 @@ export default function App() {
       })
       .catch(() => {});
 
-    // เชื่อม WebSocket
+    // เชื่อม WebSocket ใหม่เมื่อ role เปลี่ยน
+    wsRef.current?.close();
     const ws = new WebSocket(`/ws/notifications/?token=${token}`);
     wsRef.current = ws;
 
@@ -160,13 +164,28 @@ export default function App() {
       } catch {}
     };
 
-    ws.onerror = () => {}; // fail-silent
+    ws.onerror = () => {};
     ws.onclose = () => {};
+
+    // Polling fallback ทุก 30 วินาที (กรณี WebSocket ขาด)
+    const pollId = setInterval(() => {
+      const t = localStorage.getItem('access_token');
+      if (!t) return;
+      fetch('/api/notifications/', {
+        headers: { Authorization: `Bearer ${t}`, 'X-Acting-Role': role },
+      })
+        .then(r => r.json())
+        .then((data: NotificationItem[]) => {
+          if (Array.isArray(data)) setNotifications(data);
+        })
+        .catch(() => {});
+    }, 30000);
 
     return () => {
       ws.close();
+      clearInterval(pollId);
     };
-  }, [screen]);
+  }, [screen, role]);
 
   function handleMarkRead(ids?: number[]) {
     const token = localStorage.getItem('access_token');
@@ -226,6 +245,9 @@ export default function App() {
   const breadcrumb = nav.find((n: any) => n.key === page)?.label || 'Dashboard';
 
   function renderScreen() {
+    // โปรไฟล์ใช้ได้ทุก role
+    if (page === 'profile') return <StaffProfile />;
+
     if (role === 'admin') {
       switch (page) {
         case 'dashboard': return <AdminDashboard />;
@@ -260,13 +282,14 @@ export default function App() {
     }
     if (role === 'depthead') {
       switch (page) {
-        case 'dashboard': return <HeadDashboard onGo={() => setPage('pending')} onBudgetRequest={() => setPage('pending')} />;
-        case 'pending':   return <HeadPending onDetail={(id) => { setSelectedOTId(id); setPage('ot-detail'); }} />;
-        case 'ot-detail': return <OTDetailPage onBack={() => setPage('pending')} requestId={selectedOTId} />;
-        case 'detail':    return <HeadDetail />;
-        case 'history':   return <HeadHistory />;
-        case 'members':   return <HeadMembers />;
-        case 'report':    return <HeadReport />;
+        case 'dashboard':      return <HeadDashboard onGo={() => setPage('pending')} onBudgetRequest={() => setPage('budget-request')} />;
+        case 'pending':        return <HeadPending onDetail={(id) => { setSelectedOTId(id); setPage('ot-detail'); }} />;
+        case 'ot-detail':      return <OTDetailPage onBack={() => setPage('pending')} requestId={selectedOTId} />;
+        case 'detail':         return <HeadDetail />;
+        case 'history':        return <HeadHistory />;
+        case 'members':        return <HeadMembers />;
+        case 'report':         return <HeadReport />;
+        case 'budget-request': return <HeadBudgetRequest />;
       }
     }
     if (role === 'deptrep') {
@@ -319,6 +342,7 @@ export default function App() {
         current={page}
         onNavigate={p => { setPage(p); setCheckerOtEmp(null); }}
         onSwitchRole={handleSwitchRole}
+        onProfile={() => setPage('profile')}
         breadcrumb={breadcrumb}
         onLogout={handleLogout}
         notifications={notifications}

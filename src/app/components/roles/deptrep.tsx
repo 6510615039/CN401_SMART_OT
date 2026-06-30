@@ -213,7 +213,7 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
               </>
             ))}
             <tr>
-              <td className={td} colSpan={MAX_DATES+2+1}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร) &nbsp;-{thaiAmountText(total)}-</td>
+              <td className={td} colSpan={DATES_PER_ROW+2+1}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร) &nbsp;-{thaiAmountText(total)}-</td>
               <td className={th} colSpan={2}>รวมเป็นเงิน</td>
               <td className={tdC+' font-semibold'}>{total.toLocaleString()}</td>
               <td className={td}></td><td className={td}></td><td className={td}></td>
@@ -234,9 +234,12 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
 
   useEffect(() => {
     const h = { Authorization: `Bearer ${token()}` };
+    // history = ทุก status ที่ผ่าน rep_forwarded แล้ว (รวมที่ checker ดำเนินการแล้ว)
+    const now = new Date();
+    const monthParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     Promise.all([
       fetch('/api/ot-requests/?status=head_approved', { headers: h }).then(r => r.json()),
-      fetch('/api/ot-requests/?status=rep_forwarded', { headers: h }).then(r => r.json()),
+      fetch(`/api/ot-requests/?status_in=rep_forwarded,checker_approved,checker_rejected,completed&month=${monthParam}`, { headers: h }).then(r => r.json()),
     ]).then(([p, f]) => {
       setPending(Array.isArray(p) ? p : (p.results || []));
       setHistory(Array.isArray(f) ? f : (f.results || []));
@@ -304,25 +307,49 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<'select' | 'preview' | 'forward'>('select');
   const [requests, setRequests] = useState<any[]>([]);
   const [selIds, setSelIds] = useState<number[]>([]);
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const now0 = new Date();
+  const [selThaiYear, setSelThaiYear] = useState(String(now0.getFullYear() + 543));
+  const [selMonth,    setSelMonth]    = useState(String(now0.getMonth() + 1));
+  const [autoDetecting, setAutoDetecting] = useState(true);
+  // month param ที่ส่ง API (Gregorian YYYY-MM)
+  const gregYear = parseInt(selThaiYear) - 543;
+  const month = `${gregYear}-${selMonth.padStart(2, '0')}`;
   const [loading, setLoading] = useState(false);
   const [forwarding, setForwarding] = useState(false);
   const [deptName, setDeptName] = useState('');
   const [done, setDone] = useState(false);
   const [note, setNote] = useState('');
   const [downloaded, setDownloaded] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [checkers, setCheckers] = useState<{ id: number; full_name: string; notify_email: string; email: string }[]>([]);
 
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (u) setDeptName(JSON.parse(u).department_name || '');
-    // โหลด checker list ล่วงหน้า (แสดงในหน้า forward)
     fetch('/api/users/?role=checker', { headers: { Authorization: `Bearer ${token()}` } })
       .then(r => r.json())
       .then(d => setCheckers(Array.isArray(d) ? d : (d.results || [])));
+
+    // auto-detect เดือนที่มี head_approved request — ลองย้อนหลัง 12 เดือน
+    const now = new Date();
+    const candidates = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      return { ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, year: d.getFullYear(), mon: d.getMonth() + 1 };
+    });
+    const h = { Authorization: `Bearer ${token()}` };
+    (async () => {
+      for (const c of candidates) {
+        const res = await fetch(`/api/ot-requests/?status=head_approved&month=${c.ym}`, { headers: h }).then(r => r.json());
+        const list = Array.isArray(res) ? res : (res.results || []);
+        if (list.length > 0) {
+          setSelThaiYear(String(c.year + 543));
+          setSelMonth(String(c.mon));
+          setAutoDetecting(false);
+          return;
+        }
+      }
+      setAutoDetecting(false); // ไม่พบเลย ใช้เดือนปัจจุบัน
+    })();
   }, []);
 
   function loadRequests() {
@@ -340,19 +367,23 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadRequests(); }, [month]);
+  useEffect(() => { if (!autoDetecting) loadRequests(); }, [month, autoDetecting]);
 
   const selRequests = requests.filter(r => selIds.includes(r.id));
   const employees = requestsToEmployees(selRequests);
   const totalAmt = selRequests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
-  const monthLabel = thaiMonthFull(month);
+  const monthLabel = month ? thaiMonthFull(month) : '';
 
   async function forwardAll() {
     setForwarding(true);
+    const body = new FormData();
+    body.append('ids', JSON.stringify(selIds));
+    body.append('note', note);
+    if (uploadedFile) body.append('document', uploadedFile);
     await fetch('/api/ot-requests/bulk-forward/', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: selIds, note }),
+      headers: { Authorization: `Bearer ${token()}` },
+      body,
     });
     setForwarding(false);
     setDone(true);
@@ -364,25 +395,37 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       <PageHeader title="ส่งออกข้อมูลเป็น Excel" />
       <StepBar step={0} />
       <SectionCard>
-        <div className="grid grid-cols-2 gap-4 mb-5">
+        <div className="flex items-end gap-3 mb-5">
           <div>
-            <label>เดือน/ปี</label>
-            <Select value={month} onValueChange={setMonth}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <label className="text-[12px] text-[var(--neutral-500)] mb-1 block">เดือน</label>
+            <Select value={selMonth} onValueChange={v => { setSelMonth(v); }} disabled={autoDetecting}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder={autoDetecting ? 'กำลังค้นหา...' : undefined} />
+              </SelectTrigger>
               <SelectContent>
-                {Array.from({length:6},(_,i)=>{
-                  const d = new Date(); d.setMonth(d.getMonth()-i);
-                  const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-                  return <SelectItem key={val} value={val}>{thaiMonthFull(val)}</SelectItem>;
+                {THAI_MONTHS_FULL.map((name, i) => (
+                  <SelectItem key={i+1} value={String(i+1)}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-[12px] text-[var(--neutral-500)] mb-1 block">ปี (พ.ศ.)</label>
+            <Select value={selThaiYear} onValueChange={v => { setSelThaiYear(v); }} disabled={autoDetecting}>
+              <SelectTrigger className="w-[110px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({length:3},(_,i)=>{
+                  const y = String(new Date().getFullYear() + 543 - i);
+                  return <SelectItem key={y} value={y}>{y}</SelectItem>;
                 })}
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end">
-            <Button variant="outline" size="sm" onClick={loadRequests} disabled={loading}>
-              <RefreshCw className={`size-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> รีเฟรช
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={loadRequests} disabled={loading || autoDetecting}>
+            <RefreshCw className={`size-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> รีเฟรช
+          </Button>
         </div>
 
         {loading ? (
@@ -485,22 +528,6 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       <StepBar step={2} />
       <div className="max-w-2xl mx-auto">
         <SectionCard>
-          <div className="bg-tu-yellow-soft border border-tu-yellow rounded-lg p-4 mb-5 flex items-center justify-between">
-            <div>
-              <p className="font-semibold">📎 OT-Report-{month}.xlsx</p>
-              <p className="text-[13px] text-[var(--neutral-500)] mt-1">
-                {employees.length} พนักงาน • {selIds.length} คำร้อง • รวม {totalAmt.toLocaleString()} บาท
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-tu-red text-tu-red shrink-0"
-              onClick={() => generateXlsx(employees, monthLabel, deptName)}
-            >
-              <Download className="size-3.5 mr-1" />ดาวน์โหลดอีกครั้ง
-            </Button>
-          </div>
           {checkers.length > 0 && (
             <div className="mb-4 rounded-lg border border-[var(--neutral-300)] bg-[var(--neutral-50)] px-4 py-3">
               <p className="text-[12px] text-[var(--neutral-500)] mb-1.5">📧 จะส่งอีเมลแจ้งผู้ตรวจสอบ {checkers.length} คน</p>
@@ -517,19 +544,52 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
               </div>
             </div>
           )}
+          {/* อัปโหลดไฟล์ Excel ที่แก้ไขแล้ว */}
+          <div className="mb-5">
+            <label className="block text-[14px] font-medium mb-1">
+              แนบไฟล์ Excel ที่ปรับแก้เรียบร้อยแล้ว <span className="text-tu-red">*</span>
+            </label>
+            <label className={`flex items-center gap-3 border-2 border-dashed rounded-xl p-4 cursor-pointer transition-colors ${uploadedFile ? 'border-success bg-green-50' : 'border-[var(--neutral-300)] hover:border-tu-red hover:bg-tu-red-soft'}`}>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.pdf"
+                className="hidden"
+                onChange={e => setUploadedFile(e.target.files?.[0] ?? null)}
+              />
+              {uploadedFile ? (
+                <>
+                  <CheckCircle2 className="size-5 text-success shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-success truncate">{uploadedFile.name}</p>
+                    <p className="text-[11px] text-[var(--neutral-500)]">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <span className="text-[12px] text-[var(--neutral-500)] shrink-0">คลิกเพื่อเปลี่ยนไฟล์</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="size-5 text-[var(--neutral-400)] shrink-0" />
+                  <div>
+                    <p className="text-[13px] font-medium">คลิกเพื่อเลือกไฟล์ Excel</p>
+                    <p className="text-[11px] text-[var(--neutral-500)]">รองรับ .xlsx, .xls, .pdf</p>
+                  </div>
+                </>
+              )}
+            </label>
+          </div>
+
           <div className="mb-5">
             <label>หมายเหตุถึงผู้ตรวจสอบ (optional)</label>
             <Textarea
               className="mt-1"
-              rows={4}
+              rows={3}
               placeholder="โปรดตรวจสอบและอนุมัติเพื่อดำเนินการเบิกจ่ายต่อไป"
               value={note}
               onChange={e => setNote(e.target.value)}
             />
           </div>
           <Button
-            className="w-full h-12 bg-tu-red hover:bg-tu-red-dark text-white"
-            disabled={forwarding}
+            className="w-full h-12 bg-tu-red hover:bg-tu-red-dark text-white disabled:opacity-50"
+            disabled={forwarding || !uploadedFile}
             onClick={forwardAll}
           >
             {forwarding ? (
@@ -589,7 +649,6 @@ function StepBar({ step }: { step: number }) {
 
 export function RepMembers() {
   const [members, setMembers] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
   const [deptName, setDeptName] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -600,13 +659,9 @@ export function RepMembers() {
       .then(me => {
         setDeptName(me.department_name || '');
         if (me.department) {
-          return Promise.all([
-            fetch(`/api/users/?department=${me.department}`, { headers: h }).then(r => r.json()),
-            fetch('/api/ot-requests/', { headers: h }).then(r => r.json()),
-          ]).then(([u, ot]) => {
-            setMembers(Array.isArray(u) ? u : (u.results || []));
-            setRequests(Array.isArray(ot) ? ot : (ot.results || []));
-          });
+          return fetch(`/api/users/?department=${me.department}`, { headers: h })
+            .then(r => r.json())
+            .then(u => setMembers(Array.isArray(u) ? u : (u.results || [])));
         }
       })
       .finally(() => setLoading(false));
@@ -614,53 +669,50 @@ export function RepMembers() {
 
   if (loading) return <><PageHeader title="สมาชิกในแผนก" /><p className="text-center py-10">กำลังโหลด...</p></>;
 
-  const otMap: Record<number, { hrs: number; amt: number }> = {};
-  requests.forEach(r => {
-    if (!otMap[r.staff]) otMap[r.staff] = { hrs: 0, amt: 0 };
-    otMap[r.staff].hrs += parseFloat(r.ot_hours || 0);
-    otMap[r.staff].amt += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
-  });
-
   return (
     <>
-      <PageHeader title={`สมาชิกในแผนก — ${deptName}`} />
-      <div className="grid grid-cols-4 gap-5 mb-6">
-        <KpiCard label="จำนวนสมาชิก" value={members.length.toString()} accent="red" />
-        <KpiCard label="ทำ OT เดือนนี้" value={Object.values(otMap).filter(v => v.hrs > 0).length.toString()} accent="yellow" />
-        <KpiCard label="รวมชั่วโมง OT" value={Math.floor(Object.values(otMap).reduce((s,v)=>s+v.hrs,0)).toString()} accent="blue" />
-        <KpiCard label="รวมยอด OT" value={Object.values(otMap).reduce((s,v)=>s+v.amt,0).toLocaleString()} accent="green" />
-      </div>
+      <PageHeader title={`สมาชิกในแผนก${deptName ? ` — ${deptName} (${members.length} คน)` : ''}`} />
       <div className="grid grid-cols-4 gap-5">
-        {members.map(m => {
-          const ot = otMap[m.id] || { hrs: 0, amt: 0 };
-          return (
-            <div key={m.id} className="bg-white border border-[var(--neutral-300)] rounded-xl p-5 text-center shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
-              <div className={`size-14 rounded-full grid place-items-center mx-auto mb-2 text-xl font-bold ${m.role === 'depthead' ? 'bg-orange-500 text-white' : 'bg-tu-yellow text-black'}`}>
-                {(m.full_name || m.username || '?').charAt(0)}
-              </div>
-              <h4 className="text-[13px] font-semibold leading-tight">{m.full_name || m.username}</h4>
-              <p className="text-[11px] text-[var(--neutral-500)] mt-0.5 mb-2">{m.role === 'depthead' ? 'หัวหน้างาน' : 'พนักงาน'}</p>
-              {ot.hrs > 0 ? (
-                <>
-                  <p className="text-tu-red font-semibold text-[13px]">{Math.floor(ot.hrs)} ชม.</p>
-                  <p className="text-[11px] text-[var(--neutral-500)]">{ot.amt.toLocaleString()} บาท</p>
-                </>
-              ) : (
-                <p className="text-[11px] text-[var(--neutral-400)]">ไม่มี OT เดือนนี้</p>
-              )}
-            </div>
-          );
-        })}
+        {members.map(m => (
+          <div key={m.id} className="bg-white border border-[var(--neutral-300)] rounded-xl p-5 text-center shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+            {m.profile_image
+              ? <img src={m.profile_image} alt={m.full_name} className="size-14 rounded-full object-cover mx-auto mb-2" />
+              : <div className={`size-14 rounded-full grid place-items-center mx-auto mb-2 text-xl font-bold ${m.role === 'depthead' ? 'bg-orange-500 text-white' : 'bg-tu-yellow text-black'}`}>
+                  {(m.full_name || m.username || '?').charAt(0)}
+                </div>
+            }
+            <h4 className="text-[13px] font-semibold leading-tight">{m.full_name || m.username}</h4>
+            <p className="text-[11px] text-[var(--neutral-400)] mt-0.5">{m.employee_id || m.username}</p>
+            <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">{m.role === 'depthead' ? 'หัวหน้างาน' : 'พนักงาน'}</p>
+          </div>
+        ))}
       </div>
     </>
   );
 }
 
+const REP_STATUS_MAP: Record<string, { label: string; kind: 'success' | 'danger' | 'warning' | 'info' | 'neutral' }> = {
+  submitted:        { label: 'รออนุมัติหัวหน้า',  kind: 'warning' },
+  head_approved:    { label: 'หัวหน้าอนุมัติ',    kind: 'info' },
+  head_rejected:    { label: 'หัวหน้าตีกลับ',     kind: 'danger' },
+  rep_forwarded:    { label: 'ส่งต่อแล้ว',         kind: 'info' },
+  checker_approved: { label: 'ตรวจผ่าน',           kind: 'success' },
+  checker_rejected: { label: 'ตีกลับโดย Checker',  kind: 'danger' },
+  completed:        { label: 'เสร็จสิ้น',           kind: 'success' },
+};
+
 export function RepHistory() {
+  const _now = new Date();
+  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
+  const [search, setSearch]     = useState('');
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
 
+  const gregYear = parseInt(thaiYear) - 543;
+
   useEffect(() => {
+    setLoading(true);
     fetch('/api/ot-requests/', { headers: { Authorization: `Bearer ${token()}` } })
       .then(r => r.json())
       .then(d => setRequests(Array.isArray(d) ? d : (d.results || [])))
@@ -668,36 +720,87 @@ export function RepHistory() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <><PageHeader title="ประวัติคำร้อง" /><p className="text-center py-10">กำลังโหลด...</p></>;
+  const filtered = requests.filter(r => {
+    const d = new Date(r.work_date);
+    if (d.getFullYear() !== gregYear || d.getMonth() + 1 !== selMonth) return false;
+    if (search && !(r.staff_name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const totalAmt = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
   return (
     <>
-      <PageHeader title="ประวัติคำร้อง OT" subtitle={`${requests.length} รายการ`} />
+      <PageHeader
+        title="ประวัติส่งออก"
+        subtitle={`${filtered.length} รายการ · รวม ${totalAmt.toLocaleString()} บาท`}
+        right={
+          <div className="flex items-center gap-2">
+            <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+            <input
+              type="number"
+              value={thaiYear}
+              onChange={e => setThaiYear(e.target.value)}
+              className="w-[90px] text-center h-9 rounded-md border border-input bg-background px-3 text-sm"
+              min={2560} max={2599}
+            />
+          </div>
+        }
+      />
       <SectionCard>
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="bg-tu-red text-white">
-              <th className="px-3 py-2 text-left">วันที่ยื่น</th>
-              <th className="px-3 py-2 text-left">วันที่ OT</th>
-              <th className="px-3 py-2 text-left">ประเภท</th>
-              <th className="px-3 py-2 text-right">ชม.</th>
-              <th className="px-3 py-2 text-right">รวมเงิน</th>
-              <th className="px-3 py-2 text-left">สถานะ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map(r => (
-              <tr key={r.id} className="border-b border-[var(--neutral-100)] hover:bg-[var(--neutral-50)]">
-                <td className="px-3 py-2 text-[var(--neutral-500)]">{r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}</td>
-                <td className="px-3 py-2">{r.work_date}</td>
-                <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
-                <td className="px-3 py-2 font-mono text-right">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
-                <td className="px-3 py-2 font-mono font-semibold text-right">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
-                <td className="px-3 py-2"><StatusChip kind={r.status === 'completed' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'}>{r.status}</StatusChip></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="mb-4">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="ค้นหาชื่อพนักงาน"
+            className="h-9 w-full max-w-[280px] rounded-md border border-input bg-background px-3 text-sm"
+          />
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-32 gap-3 text-[var(--neutral-500)]">
+            <div className="size-7 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center py-10 text-[var(--neutral-500)]">ไม่มีคำร้องใน{THAI_MONTHS_FULL[selMonth-1]} {thaiYear}</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
+            <table className="w-full text-[13px]">
+              <thead className="bg-tu-red text-white">
+                <tr>
+                  {['วันที่ยื่น','พนักงาน','วันที่ OT','ประเภท','ชม.','รวมเงิน','สถานะ'].map(h => (
+                    <th key={h} className="text-left px-3 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(r => {
+                  const st = REP_STATUS_MAP[r.status] || { label: r.status, kind: 'neutral' as const };
+                  return (
+                    <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
+                      <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDate(r.created_at)}</td>
+                      <td className="px-3 py-2 font-medium">{r.staff_name || '—'}</td>
+                      <td className="px-3 py-2 font-mono">{fmtDate(r.work_date)}</td>
+                      <td className="px-3 py-2">
+                        <StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>
+                          {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
+                        </StatusChip>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-right">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
+                      <td className="px-3 py-2 font-mono font-semibold text-right">
+                        {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </SectionCard>
     </>
   );

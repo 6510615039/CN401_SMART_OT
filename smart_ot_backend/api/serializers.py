@@ -74,10 +74,18 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
 
 
 class OTRequestSerializer(serializers.ModelSerializer):
-    staff_name       = serializers.CharField(source='staff.get_full_name', read_only=True)
-    department_name  = serializers.CharField(source='department.name', read_only=True)
-    status_display   = serializers.CharField(source='get_status_display', read_only=True)
-    day_type_display = serializers.CharField(source='get_day_type_display', read_only=True)
+    staff_name        = serializers.CharField(source='staff.get_full_name', read_only=True)
+    department_name   = serializers.CharField(source='department.name', read_only=True)
+    status_display    = serializers.CharField(source='get_status_display', read_only=True)
+    day_type_display  = serializers.CharField(source='get_day_type_display', read_only=True)
+    rep_document_url  = serializers.SerializerMethodField(read_only=True)
+
+    def get_rep_document_url(self, obj):
+        if obj.rep_document:
+            request = self.context.get('request')
+            url = obj.rep_document.url
+            return request.build_absolute_uri(url) if request else url
+        return None
 
     class Meta:
         model = OTRequest
@@ -87,7 +95,7 @@ class OTRequestSerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'ot_hours', 'rate_per_hour',
             'work_detail', 'location', 'amount',
             'status', 'status_display',
-            'head_note', 'rep_note', 'checker_note',
+            'head_note', 'rep_note', 'rep_document_url', 'checker_note',
             'head_approved_at', 'checker_approved_at',
             'created_at', 'updated_at',
         ]
@@ -98,11 +106,18 @@ class OTRequestSerializer(serializers.ModelSerializer):
 
 
 class TimeLogSerializer(serializers.ModelSerializer):
-    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    user_name       = serializers.CharField(source='user.get_full_name', read_only=True)
+    department_name = serializers.CharField(source='user.department.name', read_only=True)
+    employee_id     = serializers.CharField(source='user.employee_id', read_only=True)
 
     class Meta:
         model = TimeLog
-        fields = ['id', 'user', 'user_name', 'log_date', 'check_in', 'check_out', 'imported_at']
+        fields = [
+            'id', 'user', 'user_name', 'employee_id', 'department_name',
+            'log_date', 'check_in', 'check_out',
+            'time_period', 'attendance_status',
+            'imported_at',
+        ]
 
 
 class ImportHistorySerializer(serializers.ModelSerializer):

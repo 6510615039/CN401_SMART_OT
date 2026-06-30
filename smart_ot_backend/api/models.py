@@ -134,6 +134,7 @@ class OTRequest(models.Model):
     rep_forwarded_by   = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='rep_forwards')
     rep_forwarded_at   = models.DateTimeField(null=True, blank=True)
     rep_note           = models.TextField(blank=True, verbose_name='หมายเหตุตัวแทนแผนก')
+    rep_document       = models.FileField(upload_to='ot_documents/', null=True, blank=True, verbose_name='เอกสาร Excel ที่แนบ')
 
     checker_approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='checker_approvals')
     checker_approved_at = models.DateTimeField(null=True, blank=True)
@@ -248,14 +249,15 @@ class OTDeadline(models.Model):
 
 class Notification(models.Model):
     NOTIF_TYPES = [
-        ('ot_submitted',        'ยื่นคำร้อง OT ใหม่'),
-        ('ot_head_approved',    'หัวหน้าอนุมัติ'),
-        ('ot_head_rejected',    'หัวหน้าตีกลับ'),
-        ('ot_rep_forwarded',    'ตัวแทนส่งต่อแล้ว'),
-        ('ot_checker_approved', 'ผู้ตรวจสอบอนุมัติ'),
-        ('ot_checker_rejected', 'ผู้ตรวจสอบตีกลับ'),
-        ('no_ot_declared',      'แจ้งไม่มีโอทีประจำเดือน'),
-        ('budget_set',          'ผู้ตรวจสอบตั้งงบประมาณ OT'),
+        ('ot_submitted',         'ยื่นคำร้อง OT ใหม่'),
+        ('ot_head_approved',     'หัวหน้าอนุมัติ'),
+        ('ot_head_rejected',     'หัวหน้าตีกลับ'),
+        ('ot_rep_action_needed', 'ตัวแทนฝ่ายต้องดำเนินการ'),
+        ('ot_rep_forwarded',     'ตัวแทนส่งต่อแล้ว'),
+        ('ot_checker_approved',  'ผู้ตรวจสอบอนุมัติ'),
+        ('ot_checker_rejected',  'ผู้ตรวจสอบตีกลับ'),
+        ('no_ot_declared',       'แจ้งไม่มีโอทีประจำเดือน'),
+        ('budget_set',           'ผู้ตรวจสอบตั้งงบประมาณ OT'),
     ]
 
     recipient  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')

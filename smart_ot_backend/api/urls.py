@@ -32,6 +32,12 @@ urlpatterns = [
     path('admin/seed-holidays/',    views.seed_holidays_view),
     # Bulk forward (deptrep → checker) + email notification
     path('ot-requests/bulk-forward/',       views.bulk_forward_view),
+    # Bulk approve (checker) — notification รวมต่อแผนก
+    path('ot-requests/bulk-approve/',       views.bulk_approve_view),
+    # Budget status real-time
+    path('budget-status/',                  views.budget_status_view),
+    # DeptHead notify deptrep "ready to forward"
+    path('notify-rep-ready/',               views.notify_rep_ready_view),
     # OT Deadline
     path('ot-deadline/',                    views.deadline_list_view),
     path('ot-deadline/set/',                views.deadline_upsert_view),
