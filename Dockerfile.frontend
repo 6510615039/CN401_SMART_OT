@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN VITE_API_URL=https://cn401smartot-production.up.railway.app npm run build
 
 # --- production stage ---
 FROM nginx:alpine
