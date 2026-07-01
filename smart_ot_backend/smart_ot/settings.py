@@ -122,10 +122,11 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
 }
 
-# CORS — อนุญาต React dev server
+# CORS — อนุญาต React dev server และ Railway production
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://hospitable-amazement-production-729d.up.railway.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
