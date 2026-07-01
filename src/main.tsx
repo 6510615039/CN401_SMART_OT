@@ -4,6 +4,18 @@
   import App from "./app/App.tsx";
   import "./styles/index.css";
 
+  // ตอน production บน Railway ให้ fetch('/api/...') ชี้ไป Django URL โดยตรง
+  const BACKEND = import.meta.env.VITE_API_URL ?? '';
+  if (BACKEND) {
+    const _fetch = window.fetch.bind(window);
+    window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+      if (typeof input === 'string' && input.startsWith('/api/')) {
+        input = BACKEND + input;
+      }
+      return _fetch(input, init);
+    };
+  }
+
   class ErrorBoundary extends Component<{children: ReactNode}, {error: Error | null}> {
     constructor(props: any) { super(props); this.state = { error: null }; }
     static getDerivedStateFromError(e: Error) { return { error: e }; }
