@@ -151,9 +151,8 @@ DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', 'SMART OT <noreply@tu
 
 # Frontend app
 INSTALLED_APPS += ['frontend']
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
+_static_dir = BASE_DIR / 'static'
+STATICFILES_DIRS = [_static_dir] if _static_dir.exists() else []
 
 # Templates
 TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
