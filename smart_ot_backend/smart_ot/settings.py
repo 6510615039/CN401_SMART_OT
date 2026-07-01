@@ -18,6 +18,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# Railway proxy — ทำให้ DRF สร้าง next URL เป็น https://
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',

@@ -783,15 +783,19 @@ export function AdminUsers() {
       let url: string | null = `/api/users/?${params}`;
       let all: ApiUser[] = [];
       while (url) {
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token()}` } });
-        if (!res.ok) break;
-        const d = await res.json();
-        if (Array.isArray(d)) {
-          all = all.concat(d);
-          url = null;
-        } else {
-          all = all.concat(d?.results || []);
-          url = d?.next || null;
+        try {
+          const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token()}` } });
+          if (!res.ok) break;
+          const d = await res.json();
+          if (Array.isArray(d)) {
+            all = all.concat(d);
+            url = null;
+          } else {
+            all = all.concat(d?.results || []);
+            url = d?.next || null;
+          }
+        } catch {
+          break;
         }
       }
       if (!cancelled) setAllUsers(all.sort((a, b) => (a.username || '').localeCompare(b.username || '', undefined, { numeric: true })));
@@ -1385,10 +1389,12 @@ export function AdminDepts() {
       const users: ApiUser[] = [];
       let url: string | null = '/api/users/';
       while (url) {
-        const res = await fetch(url, { headers: h });
-        const data = await res.json();
-        users.push(...(Array.isArray(data) ? data : (data.results ?? [])));
-        url = data.next ?? null;
+        try {
+          const res = await fetch(url, { headers: h });
+          const data = await res.json();
+          users.push(...(Array.isArray(data) ? data : (data.results ?? [])));
+          url = data.next ?? null;
+        } catch { break; }
       }
 
       if (!cancelled) {
