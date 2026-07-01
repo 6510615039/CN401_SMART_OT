@@ -46,12 +46,12 @@ def _get_settings():
 
 def _effective_url() -> str:
     s = _get_settings()
-    return (s.tu_api_url or '').strip() or _DEFAULT_TU_API_URL
+    return (s.tu_api_url or '').strip() if s else '' or _DEFAULT_TU_API_URL
 
 
 def _effective_key() -> str:
     s = _get_settings()
-    return (s.tu_api_key or '').strip() or _DEFAULT_TU_API_KEY
+    return (s.tu_api_key or '').strip() if s else '' or _DEFAULT_TU_API_KEY
 
 
 def _is_enabled() -> bool:
