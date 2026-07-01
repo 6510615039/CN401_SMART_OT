@@ -4,6 +4,7 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Role } from './shared';
+import regtuLogo from '../../imports/regtu-logo-cropped.png';
 
 interface Props { onLogin: (role: Role) => void; onForgot: () => void; }
 
@@ -34,7 +35,8 @@ export function Login({ onLogin, onForgot }: Props) {
 
       if (!res.ok) {
         setState('error');
-        setErrorMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        const body = await res.json().catch(() => null);
+        setErrorMsg(body?.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
         return;
       }
 
@@ -86,14 +88,8 @@ export function Login({ onLogin, onForgot }: Props) {
     <div className="min-h-screen w-full flex bg-white">
       {/* Hero */}
       <div className="hidden md:flex w-[55%] bg-tu-red relative overflow-hidden flex-col items-center justify-center text-center px-12">
-        <div
-          className="absolute inset-0 opacity-15 pointer-events-none"
-          style={{ backgroundImage: 'repeating-linear-gradient(45deg, #FFD400 0 2px, transparent 2px 28px)' }}
-        />
         <div className="relative z-10">
-          <div className="size-32 rounded-2xl bg-black grid place-items-center mx-auto mb-8">
-            <div className="text-white font-bold text-3xl tracking-widest">RegTU</div>
-          </div>
+          <img src={regtuLogo} alt="REGTU - สำนักงานทะเบียนนักศึกษา" className="w-72 max-w-full rounded-2xl mx-auto mb-8" />
           <h1 className="text-[36px] font-bold text-tu-yellow leading-tight">SMART OT SYSTEM</h1>
           <p className="text-[16px] text-white mt-4 max-w-md">
             ระบบคำนวณและตรวจสอบค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ
@@ -177,15 +173,6 @@ export function Login({ onLogin, onForgot }: Props) {
               )}
             </Button>
 
-            {/* Test accounts hint */}
-            <div style={{ background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)', borderRadius: 8, padding: '10px 12px' }}>
-              <p className="text-[12px] text-[var(--neutral-600)] font-medium mb-1">บัญชีทดสอบ (รหัสพนักงาน / password)</p>
-              <p className="text-[12px] text-[var(--neutral-500)]">admin / admin1234</p>
-              <p className="text-[12px] text-[var(--neutral-500)]">somchai / staff1234</p>
-              <p className="text-[12px] text-[var(--neutral-500)]">onanong / head1234</p>
-              <p className="text-[12px] text-[var(--neutral-500)]">checker / chk1234</p>
-            </div>
-
             <p className="text-[12px] text-[var(--neutral-500)] text-center">
               ระบบเชื่อมต่อกับ Django API • สิทธิ์การใช้งานถูกกำหนดโดยผู้ดูแลระบบ
             </p>
@@ -204,10 +191,6 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
   return (
     <div className="min-h-screen w-full flex bg-white">
       <div className="hidden md:flex w-[55%] bg-tu-red relative overflow-hidden flex-col items-center justify-center text-center px-12">
-        <div
-          className="absolute inset-0 opacity-15 pointer-events-none"
-          style={{ backgroundImage: 'repeating-linear-gradient(45deg, #FFD400 0 2px, transparent 2px 28px)' }}
-        />
         <div className="relative z-10">
           <h1 className="text-[36px] font-bold text-tu-yellow">SMART OT SYSTEM</h1>
           <p className="text-white/70 mt-3">สำนักงานทะเบียนนักศึกษา มหาวิทยาลัยธรรมศาสตร์</p>
@@ -222,7 +205,7 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
           </p>
           <div className="space-y-3">
             <a
-              href="https://account.tu.ac.th"
+              href="https://accounts.tu.ac.th/th"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full h-12 rounded-lg bg-tu-red text-white font-semibold hover:bg-tu-red-dark transition-colors"

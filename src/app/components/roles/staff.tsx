@@ -963,6 +963,22 @@ export function StaffProfile() {
     reader.readAsDataURL(file);
   }
 
+  function handleRemovePhoto() {
+    setAvatarUrl(null);
+    setUploadError('');
+    const token = localStorage.getItem('access_token');
+    fetch('/api/auth/me/update/', {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_image: '' }),
+    }).then(r => {
+      if (r.ok) {
+        localStorage.removeItem('profile_image_cache');
+        window.dispatchEvent(new CustomEvent('profile-image-changed', { detail: '' }));
+      }
+    }).catch(() => {});
+  }
+
   return (
     <>
       <PageHeader title="โปรไฟล์ของฉัน" />
@@ -997,14 +1013,26 @@ export function StaffProfile() {
               />
             </div>
             {uploadError && <p className="text-[11px] text-danger">{uploadError}</p>}
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-[12px]"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              อัปโหลดรูปโปรไฟล์
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-[12px]"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                อัปโหลดรูปโปรไฟล์
+              </Button>
+              {avatarUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[12px] text-danger border-danger hover:bg-danger/10"
+                  onClick={handleRemovePhoto}
+                >
+                  ลบรูปโปรไฟล์
+                </Button>
+              )}
+            </div>
             <div>
               <h3>{fullName}</h3>
               <p className="text-[var(--neutral-500)] text-[13px]">{empId}</p>

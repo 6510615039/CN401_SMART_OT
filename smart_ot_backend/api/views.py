@@ -228,6 +228,10 @@ def login_view(request):
     # ── ขั้นตอน 1: TU API Auth ─────────────────────────────────────────
     tu_data = verify_tu_credentials(tu_username, password)
     if tu_data:
+        # ระบบนี้สำหรับพนักงานสำนักงานทะเบียนเท่านั้น — ถ้า TU API บอกว่าเป็นนักศึกษา
+        # ห้าม auto-create บัญชี/แผนกเข้าระบบ (กันแผนกภาควิชาเพี้ยนๆ โผล่มาจากการ login ทดสอบ)
+        if tu_data.get('type') == 'student':
+            return Response({'error': 'ระบบนี้สำหรับพนักงานเท่านั้น ไม่รองรับบัญชีนักศึกษา'}, status=403)
         user = _auto_create_user_from_tu(tu_data)
         if not user:
             return Response({'error': 'ไม่สามารถสร้างบัญชีในระบบได้ กรุณาติดต่อผู้ดูแลระบบ'}, status=500)
@@ -286,9 +290,9 @@ def me_view(request):
 @permission_classes([IsAuthenticated])
 def me_update_view(request):
     user = request.user
-    profile_image = request.data.get('profile_image', '')
-    if profile_image:
-        # รับ base64 data URL เช่น "data:image/jpeg;base64,..."
+    if 'profile_image' in request.data:
+        profile_image = request.data.get('profile_image') or ''
+        # รับ base64 data URL เช่น "data:image/jpeg;base64,..." หรือ '' เพื่อลบรูป
         # จำกัดขนาดไม่เกิน 5MB (base64 ~4/3 ของขนาดจริง)
         if len(profile_image) > 7 * 1024 * 1024:
             return Response({'error': 'image too large'}, status=400)

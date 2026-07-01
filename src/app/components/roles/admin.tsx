@@ -2311,6 +2311,55 @@ function thaiMonthFull(thaiMonth: string) {
   return `${MONTH_NAMES[m] ?? ''} ${y}`;
 }
 
+function DayMonthYearPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  // value/onChange ใช้ ISO date (yyyy-mm-dd, ค.ศ.) เหมือนเดิม แค่ UI เรียงเป็น วัน/เดือน/ปี
+  const today = new Date();
+  const [y, m, d] = value ? value.split('-') : [String(today.getFullYear()), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')];
+  const daysInMonth = new Date(parseInt(y), parseInt(m), 0).getDate();
+  const dayNum = Math.min(parseInt(d) || 1, daysInMonth);
+
+  function update(newD: number, newM: string, newY: string) {
+    const maxD = new Date(parseInt(newY), parseInt(newM), 0).getDate();
+    const clampedD = Math.min(newD, maxD);
+    onChange(`${newY}-${newM}-${String(clampedD).padStart(2, '0')}`);
+  }
+
+  return (
+    <div className="flex gap-2">
+      <select
+        className="border rounded-md px-2 py-2 text-[13px] bg-white w-[72px]"
+        value={String(dayNum).padStart(2, '0')}
+        onChange={e => update(parseInt(e.target.value), m, y)}
+      >
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(dd => (
+          <option key={dd} value={String(dd).padStart(2, '0')}>{dd}</option>
+        ))}
+      </select>
+      <select
+        className="border rounded-md px-2 py-2 text-[13px] bg-white flex-1"
+        value={m}
+        onChange={e => update(dayNum, e.target.value, y)}
+      >
+        {THAI_MONTHS.map((label, i) => (
+          <option key={i} value={String(i + 1).padStart(2, '0')}>{label}</option>
+        ))}
+      </select>
+      <Input
+        type="number"
+        value={parseInt(y) + 543}
+        onChange={e => {
+          const thaiY = parseInt(e.target.value);
+          if (!thaiY || e.target.value.length > 4) return;
+          update(dayNum, m, String(thaiY - 543));
+        }}
+        className="w-[80px] font-mono text-center"
+        min={2500}
+        max={2700}
+      />
+    </div>
+  );
+}
+
 function deadlineDateLabel(iso: string) {
   // '2026-06-10' → '10 มิ.ย. 2569'
   const d = new Date(iso + 'T12:00:00');
@@ -2527,10 +2576,9 @@ export function AdminDeadlines() {
 
             <div>
               <label className="block text-[13px] font-medium mb-1.5">วันปิดรับ</label>
-              <Input
-                type="date"
+              <DayMonthYearPicker
                 value={dlg.deadline_date}
-                onChange={e => setDlg(d => ({ ...d, deadline_date: e.target.value }))}
+                onChange={v => setDlg(d => ({ ...d, deadline_date: v }))}
               />
               {dlg.deadline_date && (
                 <p className="text-[12px] text-[var(--neutral-500)] mt-1">

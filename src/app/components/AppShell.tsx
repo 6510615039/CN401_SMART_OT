@@ -100,7 +100,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
   useEffect(() => {
     const handler = (e: Event) => {
       const img = (e as CustomEvent).detail as string;
-      if (img) setProfileImage(img);
+      setProfileImage(img || '');
     };
     window.addEventListener('profile-image-changed', handler);
     return () => window.removeEventListener('profile-image-changed', handler);
