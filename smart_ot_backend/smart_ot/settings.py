@@ -133,6 +133,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://hospitable-amazement-production-729d.up.railway.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept', 'accept-encoding', 'authorization', 'content-type',
+    'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with',
+    'x-acting-role',
+]
 
 # ─── Django Channels (WebSocket) ─────────────────────────────────────────────
 ASGI_APPLICATION = 'smart_ot.asgi.application'
