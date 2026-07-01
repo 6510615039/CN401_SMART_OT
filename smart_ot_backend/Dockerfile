@@ -18,4 +18,4 @@ RUN mkdir -p /app/media /app/staticfiles
 
 EXPOSE 8000
 
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "smart_ot.asgi:application"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py loaddata fixtures/initial_data.json || true && daphne -b 0.0.0.0 -p 8000 smart_ot.asgi:application"]
