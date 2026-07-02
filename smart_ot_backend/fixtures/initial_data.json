@@ -1,31 +1,6 @@
 [
   {
     "model": "api.user",
-    "pk": 1,
-    "fields": {
-      "password": "pbkdf2_sha256$600000$95ZiL76hhfx8N9xDJWy2vm$L1MAhagvmGzmAwfV2W1WODqMo4E85ZmzSAkVEIO50Og=",
-      "last_login": "2026-06-29T15:39:37.151Z",
-      "is_superuser": false,
-      "username": "admin",
-      "first_name": "ขวัญ",
-      "last_name": "ใจดี",
-      "email": "kwan@tu.ac.th",
-      "is_staff": false,
-      "date_joined": "2026-06-16T15:18:19.884Z",
-      "employee_id": "AD-001",
-      "role": "admin",
-      "extra_roles": [],
-      "department": 7,
-      "phone": "",
-      "notify_email": "",
-      "profile_image": "",
-      "is_active": true,
-      "groups": [],
-      "user_permissions": []
-    }
-  },
-  {
-    "model": "api.user",
     "pk": 8,
     "fields": {
       "password": "pbkdf2_sha256$600000$Y61nnHrxv5xnUc5qotmQD7$DxvAsqOZC3AsHSzGRaaC3sPqLebfNCm0mW7Xj6fMD88=",
@@ -1523,56 +1498,6 @@
       "is_staff": false,
       "date_joined": "2026-06-18T11:27:35.706Z",
       "employee_id": "0058",
-      "role": "staff",
-      "extra_roles": [],
-      "department": 7,
-      "phone": "",
-      "notify_email": "",
-      "profile_image": "",
-      "is_active": true,
-      "groups": [],
-      "user_permissions": []
-    }
-  },
-  {
-    "model": "api.user",
-    "pk": 67,
-    "fields": {
-      "password": "pbkdf2_sha256$600000$pD4GZhpteWxsvSXpTwWFpX$KnBuyvFyH8BVJ+YFsLRT1XwODoei9GLbdcWZ5iUf8hQ=",
-      "last_login": null,
-      "is_superuser": false,
-      "username": "01",
-      "first_name": "ศิรวิชญ์",
-      "last_name": "การสนิท",
-      "email": "",
-      "is_staff": false,
-      "date_joined": "2026-06-18T11:32:16.220Z",
-      "employee_id": "01",
-      "role": "staff",
-      "extra_roles": [],
-      "department": 7,
-      "phone": "",
-      "notify_email": "",
-      "profile_image": "",
-      "is_active": true,
-      "groups": [],
-      "user_permissions": []
-    }
-  },
-  {
-    "model": "api.user",
-    "pk": 68,
-    "fields": {
-      "password": "pbkdf2_sha256$600000$lgTL1K21yKKBAPxv3HfxZC$w9taNmybh/TRZV81oZaAHzBJwdHVuEhXLb99V2AfA4s=",
-      "last_login": null,
-      "is_superuser": false,
-      "username": "02",
-      "first_name": "ภัทรกันย์",
-      "last_name": "เลิศวานิชย์กุล",
-      "email": "",
-      "is_staff": false,
-      "date_joined": "2026-06-18T11:32:16.915Z",
-      "employee_id": "02",
       "role": "staff",
       "extra_roles": [],
       "department": 7,

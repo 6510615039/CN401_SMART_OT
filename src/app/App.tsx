@@ -67,39 +67,42 @@ export default function App() {
     localStorage.setItem('current_page', newPage);
   };
 
-  // ─── เช็ค access_token ตอน mount — restore session แล้ว fetch role ล่าสุดจาก DB ───
+  // ─── เช็ค access_token ตอน mount — fetch /api/auth/me/ ก่อน แล้วค่อย restore ───
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) return;
 
-    // Restore ทันทีจาก cache เพื่อให้ UI ไม่กระพริบ
     const cachedRole = (localStorage.getItem('active_role') as Role) || 'staff';
-    const cachedRoles = getStoredAvailableRoles();
-    setRole(cachedRole);
-    setAvailableRoles(cachedRoles);
-    setScreen('app');
     const savedPage = localStorage.getItem('current_page') || 'dashboard';
-    setPage(savedPage);
 
-    // Fetch role จาก DB จริง — รองรับกรณีแอดมินแก้ role หลัง login
     fetch('/api/auth/me/', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(freshUser => {
-        if (!freshUser) return;
-        // อัปเดต localStorage ให้ตรงกับ DB
+        if (!freshUser) {
+          // token หมดอายุ — กลับหน้า login
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user');
+          return;
+        }
         localStorage.setItem('user', JSON.stringify(freshUser));
         const freshRoles: Role[] = Array.isArray(freshUser.available_roles) && freshUser.available_roles.length > 0
           ? freshUser.available_roles
           : [freshUser.role || 'staff'];
+        const activeRole: Role = freshRoles.includes(cachedRole) ? cachedRole : freshRoles[0] as Role;
+        localStorage.setItem('active_role', activeRole);
         setAvailableRoles(freshRoles);
-        // ถ้า role ที่ active อยู่ไม่มีแล้ว → switch ไป role แรกที่มีสิทธิ์
-        if (!freshRoles.includes(cachedRole)) {
-          const newRole = freshRoles[0] as Role;
-          localStorage.setItem('active_role', newRole);
-          setRole(newRole);
-        }
+        setRole(activeRole);
+        setPage(savedPage);
+        setScreen('app');
       })
-      .catch(() => {}); // token หมดอายุหรือ network error → ปล่อยให้ใช้ cache
+      .catch(() => {
+        // network error → fallback ใช้ cache
+        const cachedRoles = getStoredAvailableRoles();
+        setRole(cachedRole);
+        setAvailableRoles(cachedRoles);
+        setPage(savedPage);
+        setScreen('app');
+      });
   }, []);
 
   // Global fetch interceptor — แนบ X-Acting-Role header กับทุก /api/ call อัตโนมัติ

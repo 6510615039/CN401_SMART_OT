@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, User as UserIcon, CheckCheck } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, User as UserIcon, CheckCheck, Check } from 'lucide-react';
 import { Role, ROLE_INFO, ROLE_BADGE, TUWordmark } from './shared';
 import { NotificationItem } from '../App';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -109,6 +109,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
   const info = userInfo ?? fallback;
 
   const otherRoles = availableRoles.filter(r => r !== role);
+  const allRoles = availableRoles;
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-[var(--neutral-100)]">
@@ -210,17 +211,25 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onProfile?.()}><UserIcon className="size-4 mr-2" />โปรไฟล์</DropdownMenuItem>
-              {otherRoles.length > 0 && (
+              {allRoles.length > 1 && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel className="text-[11px] text-[var(--neutral-500)] font-normal">สลับ Role</DropdownMenuLabel>
-                  {otherRoles.map(r => (
-                    <DropdownMenuItem key={r} onClick={() => onSwitchRole(r)} className="gap-2">
-                      <span className={cn('inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold', ROLE_BADGE[r])}>
-                        {ROLE_LABELS[r]}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
+                  {allRoles.map(r => {
+                    const isActive = r === role;
+                    return (
+                      <DropdownMenuItem
+                        key={r}
+                        onClick={() => !isActive && onSwitchRole(r)}
+                        className={cn('gap-2', isActive && 'cursor-default opacity-100 bg-[var(--neutral-100)]')}
+                      >
+                        <span className={cn('inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold', ROLE_BADGE[r])}>
+                          {ROLE_LABELS[r]}
+                        </span>
+                        {isActive && <Check className="size-3.5 ml-auto text-green-600" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </>
               )}
               <DropdownMenuSeparator />
