@@ -580,9 +580,15 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
 
 export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const _n = new Date();
-  const _curThaiYearPending = _n.getFullYear() + 543;
+  const _initDate = (() => {
+    const stored = sessionStorage.getItem('notif_nav_month');
+    if (stored) { sessionStorage.removeItem('notif_nav_month'); }
+    const d = stored ? new Date(stored + '-01') : _n;
+    return { year: d.getFullYear() + 543, month: d.getMonth() + 1 };
+  })();
+  const _curThaiYearPending = _initDate.year;
   const [thaiYear, setThaiYear] = useState(String(_curThaiYearPending));
-  const [selMonth, setSelMonth] = useState(_n.getMonth() + 1);
+  const [selMonth, setSelMonth] = useState(_initDate.month);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number[]>([]);
@@ -591,6 +597,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const [search, setSearch] = useState('');
   const [actionMsg, setActionMsg] = useState<{ kind: 'success' | 'danger'; text: string } | null>(null);
   const [notifyingRep, setNotifyingRep] = useState(false);
+  const [notifiedMonths, setNotifiedMonths] = useState<Set<string>>(new Set());
   const [budgetStatus, setBudgetStatus] = useState<{ budget: number; used: number; remaining: number | null } | null>(null);
   const [deadline, setDeadline] = useState<{ deadline_date: string; month: string } | null>(null);
   const token = () => localStorage.getItem('access_token');
@@ -699,6 +706,9 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
     });
     setNotifyingRep(false);
     if (res.ok) {
+      const gregYear = parseInt(thaiYear) - 543;
+      const monthKey = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+      setNotifiedMonths(prev => new Set([...prev, monthKey]));
       setActionMsg({ kind: 'success', text: 'แจ้งตัวแทนแผนกเรียบร้อยแล้ว' });
     } else {
       const d = await res.json().catch(() => ({}));
@@ -880,17 +890,26 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
       </SectionCard>
 
       {/* ปุ่มแจ้งตัวแทนว่าพร้อมส่งออก */}
-      <div className="mt-4 flex justify-end">
-        <Button
-          variant="outline"
-          className="border-blue-400 text-blue-700 hover:bg-blue-50 gap-2"
-          onClick={handleNotifyRep}
-          disabled={notifyingRep}
-        >
-          <Bell className="size-4" />
-          {notifyingRep ? 'กำลังแจ้ง…' : 'แจ้งตัวแทนว่าพร้อมส่งออก'}
-        </Button>
-      </div>
+      {(() => {
+        const gregYear = parseInt(thaiYear) - 543;
+        const monthKey = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+        const alreadyNotified = notifiedMonths.has(monthKey);
+        return (
+          <div className="mt-4 flex justify-end">
+            <Button
+              variant="outline"
+              className={alreadyNotified
+                ? 'border-green-400 text-green-700 bg-green-50 gap-2 cursor-default'
+                : 'border-blue-400 text-blue-700 hover:bg-blue-50 gap-2'}
+              onClick={alreadyNotified ? undefined : handleNotifyRep}
+              disabled={notifyingRep || alreadyNotified}
+            >
+              <Bell className="size-4" />
+              {notifyingRep ? 'กำลังแจ้ง…' : alreadyNotified ? `แจ้งตัวแทนไปแล้ว (เดือนนี้)` : 'แจ้งตัวแทนว่าพร้อมส่งออก'}
+            </Button>
+          </div>
+        );
+      })()}
 
       {sel.length > 0 && (
         <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-white border-t border-[var(--neutral-300)] shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex items-center justify-between mt-6">
@@ -1209,7 +1228,7 @@ export function HeadMembers() {
           if (!map[r.staff]) map[r.staff] = [];
           map[r.staff].push(r);
         }
-        setMembers(userList.filter((u: any) => ['staff', 'depthead'].includes(u.role)));
+        setMembers(userList.filter((u: any) => u.role !== 'admin'));
         setOtMap(map);
       })
       .catch(() => {})

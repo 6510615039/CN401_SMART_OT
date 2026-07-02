@@ -168,7 +168,16 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                     key={n.id}
                     onClick={() => {
                       if (!n.is_read) onMarkRead?.([n.id]);
-                      if (targetPage) onNavigate(targetPage);
+                      if (targetPage) {
+                        // ส่งเดือนของ OT request ไปให้หน้าปลายทาง (pending/status ฯลฯ) เพื่อ auto-filter
+                        if (n.ot_request_date) {
+                          const d = new Date(n.ot_request_date);
+                          if (!isNaN(d.getTime())) {
+                            sessionStorage.setItem('notif_nav_month', `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                          }
+                        }
+                        onNavigate(targetPage);
+                      }
                     }}
                     className={cn(
                       'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',

@@ -277,7 +277,7 @@ export function StaffTimeLog() {
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 gap-2 text-[var(--neutral-500)]">
             <p>ยังไม่มีข้อมูลสำหรับเดือนนี้</p>
-            <p className="text-[12px]">กรุณานำเข้าข้อมูลจากหน้าแอดมินก่อน</p>
+            <p className="text-[12px]">กรุณารอแอดมินนำเข้าข้อมูลก่อน</p>
           </div>
         ) : view === 'table' ? (
           <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">

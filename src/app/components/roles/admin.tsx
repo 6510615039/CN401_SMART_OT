@@ -278,6 +278,14 @@ export function AdminImport() {
         </div>
       } />
 
+      <div className="flex items-start gap-3 p-3 mb-4 bg-tu-yellow-soft border border-tu-yellow rounded-lg text-[13px]">
+        <Info className="size-4 text-[var(--warning)] shrink-0 mt-0.5" />
+        <p className="text-[var(--neutral-700)]">
+          ระบบจะ<strong>ตรวจจับเดือนจากไฟล์อัตโนมัติ</strong> — ไม่ต้องเลือกเดือนก่อนอัปโหลด
+          ตัวเลือกเดือนด้านบนใช้สำหรับ<strong>ดูข้อมูลที่นำเข้าไปแล้ว</strong>เท่านั้น
+        </p>
+      </div>
+
       {error && (
         <div className="flex items-center gap-3 p-4 mb-5 bg-tu-red-soft border border-danger rounded-xl">
           <AlertTriangle className="size-5 text-danger shrink-0" />
@@ -2589,18 +2597,46 @@ export function AdminDeadlines() {
           <div className="space-y-4">
             <div>
               <label className="block text-[13px] font-medium mb-1.5">เดือน (พ.ศ.)</label>
-              <select
-                className="w-full border rounded-md px-3 py-2 text-[13px] bg-white"
-                value={dlg.thai_month}
-                onChange={e => {
-                  const opt = monthOptions.find(o => o.value === e.target.value) as any;
-                  setDlg(d => ({ ...d, thai_month: e.target.value, deadline_date: opt?.defDate ?? d.deadline_date }));
-                }}
-              >
-                {monthOptions.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  className="flex-1 border rounded-md px-3 py-2 text-[13px] bg-white"
+                  value={dlg.thai_month ? dlg.thai_month.split('-')[1] : ''}
+                  onChange={e => {
+                    const yr = dlg.thai_month ? dlg.thai_month.split('-')[0] : String(new Date().getFullYear() + 543);
+                    const newMonth = `${yr}-${e.target.value}`;
+                    // auto deadline: 10th of following Gregorian month
+                    const gregY = parseInt(yr) - 543;
+                    const gregM = parseInt(e.target.value);
+                    const defDate = new Date(gregY, gregM, 10).toISOString().slice(0, 10);
+                    setDlg(d => ({ ...d, thai_month: newMonth, deadline_date: defDate }));
+                  }}
+                >
+                  {['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'].map((m, i) => (
+                    <option key={i+1} value={String(i+1).padStart(2,'0')}>{m}</option>
+                  ))}
+                </select>
+                <Input
+                  type="number"
+                  className="w-[100px]"
+                  placeholder="ปี พ.ศ."
+                  min={2560}
+                  max={2599}
+                  value={dlg.thai_month ? dlg.thai_month.split('-')[0] : ''}
+                  onChange={e => {
+                    const mon = dlg.thai_month ? dlg.thai_month.split('-')[1] : String(new Date().getMonth() + 1).padStart(2,'0');
+                    const yr = e.target.value;
+                    const newMonth = `${yr}-${mon}`;
+                    const gregY = parseInt(yr) - 543;
+                    const gregM = parseInt(mon);
+                    const defDate = new Date(gregY, gregM, 10).toISOString().slice(0, 10);
+                    setDlg(d => ({ ...d, thai_month: newMonth, deadline_date: defDate }));
+                  }}
+                />
+              </div>
+              {dlg.thai_month && /^\d{4}-\d{2}$/.test(dlg.thai_month) && (
+                <p className="text-[12px] text-[var(--neutral-500)] mt-1">{thaiMonthFull(dlg.thai_month)}</p>
+              )}
             </div>
 
             <div>
