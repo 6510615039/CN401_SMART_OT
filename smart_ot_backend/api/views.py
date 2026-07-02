@@ -1647,7 +1647,7 @@ def admin_summary_view(request):
         ],
         'latest_import': {
             'date':     latest_import.imported_at.strftime('%d/%m/%Y %H:%M') if latest_import else None,
-            'by':       latest_import.imported_by.get_full_name()            if latest_import else None,
+            'by':       (latest_import.imported_by.get_full_name() if latest_import.imported_by else 'ผู้ใช้ที่ถูกลบแล้ว') if latest_import else None,
             'filename': latest_import.filename                               if latest_import else None,
             'total':    latest_import.total_rows                             if latest_import else 0,
         } if latest_import else None,
