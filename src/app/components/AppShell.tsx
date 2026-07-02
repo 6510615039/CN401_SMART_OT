@@ -70,7 +70,15 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead, onProfile }: Props) {
   const fallback = ROLE_INFO[role];
-  const [userInfo, setUserInfo] = useState<{ name: string; dept: string; empId: string } | null>(null);
+  const [userInfo, setUserInfo] = useState<{ name: string; dept: string; empId: string } | null>(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || 'null');
+      if (!u) return null;
+      const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username;
+      if (!name) return null;
+      return { name, dept: u.department_name || u.department || fallback.dept, empId: u.employee_id || u.username || '' };
+    } catch { return null; }
+  });
   const [profileImage, setProfileImage] = useState<string>(() => localStorage.getItem('profile_image_cache') || '');
   const unread = notifications.filter(n => !n.is_read).length;
 

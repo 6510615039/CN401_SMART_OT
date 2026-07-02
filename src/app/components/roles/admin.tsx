@@ -36,16 +36,27 @@ const PIE_COLORS = ['#B8001F','#FFD400','#1976D2','#0A8A44','#7B1FA2','#EF6C00',
 
 export function AdminDashboard() {
   const [summary, setSummary] = useState<any>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditEntry[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     const h = { 'Authorization': `Bearer ${token}` };
     fetch('/api/admin/summary/', { headers: h })
-      .then(r => r.json()).then(setSummary).catch(() => {});
+      .then(async r => {
+        if (!r.ok) {
+          const text = await r.text().catch(() => '');
+          console.error('[AdminDashboard] summary HTTP', r.status, text.slice(0, 300));
+          setSummaryError(`HTTP ${r.status}`);
+          return null;
+        }
+        return r.json();
+      })
+      .then(d => { if (d) setSummary(d); })
+      .catch(e => { console.error('[AdminDashboard] summary fetch error:', e); setSummaryError(String(e)); });
     fetch('/api/audit-log/?limit=8', { headers: h })
-      .then(r => r.json())
-      .then((d: any) => setRecentLogs(Array.isArray(d) ? d.slice(0,8) : (d?.results ?? []).slice(0,8)))
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => { if (d) setRecentLogs(Array.isArray(d) ? d.slice(0,8) : (d?.results ?? []).slice(0,8)); })
       .catch(() => {});
   }, []);
 
@@ -62,6 +73,11 @@ export function AdminDashboard() {
   return (
     <>
       <PageHeader title="Dashboard ผู้ดูแลระบบ" right={<span className="text-[var(--neutral-500)]">วันที่ {new Date().toLocaleDateString('th-TH', {day:'numeric',month:'long',year:'numeric'})}</span>} />
+      {summaryError && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-[13px] text-red-700">
+          ไม่สามารถโหลดข้อมูล dashboard ได้: <code>{summaryError}</code> — กรุณาตรวจสอบ Console
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-5 mb-6">
         <KpiCard label="ผู้ใช้ทั้งหมด" value={summary ? (summary.total_users ?? 0).toString() : '—'} icon={<Users className="size-6" />} accent="red" />
         <KpiCard label="นำเข้าข้อมูลล่าสุด" value={importLabel} icon={<Upload className="size-6" />} accent="yellow" hint={importHint} />

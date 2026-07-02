@@ -37,7 +37,7 @@ import {
   EXEC_NAV, ExecDashboard, ExecTrend,
 } from './components/roles/executive';
 
-type Screen = 'login' | 'forgot' | 'app';
+type Screen = 'login' | 'forgot' | 'loading' | 'app';
 
 function getStoredAvailableRoles(): Role[] {
   try {
@@ -48,7 +48,8 @@ function getStoredAvailableRoles(): Role[] {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('login');
+  const hasToken = !!localStorage.getItem('access_token');
+  const [screen, setScreen] = useState<Screen>(hasToken ? 'loading' : 'login');
   const [role, setRole] = useState<Role>('staff');
   const [availableRoles, setAvailableRoles] = useState<Role[]>(['staff']);
   
@@ -70,7 +71,7 @@ export default function App() {
   // ─── เช็ค access_token ตอน mount — fetch /api/auth/me/ ก่อน แล้วค่อย restore ───
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    if (!token) return;
+    if (!token) { setScreen('login'); return; }
 
     const cachedRole = (localStorage.getItem('active_role') as Role) || 'staff';
     const savedPage = localStorage.getItem('current_page') || 'dashboard';
@@ -232,6 +233,11 @@ export default function App() {
     setCheckerOtEmp(null);
   }
 
+  if (screen === 'loading') return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-[var(--neutral-100)]">
+      <div className="size-10 rounded-full border-4 border-tu-yellow border-t-transparent animate-spin" />
+    </div>
+  );
   if (screen === 'login') return (
     <>
       <Login onLogin={handleLogin} onForgot={() => setScreen('forgot')} />
