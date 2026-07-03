@@ -100,24 +100,117 @@ function aggregateByDept(reqs: OTReq[]): DeptStat[] {
   return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
 }
 
+// ─── Period helpers ───────────────────────────────────────────────────────────
+
+const DASH_PERIODS = [
+  { value: 'month',   label: 'รายเดือน' },
+  { value: 'quarter', label: 'ไตรมาส' },
+  { value: 'half',    label: 'ครึ่งปีงบ' },
+  { value: 'year',    label: 'ปีงบประมาณ' },
+];
+
+type PeriodKey = 'month' | 'quarter' | 'half' | 'year';
+
+/** คืน list ของ {year, month} (gregorian) ของ period ที่เลือก */
+function getPeriodMonths(period: PeriodKey, gregYear: number, selMonth: number, selQuarter: string): {year: number; month: number}[] {
+  if (period === 'month') {
+    return [{ year: gregYear, month: selMonth }];
+  } else if (period === 'quarter') {
+    const Q: Record<string, {months: number[]; year: number}> = {
+      '1': { months: [10,11,12], year: gregYear - 1 },
+      '2': { months: [1,2,3],   year: gregYear },
+      '3': { months: [4,5,6],   year: gregYear },
+      '4': { months: [7,8,9],   year: gregYear },
+    };
+    const q = Q[selQuarter] || Q['1'];
+    return q.months.map(m => ({ year: q.year, month: m }));
+  } else if (period === 'half') {
+    if (selQuarter === '1') return [
+      { year: gregYear - 1, month: 10 }, { year: gregYear - 1, month: 11 }, { year: gregYear - 1, month: 12 },
+      { year: gregYear, month: 1 }, { year: gregYear, month: 2 }, { year: gregYear, month: 3 },
+    ];
+    return [4,5,6,7,8,9].map(m => ({ year: gregYear, month: m }));
+  } else {
+    return [
+      { year: gregYear - 1, month: 10 }, { year: gregYear - 1, month: 11 }, { year: gregYear - 1, month: 12 },
+      ...Array.from({ length: 9 }, (_, i) => ({ year: gregYear, month: i + 1 })),
+    ];
+  }
+}
+
+/** คืน period ก่อนหน้า (shift back 1 unit) */
+function getPrevPeriodMonths(period: PeriodKey, gregYear: number, selMonth: number, selQuarter: string): {year: number; month: number}[] {
+  if (period === 'month') {
+    const d = new Date(gregYear, selMonth - 2, 1);
+    return [{ year: d.getFullYear(), month: d.getMonth() + 1 }];
+  } else if (period === 'quarter') {
+    const prev = String(((parseInt(selQuarter) - 2 + 4) % 4) + 1);
+    const prevYear = selQuarter === '1' ? gregYear - 1 : gregYear;
+    return getPeriodMonths('quarter', prevYear, selMonth, prev);
+  } else if (period === 'half') {
+    const prevHalf = selQuarter === '1' ? '2' : '1';
+    const prevYear = selQuarter === '2' ? gregYear : gregYear - 1;
+    return getPeriodMonths('half', prevYear, selMonth, prevHalf);
+  } else {
+    return getPeriodMonths('year', gregYear - 1, selMonth, selQuarter);
+  }
+}
+
+function periodLabel(period: PeriodKey, thaiYear: string, selMonth: number, selQuarter: string): string {
+  if (period === 'month')   return `${THAI_MONTHS_FULL[selMonth - 1]} ${thaiYear}`;
+  if (period === 'quarter') return `ไตรมาส ${selQuarter} ปีงบ ${thaiYear}`;
+  if (period === 'half')    return `ครึ่ง${selQuarter === '1' ? 'แรก' : 'หลัง'} ปีงบ ${thaiYear}`;
+  return `ปีงบประมาณ ${thaiYear}`;
+}
+
+function prevPeriodLabel(period: PeriodKey): string {
+  if (period === 'month')   return 'เทียบเดือนก่อน';
+  if (period === 'quarter') return 'เทียบไตรมาสก่อน';
+  if (period === 'half')    return 'เทียบครึ่งปีก่อน';
+  return 'เทียบปีงบก่อน';
+}
+
 // ─── ExecDashboard ────────────────────────────────────────────────────────────
 
 export function ExecDashboard() {
-  const months = lastNMonths(12);
-  const [month, setMonth] = useState(months[0]);
-  const [prevMonth] = useState(months[1]);
-  const [reqs, setReqs]       = useState<OTReq[]>([]);
+  const _now = new Date();
+  const _curThaiYear = _now.getFullYear() + 543 + (_now.getMonth() >= 9 ? 1 : 0);
+  const _curMon = _now.getMonth() + 1;
+  const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
+
+  const [period,      setPeriod]      = useState<PeriodKey>('month');
+  const [thaiYear,    setThaiYear]    = useState(String(_curThaiYear));
+  const [selMonth,    setSelMonth]    = useState(String(_curMon).padStart(2, '0'));
+  const [selQuarter,  setSelQuarter]  = useState(_curQ);
+
+  const [reqs,     setReqs]     = useState<OTReq[]>([]);
   const [prevReqs, setPrevReqs] = useState<OTReq[]>([]);
   const [totalStaff, setTotalStaff] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading,    setLoading]    = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
+
+  const gregYear = parseInt(thaiYear) - 543;
+  const selMonthNum = parseInt(selMonth);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const curMonths  = getPeriodMonths(period, gregYear, selMonthNum, selQuarter);
+      const prevMonths = getPrevPeriodMonths(period, gregYear, selMonthNum, selQuarter);
+
+      const fetchMonths = async (mList: {year: number; month: number}[]) => {
+        const all: OTReq[] = [];
+        await Promise.all(mList.map(async ({ year, month }) => {
+          const ym = `${year}-${String(month).padStart(2, '0')}`;
+          const data = await fetchOTForMonth(ym);
+          all.push(...data);
+        }));
+        return all;
+      };
+
       const [cur, prev, usersRes] = await Promise.all([
-        fetchOTForMonth(month),
-        fetchOTForMonth(prevMonth),
+        fetchMonths(curMonths),
+        fetchMonths(prevMonths),
         fetch('/api/users/?is_active=true', { headers: headers() }).then(r => r.ok ? r.json() : null),
       ]);
       setReqs(cur);
@@ -129,28 +222,74 @@ export function ExecDashboard() {
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }));
     } catch {}
     setLoading(false);
-  }, [month]);
+  }, [period, gregYear, selMonthNum, selQuarter]);
 
   useEffect(() => { load(); }, [load]);
 
-  const depts   = aggregateByDept(reqs);
-  const totalAmt = reqs.reduce((s, r) => s + Number(r.amount), 0);
-  const prevAmt  = prevReqs.reduce((s, r) => s + Number(r.amount), 0);
-  const diffPct  = prevAmt > 0 ? ((totalAmt - prevAmt) / prevAmt * 100) : 0;
+  const depts      = aggregateByDept(reqs);
+  const totalAmt   = reqs.reduce((s, r) => s + Number(r.amount), 0);
+  const prevAmt    = prevReqs.reduce((s, r) => s + Number(r.amount), 0);
+  const diffPct    = prevAmt > 0 ? ((totalAmt - prevAmt) / prevAmt * 100) : null;
   const staffWithOT = new Set(reqs.map(r => r.staff)).size;
-  const totalHrs = reqs.reduce((s, r) => s + Number(r.ot_hours), 0);
-  const chartData = depts.slice(0, 8).map(d => ({ d: d.name, a: Math.round(d.amount) }));
+  const totalHrs   = reqs.reduce((s, r) => s + Number(r.ot_hours), 0);
+  const chartData  = depts.slice(0, 8).map(d => ({ d: d.name, a: Math.round(d.amount) }));
+  const curLabel   = periodLabel(period, thaiYear, selMonthNum, selQuarter);
+
+  // monthly breakdown for multi-month periods
+  const curMonths = getPeriodMonths(period, gregYear, selMonthNum, selQuarter);
+  const monthlyBreakdown = curMonths.map(({ year, month }) => {
+    const ym = `${year}-${String(month).padStart(2, '0')}`;
+    const monthReqs = reqs.filter(r => (r.work_date || '').startsWith(ym));
+    return {
+      m: THAI_MONTHS_SHORT[month - 1],
+      a: Math.round(monthReqs.reduce((s, r) => s + Number(r.amount), 0)),
+    };
+  });
 
   return (
     <>
       <PageHeader title="Executive Dashboard" right={
-        <div className="flex items-center gap-2">
-          <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="เลือกเดือน" /></SelectTrigger>
-            <SelectContent>
-              {months.map(m => <SelectItem key={m} value={m}>{gregToThaiShort(m)}</SelectItem>)}
-            </SelectContent>
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* Period selector */}
+          <Select value={period} onValueChange={v => setPeriod(v as PeriodKey)}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{DASH_PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
+
+          {/* Year */}
+          <input
+            type="number" value={thaiYear} min={2560} max={2599}
+            onChange={e => setThaiYear(e.target.value)}
+            className="w-[88px] h-9 text-center rounded-md border border-input bg-background px-3 text-sm"
+          />
+
+          {/* Month (month mode) */}
+          {period === 'month' && (
+            <Select value={selMonth} onValueChange={setSelMonth}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+
+          {/* Quarter (quarter mode) */}
+          {period === 'quarter' && (
+            <Select value={selQuarter} onValueChange={setSelQuarter}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+
+          {/* Half (half mode) */}
+          {period === 'half' && (
+            <Select value={selQuarter} onValueChange={setSelQuarter}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">ครึ่งแรก (ต.ค.–มี.ค.)</SelectItem>
+                <SelectItem value="2">ครึ่งหลัง (เม.ย.–ก.ย.)</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
           <button onClick={load} disabled={loading}
             className="p-2 rounded-lg border border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
             <RefreshCw className={`size-4 text-[var(--neutral-500)] ${loading ? 'animate-spin' : ''}`} />
@@ -173,14 +312,14 @@ export function ExecDashboard() {
           {/* KPI row */}
           <div className="grid grid-cols-4 gap-5 mb-6">
             <div className="bg-tu-red text-white rounded-xl p-5 h-[140px] flex flex-col justify-between">
-              <p className="text-[12px] opacity-80">รวมค่า OT {gregToThaiShort(month)}</p>
+              <p className="text-[12px] opacity-80">รวมค่า OT {curLabel}</p>
               <p className="text-[32px] font-bold tabular-nums">{Math.round(totalAmt).toLocaleString()}</p>
               <p className="text-[12px] opacity-80">บาท • {reqs.length} รายการ</p>
             </div>
 
             <div className="bg-white rounded-xl p-5 h-[140px] border border-[var(--neutral-300)] flex flex-col justify-between">
-              <p className="text-[12px] text-[var(--neutral-500)]">เทียบเดือนก่อน</p>
-              {prevAmt > 0 ? (
+              <p className="text-[12px] text-[var(--neutral-500)]">{prevPeriodLabel(period)}</p>
+              {diffPct !== null ? (
                 <>
                   <p className={`text-[28px] font-bold flex items-center gap-1 tabular-nums ${diffPct >= 0 ? 'text-danger' : 'text-success'}`}>
                     {diffPct >= 0 ? <ArrowUp className="size-5" /> : <ArrowDown className="size-5" />}
@@ -188,10 +327,14 @@ export function ExecDashboard() {
                   </p>
                   <p className="text-[12px] text-[var(--neutral-500)]">
                     {diffPct >= 0 ? 'เพิ่มขึ้น' : 'ลดลง'} {Math.abs(Math.round(totalAmt - prevAmt)).toLocaleString()} บาท
+                    <span className="block text-[11px]">เทียบกับ {Math.round(prevAmt).toLocaleString()} บาท</span>
                   </p>
                 </>
               ) : (
-                <p className="text-[24px] font-bold text-[var(--neutral-400)]">—</p>
+                <>
+                  <p className="text-[24px] font-bold text-[var(--neutral-400)]">—</p>
+                  <p className="text-[11px] text-[var(--neutral-400)]">ไม่มีข้อมูลช่วงก่อน</p>
+                </>
               )}
             </div>
 
@@ -211,27 +354,44 @@ export function ExecDashboard() {
           {/* Charts */}
           {depts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-[var(--neutral-500)] bg-white rounded-xl border border-[var(--neutral-300)]">
-              <p className="font-semibold">ยังไม่มีข้อมูล OT ที่ผ่านการตรวจสอบในเดือนนี้</p>
+              <p className="font-semibold">ยังไม่มีข้อมูล OT ที่ผ่านการตรวจสอบใน{curLabel}</p>
               <p className="text-[12px]">ข้อมูลจะแสดงเมื่อ Checker อนุมัติคำร้อง</p>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-3 gap-5 mb-6">
-                <SectionCard title={`OT แต่ละแผนก — ${gregToThaiShort(month)}`}>
-                  <div className="h-[260px]">
-                    <ResponsiveContainer>
-                      <BarChart data={chartData} margin={{ bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="d" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
-                        <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
-                        <Tooltip formatter={(v: any) => [Math.round(v).toLocaleString() + ' บาท', 'ค่า OT']} />
-                        <Bar dataKey="a" name="ค่า OT" radius={[4, 4, 0, 0]}>
-                          {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </SectionCard>
+                {/* แสดง monthly breakdown ถ้า period มีหลายเดือน */}
+                {period !== 'month' ? (
+                  <SectionCard title={`OT รายเดือนใน${curLabel}`}>
+                    <div className="h-[260px]">
+                      <ResponsiveContainer>
+                        <BarChart data={monthlyBreakdown} margin={{ bottom: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="m" tick={{ fontSize: 11 }} />
+                          <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                          <Tooltip formatter={(v: any) => [Math.round(v).toLocaleString() + ' บาท', 'ค่า OT']} />
+                          <Bar dataKey="a" name="ค่า OT" fill="#B8001F" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </SectionCard>
+                ) : (
+                  <SectionCard title={`OT แต่ละแผนก — ${curLabel}`}>
+                    <div className="h-[260px]">
+                      <ResponsiveContainer>
+                        <BarChart data={chartData} margin={{ bottom: 20 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="d" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
+                          <YAxis tickFormatter={(v: number) => (v / 1000).toFixed(0) + 'k'} />
+                          <Tooltip formatter={(v: any) => [Math.round(v).toLocaleString() + ' บาท', 'ค่า OT']} />
+                          <Bar dataKey="a" name="ค่า OT" radius={[4, 4, 0, 0]}>
+                            {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </SectionCard>
+                )}
 
                 <SectionCard title="สัดส่วนค่า OT แต่ละแผนก">
                   <div className="h-[260px]">
@@ -270,7 +430,7 @@ export function ExecDashboard() {
               </div>
 
               {/* Dept status table */}
-              <SectionCard title="รายละเอียดแต่ละแผนก">
+              <SectionCard title={`รายละเอียดแต่ละแผนก — ${curLabel}`}>
                 <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
                   <table className="w-full text-[13px]">
                     <thead className="bg-tu-red text-white">
