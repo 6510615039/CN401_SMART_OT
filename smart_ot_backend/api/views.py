@@ -1883,7 +1883,7 @@ def bulk_forward_view(request):
     forwarded_list = []
     for ot_id in ids:
         try:
-            ot = OTRequest.objects.get(id=ot_id, status='head_approved')
+            ot = OTRequest.objects.get(id=ot_id, status__in=['head_approved', 'checker_rejected'])
             ot.status           = 'rep_forwarded'
             ot.rep_forwarded_by = request.user
             ot.rep_forwarded_at = timezone.now()

@@ -360,7 +360,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
     const h = { Authorization: `Bearer ${token()}` };
     (async () => {
       for (const c of candidates) {
-        const res = await fetch(`/api/ot-requests/?status=head_approved&month=${c.ym}`, { headers: h }).then(r => r.json());
+        const res = await fetch(`/api/ot-requests/?status_in=head_approved,checker_rejected&month=${c.ym}`, { headers: h }).then(r => r.json());
         const list = Array.isArray(res) ? res : (res.results || []);
         if (list.length > 0) {
           setSelThaiYear(String(c.year + 543));
@@ -376,7 +376,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   function loadRequests() {
     setDownloaded(false);
     setLoading(true);
-    fetch(`/api/ot-requests/?status=head_approved&month=${month}`, {
+    fetch(`/api/ot-requests/?status_in=head_approved,checker_rejected&month=${month}`, {
       headers: { Authorization: `Bearer ${token()}` },
     })
       .then(r => r.json())
@@ -743,7 +743,7 @@ export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => voi
       .finally(() => setLoading(false));
   }, []);
 
-  // จัดกลุ่มตามเดือน OT (work_date YYYY-MM)
+  // จัดกลุ่มตามเดือน OT (work_date YYYY-MM) เรียงตาม rep_forwarded_at ล่าสุดก่อน
   const groups = (() => {
     const map: Record<string, any[]> = {};
     requests.forEach(r => {
@@ -752,8 +752,12 @@ export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => voi
       if (!map[key]) map[key] = [];
       map[key].push(r);
     });
-    // เรียงเดือนล่าสุดก่อน
-    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+    return Object.entries(map).sort((a, b) => {
+      // เรียงตามเวลาที่ส่งล่าสุดในกลุ่ม (rep_forwarded_at)
+      const latestA = a[1].reduce((m: string, r: any) => (r.rep_forwarded_at || '') > m ? (r.rep_forwarded_at || '') : m, '');
+      const latestB = b[1].reduce((m: string, r: any) => (r.rep_forwarded_at || '') > m ? (r.rep_forwarded_at || '') : m, '');
+      return latestB.localeCompare(latestA);
+    });
   })();
 
   function batchStatus(rows: any[]): 'checker_rejected' | 'checker_approved' | 'completed' | 'rep_forwarded' {
@@ -792,6 +796,10 @@ export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => voi
             const thaiMonthLabel = `${THAI_MONTHS_FULL[gregM - 1]} ${gregY + 543}`;
             const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
             const isRejected = st === 'checker_rejected';
+            // หาเวลาส่งล่าสุดของกลุ่มนี้
+            const latestForwardedAt = rows.reduce((m: string, r: any) => (r.rep_forwarded_at || '') > m ? (r.rep_forwarded_at || '') : m, '');
+            // หา checker_note จากรายการที่ถูกตีกลับ (แสดงอันแรกที่มี)
+            const rejectedNote = isRejected ? (rows.find((r: any) => r.checker_note)?.checker_note || '') : '';
 
             return (
               <SectionCard key={monthKey} className={isRejected ? 'border-red-300 bg-red-50' : ''}>
@@ -806,10 +814,14 @@ export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => voi
                     </div>
                     <p className="text-[13px] text-[var(--neutral-500)] mt-0.5">
                       {rows.length} คำร้อง · รวม {totalAmt.toLocaleString()} บาท
+                      {latestForwardedAt && (
+                        <span className="ml-2">· ส่งเมื่อ {fmtDateTime(latestForwardedAt)}</span>
+                      )}
                     </p>
                     {isRejected && (
                       <p className="text-[12px] text-tu-red mt-1 font-medium">
                         ⚠️ ผู้ตรวจสอบตีกลับ — กรุณาแก้ไขไฟล์แล้วส่งใหม่
+                        {rejectedNote && <span className="font-normal ml-1">({rejectedNote})</span>}
                       </p>
                     )}
                   </div>

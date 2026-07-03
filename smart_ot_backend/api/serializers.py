@@ -96,12 +96,12 @@ class OTRequestSerializer(serializers.ModelSerializer):
             'work_detail', 'location', 'amount',
             'status', 'status_display',
             'head_note', 'rep_note', 'rep_document_url', 'checker_note',
-            'head_approved_at', 'checker_approved_at',
+            'head_approved_at', 'rep_forwarded_at', 'checker_approved_at',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'staff', 'department', 'day_type', 'ot_hours', 'rate_per_hour', 'amount', 'status',
-            'head_approved_at', 'checker_approved_at', 'created_at', 'updated_at',
+            'head_approved_at', 'rep_forwarded_at', 'checker_approved_at', 'created_at', 'updated_at',
         ]
 
 
