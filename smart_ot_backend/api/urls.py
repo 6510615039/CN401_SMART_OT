@@ -45,7 +45,7 @@ urlpatterns = [
 
     # Notifications
     path('notifications/',                      views.notification_list_view),
-    path('notifications/<int:pk>/read/',        views.notification_mark_read_view),
+    path('notifications/mark-read/',            views.notification_mark_read_view),
     path('notifications/mark-all-read/',        views.notification_mark_all_read_view),
     # No-OT Declaration
     path('no-ot-declaration/',                  views.no_ot_declaration_view),
