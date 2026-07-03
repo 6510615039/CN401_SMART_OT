@@ -1592,7 +1592,7 @@ export function AdminSettings() {
 
           <TabsContent value="tuapi" className="mt-6 space-y-6 max-w-xl">
             <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-[13px] text-blue-800">
-              เปิดใช้งาน TU API เพื่อให้พนักงานสามารถ Login ด้วย username และรหัสผ่าน TU จริงได้ โดยไม่ต้องตั้งรหัสแยก
+              เปิดใช้งาน TU API เพื่อให้พนักงานสามารถ Login ด้วย username และรหัสผ่าน TU จริงได้
             </div>
 
             <label className="flex items-center justify-between">
