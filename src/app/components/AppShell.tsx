@@ -133,7 +133,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
 
         <div className="flex items-center gap-3">
           {/* Notifications */}
-          <Popover>
+          <Popover onOpenChange={(open) => { if (open && unread > 0) onMarkRead?.(); }}>
             <PopoverTrigger asChild>
               <button className="relative size-10 grid place-items-center rounded-full hover:bg-[var(--neutral-100)]">
                 <Bell className="size-5 text-[var(--neutral-700)]" />
@@ -161,47 +161,94 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
               <div className="max-h-[400px] overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="py-10 text-center text-[13px] text-[var(--neutral-500)]">ไม่มีการแจ้งเตือน</div>
-                ) : notifications.slice(0, 20).map(n => {
-                  const targetPage = notifTargetPage(n.notif_type, role);
-                  return (
-                  <button
-                    key={n.id}
-                    onClick={() => {
-                      if (!n.is_read) onMarkRead?.([n.id]);
-                      if (targetPage) {
-                        // ส่งเดือนของ OT request ไปให้หน้าปลายทาง (pending/status ฯลฯ) เพื่อ auto-filter
-                        if (n.ot_request_date) {
-                          const d = new Date(n.ot_request_date);
-                          if (!isNaN(d.getTime())) {
-                            sessionStorage.setItem('notif_nav_month', `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                ) : (() => {
+                  // รวม ot_submitted หลายรายการเป็นหนึ่ง entry
+                  const submitted = notifications.filter(n => n.notif_type === 'ot_submitted');
+                  const others    = notifications.filter(n => n.notif_type !== 'ot_submitted');
+                  type DisplayItem = (typeof notifications[0]) | { _grouped: true; count: number; anyUnread: boolean; latest_at: string; targetPage: string | null };
+                  const items: DisplayItem[] = [];
+                  if (submitted.length > 0) {
+                    items.push({
+                      _grouped: true,
+                      count: submitted.length,
+                      anyUnread: submitted.some(n => !n.is_read),
+                      latest_at: submitted[0].created_at,
+                      targetPage: notifTargetPage('ot_submitted', role),
+                    } as any);
+                  }
+                  items.push(...others);
+                  return items.slice(0, 20).map((n: any, idx) => {
+                    if (n._grouped) {
+                      const targetPage = n.targetPage;
+                      return (
+                        <button
+                          key="grouped-submitted"
+                          onClick={() => {
+                            if (n.anyUnread) onMarkRead?.(submitted.filter(x => !x.is_read).map(x => x.id));
+                            if (targetPage) onNavigate(targetPage);
+                          }}
+                          className={cn(
+                            'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',
+                            n.anyUnread ? 'bg-[#fffbe6] hover:bg-[#fff8d6]' : 'hover:bg-[var(--neutral-100)]',
+                            targetPage ? 'cursor-pointer' : 'cursor-default',
+                          )}
+                        >
+                          <div className={cn('size-9 rounded-full grid place-items-center shrink-0 text-[13px] font-bold', notifColor('ot_submitted'))}>
+                            <Bell className="size-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] text-[var(--neutral-black)] leading-snug">
+                              มี {n.count} คำร้อง OT รออนุมัติ
+                            </p>
+                            <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">{relativeTime(n.latest_at)}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {n.anyUnread && <span className="size-2 rounded-full bg-tu-yellow" />}
+                            {targetPage && <span className="text-[10px] text-blue-500">คลิกเพื่อดู →</span>}
+                          </div>
+                        </button>
+                      );
+                    }
+                    const targetPage = notifTargetPage(n.notif_type, role);
+                    return (
+                    <button
+                      key={n.id}
+                      onClick={() => {
+                        if (!n.is_read) onMarkRead?.([n.id]);
+                        if (targetPage) {
+                          if (n.ot_request_date) {
+                            const d = new Date(n.ot_request_date);
+                            if (!isNaN(d.getTime())) {
+                              sessionStorage.setItem('notif_nav_month', `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                            }
                           }
+                          onNavigate(targetPage);
                         }
-                        onNavigate(targetPage);
-                      }
-                    }}
-                    className={cn(
-                      'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',
-                      !n.is_read ? 'bg-[#fffbe6] hover:bg-[#fff8d6]' : 'hover:bg-[var(--neutral-100)]',
-                      targetPage ? 'cursor-pointer' : 'cursor-default',
-                    )}
-                  >
-                    <div className={cn('size-9 rounded-full grid place-items-center shrink-0 text-[13px] font-bold', notifColor(n.notif_type))}>
-                      <Bell className="size-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[var(--neutral-black)] leading-snug">{n.message}</p>
-                      {n.ot_request_date && (
-                        <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">วันที่ทำ OT: {n.ot_request_date}</p>
+                      }}
+                      className={cn(
+                        'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',
+                        !n.is_read ? 'bg-[#fffbe6] hover:bg-[#fff8d6]' : 'hover:bg-[var(--neutral-100)]',
+                        targetPage ? 'cursor-pointer' : 'cursor-default',
                       )}
-                      <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">{relativeTime(n.created_at)}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      {!n.is_read && <span className="size-2 rounded-full bg-tu-yellow" />}
-                      {targetPage && <span className="text-[10px] text-blue-500">คลิกเพื่อดู →</span>}
-                    </div>
-                  </button>
-                  );
-                })}
+                    >
+                      <div className={cn('size-9 rounded-full grid place-items-center shrink-0 text-[13px] font-bold', notifColor(n.notif_type))}>
+                        <Bell className="size-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] text-[var(--neutral-black)] leading-snug">{n.message}</p>
+                        {n.ot_request_date && (
+                          <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">วันที่ทำ OT: {n.ot_request_date}</p>
+                        )}
+                        <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">{relativeTime(n.created_at)}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {!n.is_read && <span className="size-2 rounded-full bg-tu-yellow" />}
+                        {targetPage && <span className="text-[10px] text-blue-500">คลิกเพื่อดู →</span>}
+                      </div>
+                    </button>
+                    );
+                  });
+                })()}
               </div>
             </PopoverContent>
           </Popover>

@@ -507,12 +507,7 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.head_note = note
             ot.save()
             log_action(user, f'อนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
-            # ไม่แจ้งพนักงานตอนนี้ — พนักงานจะรู้เมื่อ checker อนุมัติ/ตีกลับขั้นสุดท้ายเท่านั้น
-            # แจ้ง deptrep ในแผนกเดียวกัน (ใช้ type แยกจาก staff)
-            deptreps = list(User.objects.filter(role='deptrep', department=ot.department, is_active=True))
-            if deptreps:
-                _notify_ot(ot, 'ot_rep_action_needed', deptreps,
-                    f'{staff_name_a} ได้รับการอนุมัติจากหัวหน้างานแล้ว รอตัวแทนฝ่ายส่งต่อ')
+            # ไม่แจ้ง deptrep รายคำร้อง — deptrep จะรับแจ้งรวมเมื่อหัวหน้ากด "แจ้งตัวแทนว่าพร้อมส่งออก"
             return Response({'message': 'อนุมัติสำเร็จ'})
 
         elif effective_role == 'deptrep' and ot.status == 'head_approved':

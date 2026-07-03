@@ -255,7 +255,15 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
         <div className="bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between">
           <p className="text-[12px] text-[var(--neutral-500)]">พร้อมส่งออก</p>
           <p className="text-[32px] font-bold text-tu-red tabular-nums">{loading ? '...' : pending.length}</p>
-          <Button size="sm" onClick={onGo} className="bg-tu-red text-white">ไปส่งออก <ChevronRight className="size-4 ml-1" /></Button>
+          <Button size="sm" onClick={() => {
+            if (pending.length > 0) {
+              const cnt: Record<string, number> = {};
+              pending.forEach((r: any) => { const k = (r.work_date || '').substring(0, 7); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+              const dom = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
+              if (dom) sessionStorage.setItem('notif_nav_month', dom);
+            }
+            onGo();
+          }} className="bg-tu-red text-white">ไปส่งออก <ChevronRight className="size-4 ml-1" /></Button>
         </div>
         <KpiCard label="ส่งออกแล้วเดือนนี้" value={<span className="text-success">{loading ? '...' : history.length}</span>} accent="green" />
         <KpiCard label="รวมยอดรอส่งออก" value={`${totalAmt.toLocaleString()} ฿`} accent="blue" />
@@ -271,7 +279,15 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
             <h2>มี {pending.length} คำร้องพร้อมส่งออก</h2>
             <p className="text-[var(--neutral-500)] mt-1">รวมยอด {totalAmt.toLocaleString()} บาท • ผ่านการอนุมัติจากหัวหน้างานแล้วทั้งหมด</p>
           </div>
-          <Button onClick={onGo} className="bg-tu-red hover:bg-tu-red-dark text-white h-12 px-6">
+          <Button onClick={() => {
+            if (pending.length > 0) {
+              const cnt: Record<string, number> = {};
+              pending.forEach((r: any) => { const k = (r.work_date || '').substring(0, 7); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+              const dom = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
+              if (dom) sessionStorage.setItem('notif_nav_month', dom);
+            }
+            onGo();
+          }} className="bg-tu-red hover:bg-tu-red-dark text-white h-12 px-6">
             ส่งออกเลย <ChevronRight className="size-4 ml-1" />
           </Button>
         </div>
@@ -308,9 +324,14 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [selIds, setSelIds] = useState<number[]>([]);
   const now0 = new Date();
-  const [selThaiYear, setSelThaiYear] = useState(String(now0.getFullYear() + 543));
-  const [selMonth,    setSelMonth]    = useState(String(now0.getMonth() + 1));
-  const [autoDetecting, setAutoDetecting] = useState(true);
+  const _initMonth = (() => {
+    const stored = sessionStorage.getItem('notif_nav_month');
+    if (stored) { sessionStorage.removeItem('notif_nav_month'); return stored; }
+    return null;
+  })();
+  const [selThaiYear, setSelThaiYear] = useState(_initMonth ? String(parseInt(_initMonth.split('-')[0]) + 543) : String(now0.getFullYear() + 543));
+  const [selMonth,    setSelMonth]    = useState(_initMonth ? String(parseInt(_initMonth.split('-')[1])) : String(now0.getMonth() + 1));
+  const [autoDetecting, setAutoDetecting] = useState(!_initMonth);
   // month param ที่ส่ง API (Gregorian YYYY-MM)
   const gregYear = parseInt(selThaiYear) - 543;
   const month = `${gregYear}-${selMonth.padStart(2, '0')}`;
@@ -587,17 +608,22 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
               onChange={e => setNote(e.target.value)}
             />
           </div>
-          <Button
-            className="w-full h-12 bg-tu-red hover:bg-tu-red-dark text-white disabled:opacity-50"
-            disabled={forwarding || !uploadedFile}
-            onClick={forwardAll}
-          >
-            {forwarding ? (
-              <><RefreshCw className="size-4 mr-2 animate-spin" />กำลังส่งต่อ...</>
-            ) : (
-              <><Send className="size-4 mr-2" />ส่งต่อ {selIds.length} คำร้องให้ผู้ตรวจสอบ</>
-            )}
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="outline" className="h-12 px-6" onClick={() => setStep('preview')} disabled={forwarding}>
+              ← ย้อนกลับ
+            </Button>
+            <Button
+              className="flex-1 h-12 bg-tu-red hover:bg-tu-red-dark text-white disabled:opacity-50"
+              disabled={forwarding || !uploadedFile}
+              onClick={forwardAll}
+            >
+              {forwarding ? (
+                <><RefreshCw className="size-4 mr-2 animate-spin" />กำลังส่งต่อ...</>
+              ) : (
+                <><Send className="size-4 mr-2" />ส่งต่อ {selIds.length} คำร้องให้ผู้ตรวจสอบ</>
+              )}
+            </Button>
+          </div>
         </SectionCard>
       </div>
 

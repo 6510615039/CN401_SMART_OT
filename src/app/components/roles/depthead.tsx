@@ -380,7 +380,16 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
         <div className={card}>
           <p className="text-[12px] text-[var(--neutral-500)]">คำร้องรออนุมัติ</p>
           <p className="text-[32px] font-bold text-orange-600 tabular-nums">{loading ? '—' : pending}</p>
-          <Button size="sm" onClick={onGo} className="bg-tu-red text-white">
+          <Button size="sm" onClick={() => {
+            const pendingReqs = allRequests.filter(r => r.status === 'submitted');
+            if (pendingReqs.length > 0) {
+              const cnt: Record<string, number> = {};
+              pendingReqs.forEach(r => { const k = (r.work_date || '').substring(0, 7); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+              const dom = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
+              if (dom) sessionStorage.setItem('notif_nav_month', dom);
+            }
+            onGo();
+          }} className="bg-tu-red text-white">
             ไปอนุมัติ <ChevronRight className="size-4 ml-1" />
           </Button>
         </div>
@@ -597,7 +606,9 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const [search, setSearch] = useState('');
   const [actionMsg, setActionMsg] = useState<{ kind: 'success' | 'danger'; text: string } | null>(null);
   const [notifyingRep, setNotifyingRep] = useState(false);
-  const [notifiedMonths, setNotifiedMonths] = useState<Set<string>>(new Set());
+  const [notifiedMonths, setNotifiedMonths] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('head_notified_months') || '[]')); } catch { return new Set(); }
+  });
   const [budgetStatus, setBudgetStatus] = useState<{ budget: number; used: number; remaining: number | null } | null>(null);
   const [deadline, setDeadline] = useState<{ deadline_date: string; month: string } | null>(null);
   const token = () => localStorage.getItem('access_token');
@@ -708,7 +719,11 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
     if (res.ok) {
       const gregYear = parseInt(thaiYear) - 543;
       const monthKey = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
-      setNotifiedMonths(prev => new Set([...prev, monthKey]));
+      setNotifiedMonths(prev => {
+        const next = new Set([...prev, monthKey]);
+        localStorage.setItem('head_notified_months', JSON.stringify([...next]));
+        return next;
+      });
       setActionMsg({ kind: 'success', text: 'แจ้งตัวแทนแผนกเรียบร้อยแล้ว' });
     } else {
       const d = await res.json().catch(() => ({}));
