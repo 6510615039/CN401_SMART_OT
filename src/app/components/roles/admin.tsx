@@ -205,6 +205,7 @@ export function AdminImport() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const uploaded = rows.length > 0;
+  const [importWarn, setImportWarn] = useState('');
   const token = () => localStorage.getItem('access_token');
 
   // Load available months
@@ -232,7 +233,13 @@ export function AdminImport() {
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true); setError('');
+    // บล็อกถ้าเดือนที่เลือกมีข้อมูลอยู่แล้ว
+    if (rows.length > 0) {
+      setError('เดือนนี้มีข้อมูลอยู่แล้ว — กรุณาแก้ไขข้อมูลจากตารางด้านล่างโดยตรง ไม่สามารถอัปโหลดซ้ำได้');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+    setUploading(true); setError(''); setImportWarn('');
     const fd = new FormData();
     fd.append('file', file);
     try {
@@ -244,11 +251,16 @@ export function AdminImport() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาด');
       const importedRows = Array.isArray(data.rows) ? data.rows : [];
-      // Detect month from first row's date
+      // ตรวจสอบว่าเดือนของไฟล์ตรงกับเดือนที่เลือกหรือไม่
       if (importedRows.length > 0 && importedRows[0].date) {
         const detectedMonth = gregToThai(importedRows[0].date);
-        if (!availableMonths.includes(detectedMonth)) setAvailableMonths(prev => [detectedMonth, ...prev]);
-        setMonth(detectedMonth);
+        if (detectedMonth !== month) {
+          setImportWarn(`⚠️ ไฟล์ที่อัปโหลดเป็นข้อมูลเดือน ${thaiMonthFull(detectedMonth)} แต่คุณเลือกเดือน ${thaiMonthFull(month)} — ข้อมูลถูกนำเข้าไปยังเดือน ${thaiMonthFull(detectedMonth)} แล้ว กรุณาตรวจสอบ`);
+          if (!availableMonths.includes(detectedMonth)) setAvailableMonths(prev => [detectedMonth, ...prev]);
+          setMonth(detectedMonth);
+        } else {
+          if (!availableMonths.includes(detectedMonth)) setAvailableMonths(prev => [detectedMonth, ...prev]);
+        }
       }
       setRows(importedRows);
     } catch (err: any) {
@@ -278,13 +290,19 @@ export function AdminImport() {
         </div>
       } />
 
-      <div className="flex items-start gap-3 p-3 mb-4 bg-tu-yellow-soft border border-tu-yellow rounded-lg text-[13px]">
-        <Info className="size-4 text-[var(--warning)] shrink-0 mt-0.5" />
-        <p className="text-[var(--neutral-700)]">
-          ระบบจะ<strong>ตรวจจับเดือนจากไฟล์อัตโนมัติ</strong> — ไม่ต้องเลือกเดือนก่อนอัปโหลด
-          ตัวเลือกเดือนด้านบนใช้สำหรับ<strong>ดูข้อมูลที่นำเข้าไปแล้ว</strong>เท่านั้น
-        </p>
-      </div>
+      {uploaded && (
+        <div className="flex items-start gap-3 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-[13px] text-red-700">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+          <p>เดือนนี้<strong>มีข้อมูลอยู่แล้ว</strong> — ไม่สามารถอัปโหลดซ้ำได้ กรุณาแก้ไขข้อมูลจากตารางด้านล่างโดยตรง</p>
+        </div>
+      )}
+
+      {importWarn && (
+        <div className="flex items-start gap-3 p-3 mb-4 bg-orange-50 border border-orange-300 rounded-lg text-[13px] text-orange-700">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+          <p>{importWarn}</p>
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-3 p-4 mb-5 bg-tu-red-soft border border-danger rounded-xl">
