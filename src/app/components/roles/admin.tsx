@@ -1538,13 +1538,25 @@ export function AdminSettings() {
   async function handleSave() {
     if (!settings) return;
     setSaving(true);
-    await fetch('/api/settings/', {
-      method: 'PATCH',
-      headers: { ...h, 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
-    });
-    setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const res = await fetch('/api/settings/', {
+        method: 'PATCH',
+        headers: { ...h, 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSettings(updated);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        const err = await res.text();
+        alert(`บันทึกไม่สำเร็จ: ${err}`);
+      }
+    } catch (e) {
+      alert(`เกิดข้อผิดพลาด: ${e}`);
+    }
+    setSaving(false);
   }
 
   async function handleTestTuApi() {
