@@ -1612,7 +1612,14 @@ export function AdminSettings() {
                 <p className="font-semibold">เปิดใช้งาน TU API Login</p>
                 <p className="text-[12px] text-[var(--neutral-500)] mt-0.5">พนักงานล็อกอินด้วยรหัส TU จริงได้ทันที</p>
               </div>
-              <Switch checked={!!settings?.tu_api_enabled} onCheckedChange={v => set('tu_api_enabled', v)} />
+              <Switch checked={!!settings?.tu_api_enabled} onCheckedChange={async (v) => {
+                set('tu_api_enabled', v);
+                await fetch('/api/settings/tu-api-toggle/', {
+                  method: 'POST',
+                  headers: { ...h, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ enabled: v }),
+                });
+              }} />
             </label>
 
             <div>

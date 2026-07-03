@@ -19,7 +19,8 @@ urlpatterns = [
     path('auth/logout/',     views.logout_view),
 
     # Settings & Import
-    path('settings/',       views.settings_view),
+    path('settings/',              views.settings_view),
+    path('settings/tu-api-toggle/', views.tu_api_toggle_view),
     path('timelog/import/', views.import_timelog),
     path('admin/import-staff/', views.import_staff_roster),
     path('timelog/list/',   views.timelog_list_view),

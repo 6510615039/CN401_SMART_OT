@@ -699,6 +699,16 @@ def settings_view(request):
     return Response(serializer.errors, status=400)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def tu_api_toggle_view(request):
+    if request.user.role != 'admin':
+        return Response({'error': 'Permission denied'}, status=403)
+    enabled = bool(request.data.get('enabled', True))
+    SystemSettings.objects.update_or_create(pk=1, defaults={'tu_api_enabled': enabled})
+    return Response({'tu_api_enabled': enabled})
+
+
 # ─── Admin: fix user departments ──────────────────────────────────────────────
 
 @api_view(['POST'])
