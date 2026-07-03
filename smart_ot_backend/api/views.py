@@ -685,7 +685,7 @@ class HolidayViewSet(viewsets.ModelViewSet):
 
 # ─── System Settings ─────────────────────────────────────────────────────────
 
-@api_view(['GET', 'PUT'])
+@api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def settings_view(request):
     obj, _ = SystemSettings.objects.get_or_create(pk=1)
