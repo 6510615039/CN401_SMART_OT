@@ -2194,7 +2194,7 @@ def checker_budget_view(request):
         for d in depts:
             budget = monthly_budgets.get(d.id, 0)
             reqs = OTRequest.objects.filter(
-                staff__department=d,
+                department=d,
                 work_date__year=year,
                 work_date__month=mon,
                 status__in=APPROVED_STATUSES,
@@ -2230,7 +2230,7 @@ def checker_budget_view(request):
         # no_ot_depts: dept names without any OT requests this month
         depts_with_ot = set(
             OTRequest.objects.filter(work_date__year=year, work_date__month=mon)
-            .values_list('staff__department_id', flat=True).distinct()
+            .values_list('department_id', flat=True).distinct()
         )
         no_ot_dept_names = [d.name for d in depts if d.id not in depts_with_ot]
 
