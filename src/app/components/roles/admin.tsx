@@ -290,13 +290,6 @@ export function AdminImport() {
         </div>
       } />
 
-      {uploaded && (
-        <div className="flex items-start gap-3 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-[13px] text-red-700">
-          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-          <p>เดือนนี้<strong>มีข้อมูลอยู่แล้ว</strong> — ไม่สามารถอัปโหลดซ้ำได้ กรุณาแก้ไขข้อมูลจากตารางด้านล่างโดยตรง</p>
-        </div>
-      )}
-
       {importWarn && (
         <div className="flex items-start gap-3 p-3 mb-4 bg-orange-50 border border-orange-300 rounded-lg text-[13px] text-orange-700">
           <AlertTriangle className="size-4 shrink-0 mt-0.5" />
