@@ -474,62 +474,68 @@ export function ExecDashboard() {
 // ─── ExecTrend ────────────────────────────────────────────────────────────────
 
 export function ExecTrend() {
-  const [range, setRange] = useState('6');
+  const _now = new Date();
+  const _curThaiYear = _now.getFullYear() + 543 + (_now.getMonth() >= 9 ? 1 : 0);
+  const _curMon = _now.getMonth() + 1;
+  const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
+
+  const [period,     setPeriod]     = useState<PeriodKey>('year');
+  const [thaiYear,   setThaiYear]   = useState(String(_curThaiYear));
+  const [selMonth,   setSelMonth]   = useState(String(_curMon).padStart(2, '0'));
+  const [selQuarter, setSelQuarter] = useState(_curQ);
+
   const [trendData, setTrendData] = useState<any[]>([]);
   const [deptNames, setDeptNames] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [insights, setInsights] = useState<{ title: string; detail: string; kind: 'danger' | 'warning' | 'success' }[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [insights,  setInsights]  = useState<{ title: string; detail: string; kind: 'danger' | 'warning' | 'success' }[]>([]);
+
+  const gregYear    = parseInt(thaiYear) - 543;
+  const selMonthNum = parseInt(selMonth);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const n = parseInt(range);
-      const months = lastNMonths(n).reverse(); // oldest first for chart
-      const allData: Record<string, Record<string, number>> = {}; // month → dept → amount
+      const mList = getPeriodMonths(period, gregYear, selMonthNum, selQuarter);
+      const allData: Record<string, Record<string, number>> = {};
       const deptSet = new Set<string>();
 
-      for (const m of months) {
-        const reqs = await fetchOTForMonth(m);
-        allData[m] = {};
+      await Promise.all(mList.map(async ({ year, month }) => {
+        const ym = `${year}-${String(month).padStart(2, '0')}`;
+        const reqs = await fetchOTForMonth(ym);
+        allData[ym] = {};
         for (const r of reqs) {
           const dname = r.department_name || 'ไม่ระบุ';
           deptSet.add(dname);
-          allData[m][dname] = (allData[m][dname] || 0) + Number(r.amount);
+          allData[ym][dname] = (allData[ym][dname] || 0) + Number(r.amount);
         }
-      }
+      }));
 
       const depts = Array.from(deptSet).slice(0, 6);
       setDeptNames(depts);
 
-      const rows = months.map(m => {
-        const row: any = { m: gregToThaiShort(m), total: 0 };
+      const rows = mList.map(({ year, month }) => {
+        const ym = `${year}-${String(month).padStart(2, '0')}`;
+        const row: any = { m: THAI_MONTHS_SHORT[month - 1], total: 0 };
         for (const d of depts) {
-          row[d] = Math.round(allData[m][d] || 0);
+          row[d] = Math.round(allData[ym]?.[d] || 0);
           row.total += row[d];
         }
         return row;
       });
       setTrendData(rows);
 
-      // Build insights
       const ins: typeof insights = [];
       if (rows.length >= 2) {
         const last = rows[rows.length - 1];
         const prev = rows[rows.length - 2];
         const diff = last.total - prev.total;
-        if (diff > 0) ins.push({ title: `ค่า OT เดือนล่าสุดเพิ่มขึ้น`, detail: `+${Math.round(diff).toLocaleString()} บาท จากเดือนก่อน`, kind: 'warning' });
-        else if (diff < 0) ins.push({ title: `ค่า OT เดือนล่าสุดลดลง`, detail: `${Math.round(diff).toLocaleString()} บาท จากเดือนก่อน`, kind: 'success' });
+        if (diff > 0) ins.push({ title: 'ค่า OT เดือนล่าสุดเพิ่มขึ้น', detail: `+${Math.round(diff).toLocaleString()} บาท จากเดือนก่อน`, kind: 'warning' });
+        else if (diff < 0) ins.push({ title: 'ค่า OT เดือนล่าสุดลดลง', detail: `${Math.round(diff).toLocaleString()} บาท จากเดือนก่อน`, kind: 'success' });
 
-        // find fastest growing dept
         if (depts.length > 0) {
           let maxGrowth = -Infinity, maxDept = '';
-          for (const d of depts) {
-            const g = (last[d] || 0) - (prev[d] || 0);
-            if (g > maxGrowth) { maxGrowth = g; maxDept = d; }
-          }
+          for (const d of depts) { const g = (last[d] || 0) - (prev[d] || 0); if (g > maxGrowth) { maxGrowth = g; maxDept = d; } }
           if (maxDept && maxGrowth > 0) ins.push({ title: `แผนก${maxDept} OT เพิ่มสูงสุด`, detail: `+${Math.round(maxGrowth).toLocaleString()} บาท เดือนล่าสุด`, kind: 'warning' });
-
-          // find lowest spending dept
           let minAmt = Infinity, minDept = '';
           for (const d of depts) { if ((last[d] || 0) < minAmt) { minAmt = last[d] || 0; minDept = d; } }
           if (minDept) ins.push({ title: `แผนก${minDept} OT ต่ำสุด`, detail: `${Math.round(minAmt).toLocaleString()} บาท เดือนล่าสุด`, kind: 'success' });
@@ -539,24 +545,52 @@ export function ExecTrend() {
       setInsights(ins);
     } catch {}
     setLoading(false);
-  }, [range]);
+  }, [period, gregYear, selMonthNum, selQuarter]);
 
   useEffect(() => { load(); }, [load]);
 
-  const totalRow = trendData.length > 0 ? trendData[trendData.length - 1] : null;
+  const totalRow   = trendData.length > 0 ? trendData[trendData.length - 1] : null;
+  const curLabel   = periodLabel(period, thaiYear, selMonthNum, selQuarter);
 
   return (
     <>
       <PageHeader title="วิเคราะห์แนวโน้ม OT" right={
-        <div className="flex items-center gap-2">
-          <Select value={range} onValueChange={setRange}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[['3','3 เดือนล่าสุด'],['6','6 เดือนล่าสุด'],['12','12 เดือนล่าสุด']].map(([v,l]) => (
-                <SelectItem key={v} value={v}>{l}</SelectItem>
-              ))}
-            </SelectContent>
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          <Select value={period} onValueChange={v => setPeriod(v as PeriodKey)}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{DASH_PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
+
+          <input
+            type="number" value={thaiYear} min={2560} max={2599}
+            onChange={e => setThaiYear(e.target.value)}
+            className="w-[88px] h-9 text-center rounded-md border border-input bg-background px-3 text-sm"
+          />
+
+          {period === 'month' && (
+            <Select value={selMonth} onValueChange={setSelMonth}>
+              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+
+          {period === 'quarter' && (
+            <Select value={selQuarter} onValueChange={setSelQuarter}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+
+          {period === 'half' && (
+            <Select value={selQuarter} onValueChange={setSelQuarter}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">ครึ่งแรก (ต.ค.–มี.ค.)</SelectItem>
+                <SelectItem value="2">ครึ่งหลัง (เม.ย.–ก.ย.)</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
           <button onClick={load} disabled={loading}
             className="p-2 rounded-lg border border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
             <RefreshCw className={`size-4 text-[var(--neutral-500)] ${loading ? 'animate-spin' : ''}`} />
@@ -579,7 +613,7 @@ export function ExecTrend() {
           {/* KPI summary row */}
           {totalRow && (
             <div className="grid grid-cols-3 gap-5 mb-5">
-              <KpiCard label={`ค่า OT เดือนล่าสุด`} value={`${Math.round(totalRow.total).toLocaleString()} ฿`} accent="red" />
+              <KpiCard label={`ค่า OT เดือนล่าสุดใน${curLabel}`} value={`${Math.round(totalRow.total).toLocaleString()} ฿`} accent="red" />
               <KpiCard label="ค่า OT เฉลี่ย/เดือน"
                 value={`${Math.round(trendData.reduce((s, r) => s + r.total, 0) / trendData.length).toLocaleString()} ฿`}
                 accent="blue" />
@@ -591,7 +625,7 @@ export function ExecTrend() {
 
           <div className="grid grid-cols-[2fr_1fr] gap-5">
             {/* Trend chart */}
-            <SectionCard title={`แนวโน้มค่า OT ${range} เดือนล่าสุด`}>
+            <SectionCard title={`แนวโน้มค่า OT — ${curLabel}`}>
               <div className="h-[380px]">
                 <ResponsiveContainer>
                   <LineChart data={trendData}>
