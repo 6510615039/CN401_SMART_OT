@@ -401,6 +401,9 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         if month_p:
             year, month = month_p.split('-')
             qs = qs.filter(work_date__year=year, work_date__month=month)
+        year_p = self.request.query_params.get('year')
+        if year_p and not month_p:
+            qs = qs.filter(work_date__year=year_p)
 
         return qs.order_by('-work_date')
 
@@ -2209,12 +2212,11 @@ def checker_budget_view(request):
 
         total_pct = round(total_used / total_budget * 100) if total_budget > 0 else 0
 
-        # Trend: past 6 months
-        today = datetime.date.today()
+        # Trend: 6 months ending at selected month
         trend = []
         for i in range(5, -1, -1):
-            m2 = today.month - i
-            y2 = today.year
+            m2 = mon - i
+            y2 = year
             while m2 <= 0:
                 m2 += 12
                 y2 -= 1

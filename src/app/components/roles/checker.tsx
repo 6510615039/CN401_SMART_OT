@@ -329,7 +329,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                         </td>
                       </tr>
 
-                      {/* Expanded rows */}
+                      {/* Expanded rows — view only, no per-request actions */}
                       {expanded && [...g.pending, ...g.approved, ...g.rejected].map(r => (
                         <tr key={r.id} className="border-t border-[var(--neutral-200)] bg-[var(--neutral-50)]">
                           <td className="px-3 py-2 pl-8 text-[12px] text-[var(--neutral-600)]" colSpan={2}>
@@ -343,19 +343,12 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           </td>
                           <td className="px-3 py-2 text-[12px] font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} ฿</td>
                           <td className="px-3 py-2 text-[12px]">
-                            {r.status === 'rep_forwarded' && (
-                              <div className="flex gap-1">
-                                <Button size="sm" className="h-6 px-2 bg-success text-white text-[11px]"
-                                  disabled={processing} onClick={() => approveAll([r])}>✓</Button>
-                                <Button size="sm" className="h-6 px-2 bg-danger text-white text-[11px]"
-                                  disabled={processing}
-                                  onClick={() => { setRejectDlg({ open: true, requests: [r], dept: r.staff_name }); setRejectNote(''); }}>✕</Button>
-                              </div>
-                            )}
                             {(r.status === 'checker_approved' || r.status === 'completed') &&
                               <span className="text-success text-[11px]">อนุมัติแล้ว</span>}
                             {r.status === 'checker_rejected' &&
                               <span className="text-danger text-[11px]">ตีกลับแล้ว</span>}
+                            {r.status === 'rep_forwarded' &&
+                              <span className="text-orange-500 text-[11px]">รอตรวจสอบ</span>}
                           </td>
                         </tr>
                       ))}
@@ -475,7 +468,7 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
 export function CheckerHistory() {
   const _now = new Date();
   const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
+  const [selMonth, setSelMonth] = useState<number | 'all'>(_now.getMonth() + 1);
   const [requests, setRequests] = useState<OTReq[]>([]);
   const [loading, setLoading] = useState(true);
   const token = () => localStorage.getItem('access_token');
@@ -484,69 +477,106 @@ export function CheckerHistory() {
 
   useEffect(() => {
     setLoading(true);
-    const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
+    const monthParam = selMonth === 'all'
+      ? `year=${gregYear}`
+      : `month=${gregYear}-${String(selMonth).padStart(2, '0')}`;
     fetch(
-      `/api/ot-requests/?status_in=checker_approved,checker_rejected,completed&approved_by_me=1&month=${monthStr}`,
+      `/api/ot-requests/?status_in=checker_approved,checker_rejected,completed&approved_by_me=1&${monthParam}`,
       { headers: { 'Authorization': `Bearer ${token()}` } }
     )
-      .then(r => r.ok ? r.json() : { results: [] })
-      .then(d => {
-        const list: OTReq[] = Array.isArray(d) ? d : (d.results || []);
-        setRequests(list.sort((a, b) => b.id - a.id));
-      })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setRequests(Array.isArray(d) ? d : (d.results || [])))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [thaiYear, selMonth]);
 
+  // จัดกลุ่มตาม dept + work_month → แต่ละ batch คือเอกสารฉบับเดียวที่ตัวแทนฝ่ายส่งมาในเดือนนั้น
+  const batches = (() => {
+    const map: Record<string, OTReq[]> = {};
+    requests.forEach(r => {
+      const key = `${r.department}__${(r.work_date || '').substring(0, 7)}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(r);
+    });
+    return Object.entries(map)
+      .map(([, rows]) => rows)
+      // เรียงตาม checker_approved_at ล่าสุดก่อน
+      .sort((a, b) => {
+        const tA = a[0]?.checker_approved_at || '';
+        const tB = b[0]?.checker_approved_at || '';
+        return tB.localeCompare(tA);
+      });
+  })();
+
+  const emptyMsg = selMonth === 'all'
+    ? `ไม่มีประวัติในปี ${thaiYear}`
+    : `ไม่มีประวัติในเดือน ${THAI_MONTHS[Number(selMonth) - 1]} ${thaiYear}`;
+
   return (
     <>
-      <PageHeader title="ประวัติการตรวจสอบ" right={
+      <PageHeader title="ประวัติการตรวจสอบ" subtitle={`${batches.length} ชุดเอกสาร`} right={
         <div className="flex items-center gap-2">
           <Input type="number" value={thaiYear} onChange={e => setThaiYear(e.target.value)}
             className="w-[90px] text-center" min={2560} max={2599} />
-          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
-            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-            <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+          <Select value={String(selMonth)} onValueChange={v => setSelMonth(v === 'all' ? 'all' : Number(v))}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">แสดงทั้งหมด</SelectItem>
+              {THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
       } />
-      <SectionCard>
-        {loading ? (
-          <div className="flex items-center justify-center h-32 gap-3 text-[var(--neutral-500)]">
-            <div className="size-7 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : requests.length === 0 ? (
-          <p className="text-center text-[var(--neutral-500)] py-10">ไม่มีประวัติในเดือน {THAI_MONTHS[selMonth - 1]} {thaiYear}</p>
-        ) : (
-          <div className="relative pl-8">
-            <div className="absolute left-3 top-2 bottom-2 w-px bg-[var(--neutral-300)]" />
-            {requests.map(r => {
-              const approved = r.status === 'checker_approved' || r.status === 'completed';
-              return (
-                <div key={r.id} className="relative mb-5 pl-2">
-                  <div className={`absolute -left-8 size-6 rounded-full grid place-items-center ${approved ? 'bg-success' : 'bg-danger'}`}>
-                    {approved ? <CheckCircle2 className="size-4 text-white" /> : <X className="size-4 text-white" />}
-                  </div>
-                  <p className="text-[13px]">
-                    <strong>{r.staff_name}</strong> — แผนก{r.department_name} •{' '}
-                    <span className={approved ? 'text-success font-semibold' : 'text-danger font-semibold'}>
-                      {approved ? 'อนุมัติแล้ว' : 'ตีกลับแล้ว'}
+      {loading ? (
+        <div className="flex items-center justify-center h-40">
+          <div className="size-7 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : batches.length === 0 ? (
+        <SectionCard><p className="text-center text-[var(--neutral-500)] py-10">{emptyMsg}</p></SectionCard>
+      ) : (
+        <div className="relative pl-8">
+          <div className="absolute left-3 top-2 bottom-2 w-px bg-[var(--neutral-300)]" />
+          {batches.map((rows, idx) => {
+            const r0 = rows[0];
+            const approved = r0.status === 'checker_approved' || r0.status === 'completed';
+            const workMonth = (r0.work_date || '').substring(0, 7);
+            const [wY, wM] = workMonth.split('-').map(Number);
+            const thaiMonthLabel = wM ? `${THAI_MONTHS[wM - 1]} ${wY + 543}` : workMonth;
+            const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+            const reviewedAt = r0.checker_approved_at
+              ? new Date(r0.checker_approved_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : null;
+            const note = r0.checker_note || '';
+
+            return (
+              <div key={idx} className="relative mb-6 pl-2">
+                <div className={`absolute -left-8 size-6 rounded-full grid place-items-center ${approved ? 'bg-success' : 'bg-danger'}`}>
+                  {approved ? <CheckCircle2 className="size-4 text-white" /> : <X className="size-4 text-white" />}
+                </div>
+                <div className={`rounded-xl border p-4 ${approved ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[14px] font-semibold">{r0.department_name}</p>
+                      <p className="text-[12px] text-[var(--neutral-500)] mt-0.5">
+                        ข้อมูล OT เดือน <strong>{thaiMonthLabel}</strong> · {rows.length} รายการ · รวม {totalAmt.toLocaleString()} บาท
+                      </p>
+                    </div>
+                    <span className={`text-[12px] font-semibold px-3 py-1 rounded-full shrink-0 ${approved ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {approved ? '✅ อนุมัติแล้ว' : '❌ ตีกลับแล้ว'}
                     </span>
-                  </p>
-                  <p className="text-[12px] text-[var(--neutral-500)]">
-                    วันที่ทำ OT: {fmtDate(r.work_date)} • {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} บาท
-                  </p>
-                  {r.checker_approved_at && (
-                    <p className="text-[11px] text-[var(--neutral-400)] mt-0.5">
-                      วันที่ตรวจสอบ: {new Date(r.checker_approved_at).toLocaleString('th-TH', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}
-                    </p>
+                  </div>
+                  {reviewedAt && (
+                    <p className="text-[11px] text-[var(--neutral-500)] mt-2">ตรวจสอบเมื่อ: {reviewedAt}</p>
+                  )}
+                  {!approved && note && (
+                    <p className="text-[12px] text-red-700 mt-2 border-t border-red-200 pt-2">เหตุผล: {note}</p>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </SectionCard>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
