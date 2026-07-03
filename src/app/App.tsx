@@ -305,7 +305,7 @@ export default function App() {
       switch (page) {
         case 'dashboard': return <RepDashboard onGo={() => setPage('export')} />;
         case 'export':    return <RepExportFlow onDone={() => setPage('dashboard')} />;
-        case 'history':   return <RepHistory />;
+        case 'history':   return <RepHistory onGoExport={() => setPage('export')} />;
         case 'members':   return <RepMembers />;
       }
     }

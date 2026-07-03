@@ -380,8 +380,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
                     Q(department=user.department) | Q(staff__department=user.department)
                 ).distinct()
             # ถ้า deptrep ไม่มีแผนก: เห็นทั้งหมดในสถานะที่เกี่ยวข้อง
-            # default (ไม่มี ?status): แสดงเฉพาะที่รอส่งต่อ
-            if not self.request.query_params.get('status'):
+            # default (ไม่มี ?status และไม่มี ?status_in): แสดงเฉพาะที่รอส่งต่อ
+            if not self.request.query_params.get('status') and not self.request.query_params.get('status_in'):
                 qs = qs.filter(status='head_approved')
         elif effective_role == 'checker':
             qs = qs.filter(status__in=['rep_forwarded', 'checker_approved', 'checker_rejected', 'completed'])

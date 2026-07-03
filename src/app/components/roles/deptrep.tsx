@@ -727,107 +727,153 @@ const REP_STATUS_MAP: Record<string, { label: string; kind: 'success' | 'danger'
   completed:        { label: 'เสร็จสิ้น',           kind: 'success' },
 };
 
-export function RepHistory() {
-  const _now = new Date();
-  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
-  const [search, setSearch]     = useState('');
+export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => void }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
-
-  const gregYear = parseInt(thaiYear) - 543;
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    fetch('/api/ot-requests/', { headers: { Authorization: `Bearer ${token()}` } })
+    fetch('/api/ot-requests/?status_in=rep_forwarded,checker_approved,checker_rejected,completed', {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
       .then(r => r.json())
       .then(d => setRequests(Array.isArray(d) ? d : (d.results || [])))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = requests.filter(r => {
-    const d = new Date(r.work_date);
-    if (d.getFullYear() !== gregYear || d.getMonth() + 1 !== selMonth) return false;
-    if (search && !(r.staff_name || '').toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // จัดกลุ่มตามเดือน OT (work_date YYYY-MM)
+  const groups = (() => {
+    const map: Record<string, any[]> = {};
+    requests.forEach(r => {
+      const key = (r.work_date || '').substring(0, 7);
+      if (!key) return;
+      if (!map[key]) map[key] = [];
+      map[key].push(r);
+    });
+    // เรียงเดือนล่าสุดก่อน
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+  })();
 
-  const totalAmt = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  function batchStatus(rows: any[]): 'checker_rejected' | 'checker_approved' | 'completed' | 'rep_forwarded' {
+    if (rows.some(r => r.status === 'checker_rejected')) return 'checker_rejected';
+    if (rows.every(r => r.status === 'completed'))       return 'completed';
+    if (rows.some(r => r.status === 'checker_approved')) return 'checker_approved';
+    return 'rep_forwarded';
+  }
+
+  const BATCH_STATUS: Record<string, { label: string; kind: 'success' | 'info' | 'danger' | 'warning'; icon: string }> = {
+    completed:        { label: 'เสร็จสิ้น',       kind: 'success', icon: '✅' },
+    checker_approved: { label: 'ตรวจผ่านแล้ว',    kind: 'success', icon: '✅' },
+    rep_forwarded:    { label: 'รอผู้ตรวจสอบ',    kind: 'info',    icon: '⏳' },
+    checker_rejected: { label: 'ถูกตีกลับ',        kind: 'danger',  icon: '❌' },
+  };
 
   return (
     <>
-      <PageHeader
-        title="ประวัติส่งออก"
-        subtitle={`${filtered.length} รายการ · รวม ${totalAmt.toLocaleString()} บาท`}
-        right={
-          <div className="flex items-center gap-2">
-            <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
-              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-              <SelectContent>{THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
-            </Select>
-            <input
-              type="number"
-              value={thaiYear}
-              onChange={e => setThaiYear(e.target.value)}
-              className="w-[90px] text-center h-9 rounded-md border border-input bg-background px-3 text-sm"
-              min={2560} max={2599}
-            />
-          </div>
-        }
-      />
-      <SectionCard>
-        <div className="mb-4">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="ค้นหาชื่อพนักงาน"
-            className="h-9 w-full max-w-[280px] rounded-md border border-input bg-background px-3 text-sm"
-          />
+      <PageHeader title="ประวัติส่งออก" subtitle={`${groups.length} เดือน`} />
+      {loading ? (
+        <div className="flex items-center justify-center h-40">
+          <div className="size-8 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
         </div>
-        {loading ? (
-          <div className="flex items-center justify-center h-32 gap-3 text-[var(--neutral-500)]">
-            <div className="size-7 border-4 border-tu-red border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <p className="text-center py-10 text-[var(--neutral-500)]">ไม่มีคำร้องใน{THAI_MONTHS_FULL[selMonth-1]} {thaiYear}</p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
-            <table className="w-full text-[13px]">
-              <thead className="bg-tu-red text-white">
-                <tr>
-                  {['วันที่ยื่น','พนักงาน','วันที่ OT','ประเภท','ชม.','รวมเงิน','สถานะ'].map(h => (
-                    <th key={h} className="text-left px-3 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => {
-                  const st = REP_STATUS_MAP[r.status] || { label: r.status, kind: 'neutral' as const };
-                  return (
-                    <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
-                      <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDate(r.created_at)}</td>
-                      <td className="px-3 py-2 font-medium">{r.staff_name || '—'}</td>
-                      <td className="px-3 py-2 font-mono">{fmtDate(r.work_date)}</td>
-                      <td className="px-3 py-2">
-                        <StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>
-                          {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
-                        </StatusChip>
-                      </td>
-                      <td className="px-3 py-2 font-mono text-right">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
-                      <td className="px-3 py-2 font-mono font-semibold text-right">
-                        {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
+      ) : groups.length === 0 ? (
+        <SectionCard>
+          <p className="text-center py-12 text-[var(--neutral-500)]">ยังไม่มีประวัติการส่งออก</p>
+        </SectionCard>
+      ) : (
+        <div className="space-y-4">
+          {groups.map(([monthKey, rows]) => {
+            const st    = batchStatus(rows);
+            const info  = BATCH_STATUS[st];
+            const isExp = expanded === monthKey;
+            const gregM = parseInt(monthKey.split('-')[1]);
+            const gregY = parseInt(monthKey.split('-')[0]);
+            const thaiMonthLabel = `${THAI_MONTHS_FULL[gregM - 1]} ${gregY + 543}`;
+            const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+            const isRejected = st === 'checker_rejected';
+
+            return (
+              <SectionCard key={monthKey} className={isRejected ? 'border-red-300 bg-red-50' : ''}>
+                <div className="flex items-center gap-4">
+                  <div className={`size-12 rounded-xl grid place-items-center text-xl shrink-0 ${isRejected ? 'bg-red-100' : 'bg-green-100'}`}>
+                    {info.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-[15px] font-semibold">{thaiMonthLabel}</h3>
+                      <StatusChip kind={info.kind}>{info.label}</StatusChip>
+                    </div>
+                    <p className="text-[13px] text-[var(--neutral-500)] mt-0.5">
+                      {rows.length} คำร้อง · รวม {totalAmt.toLocaleString()} บาท
+                    </p>
+                    {isRejected && (
+                      <p className="text-[12px] text-tu-red mt-1 font-medium">
+                        ⚠️ ผู้ตรวจสอบตีกลับ — กรุณาแก้ไขไฟล์แล้วส่งใหม่
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isRejected && onGoExport && (
+                      <Button
+                        size="sm"
+                        className="bg-tu-red text-white"
+                        onClick={() => {
+                          sessionStorage.setItem('notif_nav_month', monthKey);
+                          onGoExport(monthKey);
+                        }}
+                      >
+                        ส่งออกใหม่ →
+                      </Button>
+                    )}
+                    <button
+                      className="text-[12px] text-blue-500 hover:underline"
+                      onClick={() => setExpanded(isExp ? null : monthKey)}
+                    >
+                      {isExp ? 'ซ่อน' : 'ดูรายละเอียด'}
+                    </button>
+                  </div>
+                </div>
+
+                {isExp && (
+                  <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--neutral-300)]">
+                    <table className="w-full text-[13px]">
+                      <thead className="bg-[var(--neutral-100)]">
+                        <tr>
+                          {['พนักงาน','วันที่ OT','ประเภท','ชม.','รวมเงิน','สถานะ'].map(h => (
+                            <th key={h} className="text-left px-3 py-2 font-medium text-[var(--neutral-700)]">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map(r => {
+                          const rs = REP_STATUS_MAP[r.status] || { label: r.status, kind: 'neutral' as const };
+                          return (
+                            <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
+                              <td className="px-3 py-2 font-medium">{r.staff_name || '—'}</td>
+                              <td className="px-3 py-2 font-mono">{fmtDate(r.work_date)}</td>
+                              <td className="px-3 py-2">
+                                <StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>
+                                  {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
+                                </StatusChip>
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
+                              <td className="px-3 py-2 text-right font-mono font-semibold">
+                                {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}
+                              </td>
+                              <td className="px-3 py-2"><StatusChip kind={rs.kind as any}>{rs.label}</StatusChip></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </SectionCard>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
