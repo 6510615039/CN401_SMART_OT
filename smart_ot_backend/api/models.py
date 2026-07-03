@@ -85,7 +85,7 @@ class SystemSettings(models.Model):
     # TU Employee API
     tu_api_url            = models.CharField(max_length=500, blank=True, default='', verbose_name='TU API Base URL')
     tu_api_key            = models.CharField(max_length=200, blank=True, default='', verbose_name='TU API Key')
-    tu_api_enabled        = models.BooleanField(default=False, verbose_name='เปิดใช้ TU API')
+    tu_api_enabled        = models.BooleanField(default=True, verbose_name='เปิดใช้ TU API')
     updated_at            = models.DateTimeField(auto_now=True)
     updated_by            = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
