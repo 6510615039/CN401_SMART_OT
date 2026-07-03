@@ -211,13 +211,12 @@ export function ExecDashboard() {
       const [cur, prev, usersRes] = await Promise.all([
         fetchMonths(curMonths),
         fetchMonths(prevMonths),
-        fetch('/api/users/?is_active=true', { headers: headers() }).then(r => r.ok ? r.json() : null),
+        fetch('/api/users/?is_active=true&role=staff&page_size=1', { headers: headers() }).then(r => r.ok ? r.json() : null),
       ]);
       setReqs(cur);
       setPrevReqs(prev);
       if (usersRes) {
-        const arr = Array.isArray(usersRes) ? usersRes : (usersRes.results || []);
-        setTotalStaff(arr.filter((u: any) => u.role === 'staff').length);
+        setTotalStaff(usersRes.count ?? (Array.isArray(usersRes) ? usersRes.length : (usersRes.results?.length ?? 0)));
       }
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }));
     } catch {}
