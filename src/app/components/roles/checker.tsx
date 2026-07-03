@@ -468,7 +468,7 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
 export function CheckerHistory() {
   const _now = new Date();
   const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState<number | 'all'>(_now.getMonth() + 1);
+  const [selMonth, setSelMonth] = useState<number | 'all'>('all');
   const [requests, setRequests] = useState<OTReq[]>([]);
   const [loading, setLoading] = useState(true);
   const token = () => localStorage.getItem('access_token');
