@@ -250,7 +250,7 @@ export function ExecDashboard() {
       <PageHeader title="Executive Dashboard" right={
         <div className="flex items-center gap-3 flex-wrap justify-end">
           {/* Period selector */}
-          <Select value={period} onValueChange={v => setPeriod(v as PeriodKey)}>
+          <Select value={period} onValueChange={v => { setPeriod(v as PeriodKey); if (v === 'half') setSelQuarter('1'); }}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>{DASH_PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -556,7 +556,7 @@ export function ExecTrend() {
     <>
       <PageHeader title="วิเคราะห์แนวโน้ม OT" right={
         <div className="flex items-center gap-3 flex-wrap justify-end">
-          <Select value={period} onValueChange={v => setPeriod(v as PeriodKey)}>
+          <Select value={period} onValueChange={v => { setPeriod(v as PeriodKey); if (v === 'half') setSelQuarter('1'); }}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>{DASH_PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
