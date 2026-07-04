@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { smartDefaultDate } from '../../utils/smartDefault';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -323,14 +324,14 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<'select' | 'preview' | 'forward'>('select');
   const [requests, setRequests] = useState<any[]>([]);
   const [selIds, setSelIds] = useState<number[]>([]);
-  const now0 = new Date();
+  const _sd0 = smartDefaultDate();
   const _initMonth = (() => {
     const stored = sessionStorage.getItem('notif_nav_month');
     if (stored) { sessionStorage.removeItem('notif_nav_month'); return stored; }
     return null;
   })();
-  const [selThaiYear, setSelThaiYear] = useState(_initMonth ? String(parseInt(_initMonth.split('-')[0]) + 543) : String(now0.getFullYear() + 543));
-  const [selMonth,    setSelMonth]    = useState(_initMonth ? String(parseInt(_initMonth.split('-')[1])) : String(now0.getMonth() + 1));
+  const [selThaiYear, setSelThaiYear] = useState(_initMonth ? String(parseInt(_initMonth.split('-')[0]) + 543) : String(_sd0.year + 543));
+  const [selMonth,    setSelMonth]    = useState(_initMonth ? String(parseInt(_initMonth.split('-')[1])) : String(_sd0.month));
   const [autoDetecting, setAutoDetecting] = useState(!_initMonth);
   // month param ที่ส่ง API (Gregorian YYYY-MM)
   const gregYear = parseInt(selThaiYear) - 543;

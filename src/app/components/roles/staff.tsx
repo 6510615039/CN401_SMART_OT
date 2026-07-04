@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { smartDefaultDate } from '../../utils/smartDefault';
 
 function currentThaiMonth(): string {
-  const now = new Date();
-  const thaiYear = now.getFullYear() + 543;
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `${thaiYear}-${month}`;
+  const { year, month } = smartDefaultDate();
+  const thaiYear = year + 543;
+  return `${thaiYear}-${String(month).padStart(2, '0')}`;
 }
 
 const THAI_MONTHS_LIST = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];

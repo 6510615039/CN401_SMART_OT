@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
 import {
   LayoutDashboard, TrendingUp, ArrowUp, ArrowDown, RefreshCw,
 } from 'lucide-react';
@@ -173,9 +174,9 @@ function prevPeriodLabel(period: PeriodKey): string {
 // ─── ExecDashboard ────────────────────────────────────────────────────────────
 
 export function ExecDashboard() {
-  const _now = new Date();
-  const _curThaiYear = _now.getFullYear() + 543 + (_now.getMonth() >= 9 ? 1 : 0);
-  const _curMon = _now.getMonth() + 1;
+  const _sd = smartDefaultDate();
+  const _curThaiYear = smartDefaultThaiYear();
+  const _curMon = _sd.month;
   const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
 
   const [period,      setPeriod]      = useState<PeriodKey>('month');
@@ -474,9 +475,9 @@ export function ExecDashboard() {
 // ─── ExecTrend ────────────────────────────────────────────────────────────────
 
 export function ExecTrend() {
-  const _now = new Date();
-  const _curThaiYear = _now.getFullYear() + 543 + (_now.getMonth() >= 9 ? 1 : 0);
-  const _curMon = _now.getMonth() + 1;
+  const _sd2 = smartDefaultDate();
+  const _curThaiYear = smartDefaultThaiYear();
+  const _curMon = _sd2.month;
   const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
 
   const [period,     setPeriod]     = useState<PeriodKey>('year');

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
 import * as XLSX from 'xlsx';
 import {
   LayoutDashboard, Inbox, History, Users, FileBarChart, ChevronRight,
@@ -95,16 +96,16 @@ const DASH_PERIODS = [
 ];
 
 export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onBudgetRequest?: () => void }) {
-  const _now = new Date();
-  const _curThaiYear = _now.getFullYear() + 543 + (_now.getMonth() >= 9 ? 1 : 0);
-  const _curMon = _now.getMonth() + 1;
+  const _sd = smartDefaultDate();
+  const _curThaiYear = smartDefaultThaiYear();
+  const _curMon = _sd.month;
   const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
 
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [budget, setBudget]           = useState<number | null>(null);
   const [period, setPeriod]           = useState('month');
   const [selThaiYear, setSelThaiYear] = useState(String(_curThaiYear));
-  const [selMonth, setSelMonth]       = useState(String(_now.getMonth() + 1).padStart(2, '0'));
+  const [selMonth, setSelMonth]       = useState(String(_curMon).padStart(2, '0'));
   const [selQuarter, setSelQuarter]   = useState(_curQ);
   const [loading, setLoading]         = useState(true);
   const [noOtConfirm, setNoOtConfirm]     = useState(false);
@@ -591,9 +592,9 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const _n = new Date();
   const _initDate = (() => {
     const stored = sessionStorage.getItem('notif_nav_month');
-    if (stored) { sessionStorage.removeItem('notif_nav_month'); }
-    const d = stored ? new Date(stored + '-01') : _n;
-    return { year: d.getFullYear() + 543, month: d.getMonth() + 1 };
+    if (stored) { sessionStorage.removeItem('notif_nav_month'); return { year: new Date(stored + '-01').getFullYear() + 543, month: new Date(stored + '-01').getMonth() + 1 }; }
+    const sd = smartDefaultDate();
+    return { year: sd.year + 543, month: sd.month };
   })();
   const _curThaiYearPending = _initDate.year;
   const [thaiYear, setThaiYear] = useState(String(_curThaiYearPending));
@@ -1111,9 +1112,9 @@ const STATUS_HIST: Record<string, { kind: 'success' | 'danger' | 'warning' | 'ne
 };
 
 export function HeadHistory() {
-  const _n = new Date();
-  const [thaiYear, setThaiYear] = useState(String(_n.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState(_n.getMonth() + 1);
+  const _sd = smartDefaultDate();
+  const [thaiYear, setThaiYear] = useState(String(_sd.year + 543));
+  const [selMonth, setSelMonth] = useState(_sd.month);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

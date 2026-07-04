@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
 import {
   LayoutDashboard, Wallet, History, FileBarChart, Send,
   CheckCircle2, X, Eye, ChevronDown, ChevronUp, AlertTriangle, Download,
@@ -94,9 +95,9 @@ function BudgetGauge({ percent }: { percent: number }) {
 // ─── CheckerDashboard ─────────────────────────────────────────────────────────
 
 export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp: any) => void }) {
-  const _now = new Date();
-  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
+  const _sd = smartDefaultDate();
+  const [thaiYear, setThaiYear] = useState(String(_sd.year + 543));
+  const [selMonth, setSelMonth] = useState(_sd.month);
   const [groups, setGroups] = useState<DeptGroup[]>([]);
   const [noOtDepts, setNoOtDepts] = useState<{ id: number; name: string; code: string }[]>([]);
   const [noOtDeclarations, setNoOtDeclarations] = useState<{ dept_id: number; dept_name: string; declared_by: string; note: string }[]>([]);
@@ -587,9 +588,9 @@ export function CheckerBudget() {
   const token = () => localStorage.getItem('access_token');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const now = new Date();
-  const [thaiYear, setThaiYear] = useState(String(now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+  const _sdBudget = smartDefaultDate();
+  const [thaiYear, setThaiYear] = useState(String(_sdBudget.year + 543));
+  const [selMonth, setSelMonth] = useState(_sdBudget.month);
 
   useEffect(() => {
     setLoading(true);
@@ -698,15 +699,14 @@ const PERIOD_OPTIONS = [
 
 export function CheckerReport() {
   const token = () => localStorage.getItem('access_token');
-  const now = new Date();
-  // ปีงบประมาณ: ต.ค. ปีก่อน – ก.ย. ปีนี้ → เดือน ต.ค.(m=9) ขึ้นปีงบใหม่
-  const curThaiYear = now.getFullYear() + 543 + (now.getMonth() >= 9 ? 1 : 0);
-  const _cm = now.getMonth() + 1;
+  const _sdBgt = smartDefaultDate();
+  const curThaiYear = smartDefaultThaiYear();
+  const _cm = _sdBgt.month;
   const curQuarter = _cm >= 10 ? '1' : _cm <= 3 ? '2' : _cm <= 6 ? '3' : '4';
 
   const [period, setPeriod]   = useState('month');
   const [thaiYear, setThaiYear] = useState(String(curThaiYear));
-  const [thaiMonth, setThaiMonth] = useState(String(now.getMonth() + 1).padStart(2,'0'));
+  const [thaiMonth, setThaiMonth] = useState(String(_cm).padStart(2,'0'));
   const [quarter, setQuarter] = useState(curQuarter);
 
   const [requests, setRequests] = useState<any[]>([]);
@@ -877,10 +877,10 @@ export function CheckerReport() {
 export function CheckerSetBudget() {
   const token = () => localStorage.getItem('access_token');
   const h = () => ({ 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' });
-  const _now = new Date();
+  const _sdCB = smartDefaultDate();
 
-  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState(_now.getMonth() + 1);
+  const [thaiYear, setThaiYear] = useState(String(_sdCB.year + 543));
+  const [selMonth, setSelMonth] = useState(_sdCB.month);
   const [depts, setDepts]       = useState<any[]>([]);
   const [budgets, setBudgets]   = useState<Record<number, string>>({});
   const [usedMap, setUsedMap]   = useState<Record<number, number>>({});
