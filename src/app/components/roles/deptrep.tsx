@@ -459,7 +459,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
           </Button>
         </div>
 
-        {loading ? (
+        {(loading || autoDetecting) ? (
           <p className="text-center py-8 text-[var(--neutral-500)]">กำลังโหลด...</p>
         ) : requests.length === 0 ? (
           <p className="text-center py-8 text-[var(--neutral-500)]">ไม่มีคำร้องที่ผ่านการอนุมัติในเดือนนี้</p>
