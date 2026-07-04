@@ -510,7 +510,9 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             ot.head_note = note
             ot.save()
             log_action(user, f'อนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
-            # ไม่แจ้ง deptrep รายคำร้อง — deptrep จะรับแจ้งรวมเมื่อหัวหน้ากด "แจ้งตัวแทนว่าพร้อมส่งออก"
+            actor_name = user.get_full_name() or user.username
+            _notify_ot(ot, 'ot_head_approved', [ot.staff],
+                f'หัวหน้างาน ({actor_name}) อนุมัติคำร้อง OT วันที่ {ot.work_date} ของคุณแล้ว — รอตัวแทนฝ่ายส่งต่อผู้ตรวจสอบ')
             return Response({'message': 'อนุมัติสำเร็จ'})
 
         elif effective_role == 'deptrep' and ot.status == 'head_approved':
@@ -2057,11 +2059,11 @@ def _check_ot_deadline(thai_month: str) -> 'str | None':
 
 NOTIF_TYPES_BY_ROLE = {
     'staff':     ['ot_head_approved', 'ot_head_rejected', 'ot_rep_forwarded', 'ot_checker_approved', 'ot_checker_rejected'],
-    'depthead':  ['ot_submitted', 'ot_checker_approved', 'ot_checker_rejected', 'budget_set', 'no_ot_declared'],
-    'deptrep':   ['ot_rep_action_needed', 'ot_checker_approved', 'ot_checker_rejected'],
-    'checker':   ['ot_rep_forwarded'],
-    'executive': None,  # ทุกประเภท
-    'admin':     None,
+    'depthead':  ['ot_submitted', 'ot_checker_approved', 'ot_checker_rejected', 'budget_set'],
+    'deptrep':   ['ot_rep_action_needed', 'ot_checker_approved', 'ot_checker_rejected', 'no_ot_declared'],
+    'checker':   ['ot_rep_forwarded', 'no_ot_declared'],
+    'executive': [],
+    'admin':     [],
 }
 
 @api_view(['GET'])
@@ -2519,7 +2521,10 @@ def no_ot_declaration_view(request):
 
     thai_year = int(greg_year) + 543
     month_int = int(month)
-    msg = f'[{dept.name}] {user.get_full_name()} declared no OT month {month_int}/{thai_year}'
+    thai_months = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                   'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม']
+    month_label_th = thai_months[month_int] if 1 <= month_int <= 12 else str(month_int)
+    msg = f'แผนก {dept.name} แจ้งว่าไม่มีโอทีประจำเดือน{month_label_th} {thai_year}'
 
     deptreps   = User.objects.filter(role='deptrep', is_active=True, department=dept)
     checkers   = User.objects.filter(role='checker', is_active=True)

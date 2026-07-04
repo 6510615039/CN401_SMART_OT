@@ -29,13 +29,13 @@ interface Props {
 
 /** แปลง notif_type → page key ที่ควร navigate ไป (ขึ้นอยู่กับ role) */
 function notifTargetPage(type: string, role: Role): string | null {
-  if (type === 'ot_submitted')         return role === 'depthead' ? 'pending' : null;
-  if (type === 'ot_head_approved')     return role === 'deptrep'  ? 'export'  : role === 'staff' ? 'status' : null;
-  if (type === 'ot_head_rejected')     return role === 'staff'    ? 'status'  : null;
-  if (type === 'ot_rep_forwarded')     return role === 'checker'  ? 'dashboard' : null;
-  if (type === 'ot_rep_action_needed') return role === 'deptrep'  ? 'export'  : null;
-  if (type === 'ot_checker_approved')  return role === 'staff'    ? 'status'  : role === 'depthead' ? 'history' : role === 'deptrep' ? 'history' : null;
-  if (type === 'ot_checker_rejected')  return role === 'deptrep'  ? 'history' : null;
+  if (type === 'ot_submitted')         return role === 'depthead' ? 'pending'   : null;
+  if (type === 'ot_head_approved')     return role === 'staff'    ? 'status'    : null;
+  if (type === 'ot_head_rejected')     return role === 'staff'    ? 'status'    : null;
+  if (type === 'ot_rep_forwarded')     return role === 'checker'  ? 'dashboard' : role === 'staff' ? 'status' : null;
+  if (type === 'ot_rep_action_needed') return role === 'deptrep'  ? 'export'    : null;
+  if (type === 'ot_checker_approved')  return role === 'staff'    ? 'status'    : role === 'depthead' ? 'history' : role === 'deptrep' ? 'history' : null;
+  if (type === 'ot_checker_rejected')  return role === 'staff'    ? 'status'    : role === 'deptrep' ? 'history' : null;
   return null;
 }
 
