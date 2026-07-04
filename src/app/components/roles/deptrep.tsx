@@ -249,10 +249,12 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
 
   const totalAmt = pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
 
+  const exportedMonths = loading ? 0 : new Set(history.map((r: any) => (r.work_date || '').substring(0, 7)).filter(Boolean)).size;
+
   return (
     <>
       <PageHeader title="Dashboard ตัวแทนฝ่าย" />
-      <div className="grid grid-cols-4 gap-5 mb-6">
+      <div className="grid grid-cols-3 gap-5 mb-6">
         <div className="bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between">
           <p className="text-[12px] text-[var(--neutral-500)]">พร้อมส่งออก</p>
           <p className="text-[32px] font-bold text-tu-red tabular-nums">{loading ? '...' : pending.length}</p>
@@ -266,9 +268,8 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
             onGo();
           }} className="bg-tu-red text-white">ไปส่งออก <ChevronRight className="size-4 ml-1" /></Button>
         </div>
-        <KpiCard label="ส่งออกแล้วเดือนนี้" value={<span className="text-success">{loading ? '...' : history.length}</span>} accent="green" />
+        <KpiCard label="ส่งออกแล้วเดือนนี้" value={<span className="text-success">{loading ? '...' : `${exportedMonths} ไฟล์`}</span>} accent="green" />
         <KpiCard label="รวมยอดรอส่งออก" value={`${totalAmt.toLocaleString()} ฿`} accent="blue" />
-        <KpiCard label="สถานะ" value={pending.length > 0 ? <StatusChip kind="warning">รอดำเนินการ</StatusChip> : <StatusChip kind="success">ทันสมัย</StatusChip>} accent="green" />
       </div>
 
       {pending.length > 0 && (
