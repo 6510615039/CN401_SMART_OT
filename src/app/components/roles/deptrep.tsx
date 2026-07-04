@@ -353,26 +353,28 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       .then(r => r.json())
       .then(d => setCheckers(Array.isArray(d) ? d : (d.results || [])));
 
-    // auto-detect เดือนที่มี head_approved request — ลองย้อนหลัง 12 เดือน
+    // auto-detect เดือนที่มี head_approved request — ลองย้อนหลัง 12 เดือนแบบ parallel
     const now = new Date();
     const candidates = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       return { ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, year: d.getFullYear(), mon: d.getMonth() + 1 };
     });
     const h = { Authorization: `Bearer ${token()}` };
-    (async () => {
-      for (const c of candidates) {
-        const res = await fetch(`/api/ot-requests/?status_in=head_approved,checker_rejected&month=${c.ym}`, { headers: h }).then(r => r.json());
-        const list = Array.isArray(res) ? res : (res.results || []);
-        if (list.length > 0) {
-          setSelThaiYear(String(c.year + 543));
-          setSelMonth(String(c.mon));
-          setAutoDetecting(false);
-          return;
-        }
+    Promise.all(
+      candidates.map(c =>
+        fetch(`/api/ot-requests/?status_in=head_approved,checker_rejected&month=${c.ym}&page_size=1`, { headers: h })
+          .then(r => r.json())
+          .then(res => ({ c, count: (Array.isArray(res) ? res : (res.results || [])).length }))
+          .catch(() => ({ c, count: 0 }))
+      )
+    ).then(results => {
+      const found = results.find(r => r.count > 0);
+      if (found) {
+        setSelThaiYear(String(found.c.year + 543));
+        setSelMonth(String(found.c.mon));
       }
-      setAutoDetecting(false); // ไม่พบเลย ใช้เดือนปัจจุบัน
-    })();
+      setAutoDetecting(false);
+    });
   }, []);
 
   function loadRequests() {
