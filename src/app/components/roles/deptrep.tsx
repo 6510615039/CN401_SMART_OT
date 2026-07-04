@@ -420,6 +420,12 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       <PageHeader title="ส่งออกข้อมูลเป็น Excel" />
       <StepBar step={0} />
       <SectionCard>
+        {autoDetecting && (
+          <div className="flex items-center gap-2 mb-4 text-[13px] text-[var(--neutral-500)]">
+            <RefreshCw className="size-4 animate-spin" />
+            กำลังค้นหาเดือนที่มีข้อมูล...
+          </div>
+        )}
         <div className="flex items-end gap-3 mb-5">
           <div>
             <label className="text-[12px] text-[var(--neutral-500)] mb-1 block">เดือน</label>
