@@ -1,96 +1,131 @@
-# SMART OT — Django Backend
+# SMART OT — คู่มือการติดตั้งระบบ
+## สำหรับผู้ดูแลระบบ (IT Administrator)
 
-## วิธีติดตั้งและรัน
+---
 
-### ขั้นตอนที่ 1 — ติดตั้ง Python packages
+## ความต้องการของระบบ (System Requirements)
+
+| รายการ | เวอร์ชันขั้นต่ำ |
+|--------|----------------|
+| Python | 3.10 ขึ้นไป |
+| Node.js | 18 ขึ้นไป |
+| MySQL | 8.0 ขึ้นไป |
+| เว็บเบราว์เซอร์ | Chrome / Firefox / Edge รุ่นล่าสุด |
+
+---
+
+## ขั้นตอนที่ 1 — เตรียมฐานข้อมูล MySQL
+
+สร้างฐานข้อมูลและผู้ใช้งานสำหรับระบบด้วยคำสั่ง SQL ดังนี้
+
+```sql
+CREATE DATABASE smart_ot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'smart_ot_user'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON smart_ot.* TO 'smart_ot_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+---
+
+## ขั้นตอนที่ 2 — ติดตั้งส่วนหลังบ้าน (Backend)
+
+**2.1 เข้าไปในโฟลเดอร์ Backend**
+```bash
+cd smart_ot_backend
+```
+
+**2.2 ติดตั้ง Python packages**
 ```bash
 pip install -r requirements.txt
 ```
 
-### ขั้นตอนที่ 2 — สร้าง Database
+**2.3 สร้างไฟล์ `.env`** โดยคัดลอกจากไฟล์ตัวอย่าง แล้วแก้ไขค่าให้ตรงกับเซิร์ฟเวอร์จริง
+```bash
+cp .env.example .env
+```
+
+เนื้อหาในไฟล์ `.env` ที่ต้องกรอก:
+```
+TU_API_KEY=your_tu_api_key_here
+TU_API_URL=https://restapi.tu.ac.th
+
+DB_ENGINE=mysql
+DB_NAME=smart_ot
+DB_USER=smart_ot_user
+DB_PASSWORD=your_password
+DB_HOST=127.0.0.1
+DB_PORT=3306
+```
+
+> **หมายเหตุ:** TU_API_KEY ขอได้จากสำนักงานสารสนเทศ มหาวิทยาลัยธรรมศาสตร์
+
+**2.4 สร้างตารางฐานข้อมูล**
 ```bash
 python manage.py migrate
 ```
 
-### ขั้นตอนที่ 3 — สร้างข้อมูลตัวอย่าง
+**2.5 สร้างข้อมูลเริ่มต้นของระบบ** (การตั้งค่าระบบและข้อมูลพื้นฐาน)
 ```bash
 python manage.py seed_data
 ```
 
-### ขั้นตอนที่ 4 — รัน Server
+**2.6 รวบรวมไฟล์ Static**
 ```bash
-python manage.py runserver
+python manage.py collectstatic --noinput
 ```
 
-Server จะรันที่ http://127.0.0.1:8000
+**2.7 รัน Backend Server**
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
 
 ---
 
-## บัญชีทดสอบ
+## ขั้นตอนที่ 3 — ติดตั้งส่วนหน้าบ้าน (Frontend)
 
-| Username     | Password   | Role        |
-|--------------|------------|-------------|
-| admin        | admin1234  | ผู้ดูแลระบบ  |
-| somchai      | staff1234  | พนักงาน     |
-| onanong      | head1234   | หัวหน้าแผนก  |
-| panadda      | rep1234    | ตัวแทนแผนก  |
-| checker      | chk1234    | ผู้ตรวจสอบ  |
-| exec         | exec1234   | ผู้บริหาร    |
-| s6512345678  | dome1234   | ทดสอบ @dome |
+**3.1 เข้าไปในโฟลเดอร์ root ของโปรเจกต์**
+```bash
+cd ..
+```
+
+**3.2 ติดตั้ง Node.js packages**
+```bash
+npm install
+```
+
+**3.3 สร้าง Production Build**
+```bash
+npm run build
+```
+
+ไฟล์ที่สร้างขึ้นจะอยู่ในโฟลเดอร์ `dist/` พร้อมสำหรับนำไปวางบน Web Server (เช่น Nginx)
+
+**3.4 รันในโหมดพัฒนา (Development)**
+```bash
+npm run dev
+```
+ระบบจะพร้อมใช้งานที่ `http://localhost:5173`
 
 ---
 
-## API Endpoints หลัก
+## ขั้นตอนที่ 4 — ตั้งค่าหลังการติดตั้ง
 
-### Authentication
-| Method | URL | คำอธิบาย |
-|--------|-----|---------|
-| POST | /api/auth/login/ | เข้าสู่ระบบ รับ JWT token |
-| GET  | /api/auth/me/   | ดูข้อมูล user ปัจจุบัน |
-| POST | /api/auth/logout/ | ออกจากระบบ |
+หลังจากเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบแล้ว ให้ดำเนินการดังนี้
 
-### ตัวอย่าง Login
-```bash
-curl -X POST http://127.0.0.1:8000/api/auth/login/ \
-  -H "Content-Type: application/json" \
-  -d '{"username": "somchai", "password": "staff1234"}'
-```
-
-### ใช้ token กับ API อื่น
-```bash
-curl http://127.0.0.1:8000/api/ot-requests/ \
-  -H "Authorization: Bearer <access_token>"
-```
-
-### OT Requests
-| Method | URL | คำอธิบาย |
-|--------|-----|---------|
-| GET    | /api/ot-requests/ | ดูคำร้องทั้งหมด (กรองตาม role อัตโนมัติ) |
-| POST   | /api/ot-requests/ | ยื่นคำร้องใหม่ |
-| POST   | /api/ot-requests/{id}/approve/ | อนุมัติ |
-| POST   | /api/ot-requests/{id}/reject/  | ตีกลับ |
-
-### Holidays
-| Method | URL | คำอธิบาย |
-|--------|-----|---------|
-| GET    | /api/holidays/?year=2568 | ดูวันหยุดตามปี |
-| POST   | /api/holidays/ | เพิ่มวันหยุด (ชดเชย/พิเศษ) |
-| PUT    | /api/holidays/{id}/ | แก้ไข |
-| DELETE | /api/holidays/{id}/ | ลบ (เฉพาะที่ไม่ใช่ is_system) |
-
-### Settings
-| Method | URL | คำอธิบาย |
-|--------|-----|---------|
-| GET    | /api/settings/ | ดูตั้งค่าระบบ |
-| PUT    | /api/settings/ | อัปเดตตั้งค่า |
+1. ไปที่ **การตั้งค่าระบบ** → กรอก TU AD API Key
+2. ไปที่ **จัดการวันหยุด** → นำเข้าปฏิทินวันหยุดนักขัตฤกษ์ประจำปี
+3. ไปที่ **จัดการบุคลากร** → สร้างบัญชีผู้ใช้งานและกำหนดบทบาทให้บุคลากรแต่ละคน
+4. ไปที่ **นำเข้าข้อมูล** → นำเข้าบันทึกเวลาการปฏิบัติงานจากไฟล์ Excel
 
 ---
 
 ## โครงสร้างโปรเจกต์
+
 ```
 smart_ot_backend/
 ├── manage.py
 ├── requirements.txt
+├── .env.example
 ├── smart_ot/           ← Django project config
 │   ├── settings.py
 │   └── urls.py
@@ -99,46 +134,6 @@ smart_ot_backend/
     ├── serializers.py  ← API serializers
     ├── views.py        ← API views
     ├── urls.py         ← URL routing
-    ├── admin.py        ← Django admin
     └── management/commands/
-        └── seed_data.py ← สร้างข้อมูลตัวอย่าง
-```
-
----
-
-## อัปเดต: Django Templates (ไม่ต้องใช้ React)
-
-ระบบรันได้ด้วย Django อย่างเดียวเลย — เปิด browser เห็นหน้าตาสวยงามทันที
-
-### รันด้วย 4 คำสั่ง
-```bash
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed_data
-python manage.py runserver
-```
-
-เปิด http://127.0.0.1:8000 → เห็นหน้า Login ทันที
-
-### โครงสร้างไฟล์ templates
-```
-templates/
-├── base.html          ← CSS variables, fonts, shared styles
-├── layout.html        ← AppShell: header + sidebar + content
-├── login.html         ← หน้า Login
-├── ot_detail.html     ← รายละเอียดคำร้อง OT
-├── profile.html
-├── includes/
-│   ├── nav_admin.html ← sidebar admin
-│   └── nav_staff.html ← sidebar staff
-├── admin/
-│   ├── dashboard.html
-│   ├── holidays.html
-│   ├── settings.html
-│   ├── users.html
-│   └── audit.html
-└── staff/
-    ├── dashboard.html
-    ├── submit.html
-    └── status.html
+        └── seed_data.py
 ```
