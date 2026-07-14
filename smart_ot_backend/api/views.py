@@ -184,15 +184,31 @@ def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
             user = User.objects.filter(employee_id=username).first()
 
         if user:
-            # อัปเดตชื่อ/email/dept แต่ไม่เปลี่ยน role
+            # อัปเดตชื่อ/email แต่ไม่เปลี่ยน role และไม่ overwrite department ที่ admin set ไว้
             for k, v in defaults.items():
+                if k == 'department' and user.department is not None:
+                    continue  # admin กำหนดแผนกไว้แล้ว ไม่ overwrite ด้วย TU API
                 setattr(user, k, v)
             user.save()
         else:
-            # สร้างใหม่ด้วย role='staff'
-            user = User(username=username, role='staff', **defaults)
-            user.set_unusable_password()
-            user.save()
+            # 4) ค้นหาจากชื่อ-นามสกุล (กัน ghost user ซ้อนกัน)
+            first = tu_data.get('first_name', '').strip()
+            last  = tu_data.get('last_name', '').strip()
+            if first and last:
+                user = User.objects.filter(first_name=first, last_name=last, is_active=True).first()
+            if user:
+                # เจอ match ด้วยชื่อ — อัปเดต username ให้ตรงกับ TU
+                user.username = username
+                for k, v in defaults.items():
+                    if k == 'department' and user.department is not None:
+                        continue
+                    setattr(user, k, v)
+                user.save()
+            else:
+                # สร้างใหม่ด้วย role='staff'
+                user = User(username=username, role='staff', **defaults)
+                user.set_unusable_password()
+                user.save()
         return user
     except Exception as e:
         import logging
@@ -344,9 +360,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         name = instance.get_full_name()
-        instance.is_active = False
-        instance.save()
-        log_action(self.request.user, f'ระงับผู้ใช้ {name}', 'User', instance.id, request=self.request)
+        uid  = instance.id
+        instance.delete()
+        log_action(self.request.user, f'ลบผู้ใช้ {name}', 'User', uid, request=self.request)
 
 
 # ─── Departments ─────────────────────────────────────────────────────────────

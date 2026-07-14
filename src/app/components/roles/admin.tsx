@@ -644,13 +644,16 @@ const ROLE_LABEL: Record<string, string> = {
   deptrep: 'ตัวแทนฝ่าย', checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร',
 };
 
-function EditRoleApiDialog({ user, onSaved, onClose }: {
+function EditRoleApiDialog({ user, onSaved, onClose, depts }: {
   user: ApiUser;
   onSaved: (updated: ApiUser) => void;
   onClose: () => void;
+  depts: { id: number; name: string }[];
 }) {
   const [primaryRole, setPrimaryRole] = useState(user.role);
   const [extraRoles, setExtraRoles] = useState<string[]>(user.extra_roles || []);
+  const [editUsername, setEditUsername] = useState(user.username);
+  const [editDept, setEditDept] = useState(user.department ? String(user.department) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const token = () => localStorage.getItem('access_token');
@@ -670,7 +673,12 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
     const res = await fetch(`/api/users/${user.id}/`, {
       method: 'PATCH',
       headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: primaryRole, extra_roles: extraRoles }),
+      body: JSON.stringify({
+        role: primaryRole,
+        extra_roles: extraRoles,
+        username: editUsername.trim(),
+        department: editDept ? Number(editDept) : null,
+      }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -693,7 +701,19 @@ function EditRoleApiDialog({ user, onSaved, onClose }: {
         </div>
 
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-          <p className="text-[12px] text-[var(--neutral-500)]">username: <span className="font-mono">{user.username}</span></p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[13px] font-medium">Username (TU username)</label>
+              <Input className="mt-1 font-mono text-[13px]" value={editUsername} onChange={e => setEditUsername(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[13px] font-medium">แผนก</label>
+              <Select value={editDept} onValueChange={setEditDept}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
+                <SelectContent>{depts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
 
           {/* Section 1: Role หลัก */}
           <div>
@@ -799,6 +819,7 @@ export function AdminUsers() {
   const [activeOnly, setActiveOnly] = useState(false);
   const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [editUser, setEditUser] = useState<ApiUser | null>(null);
+  const [deleteUser, setDeleteUser] = useState<ApiUser | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const token = () => localStorage.getItem('access_token');
 
@@ -862,6 +883,17 @@ export function AdminUsers() {
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE_USERS, page * PAGE_SIZE_USERS);
   const total2 = filtered.length;
+
+  async function handleDeleteUser(u: ApiUser) {
+    const res = await fetch(`/api/users/${u.id}/`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token()}` },
+    });
+    if (res.ok || res.status === 204) {
+      setAllUsers(us => us.filter(x => x.id !== u.id));
+      setDeleteUser(null);
+    }
+  }
 
   async function toggleActive(u: ApiUser) {
     const res = await fetch(`/api/users/${u.id}/`, {
@@ -958,10 +990,16 @@ export function AdminUsers() {
                         <Switch checked={u.is_active} onCheckedChange={() => toggleActive(u)} />
                       </td>
                       <td className="px-3 py-2">
-                        <Button size="icon" variant="ghost" className="size-7 text-tu-red hover:bg-tu-red-soft"
-                          onClick={() => setEditUser(u)}>
-                          <Pencil className="size-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" className="size-7 text-tu-red hover:bg-tu-red-soft"
+                            onClick={() => setEditUser(u)}>
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="size-7 text-danger hover:bg-red-50"
+                            onClick={() => setDeleteUser(u)}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -995,10 +1033,31 @@ export function AdminUsers() {
       {editUser && (
         <EditRoleApiDialog
           user={editUser}
+          depts={departments}
           onSaved={updated => setAllUsers(us => us.map(u => u.id === updated.id ? updated : u))}
           onClose={() => setEditUser(null)}
         />
       )}
+
+      {/* Delete user confirm dialog */}
+      <Dialog open={!!deleteUser} onOpenChange={open => { if (!open) setDeleteUser(null); }}>
+        <DialogContent className="max-w-[420px]">
+          <DialogHeader><DialogTitle>ยืนยันการลบผู้ใช้</DialogTitle></DialogHeader>
+          {deleteUser && (
+            <p className="text-[13px]">
+              ต้องการลบ <strong>{deleteUser.first_name} {deleteUser.last_name}</strong>{' '}
+              (<span className="font-mono">{deleteUser.username}</span>) ออกจากระบบถาวร?<br />
+              <span className="text-danger text-[12px]">การกระทำนี้ไม่สามารถย้อนกลับได้</span>
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteUser(null)}>ยกเลิก</Button>
+            <Button className="bg-danger text-white" onClick={() => deleteUser && handleDeleteUser(deleteUser)}>
+              <Trash2 className="size-4 mr-1" />ลบถาวร
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -1190,7 +1249,7 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
 function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
   const [open, setOpen] = useState(false);
   const [depts, setDepts] = useState<{ id: number; name: string }[]>([]);
-  const [form, setForm] = useState({ employee_id: '', prefix: '', first_name: '', last_name: '', email: '', phone: '', department: '', role: '' });
+  const [form, setForm] = useState({ employee_id: '', first_name: '', last_name: '', email: '', department: '', role: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -1205,25 +1264,26 @@ function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
   async function handleSave() {
-    if (!form.first_name || !form.last_name || !form.role) { setError('กรุณากรอกชื่อ นามสกุล และ Role'); return; }
+    if (!form.employee_id || !form.first_name || !form.last_name || !form.department || !form.role) {
+      setError('กรุณากรอกรหัสพนักงาน ชื่อ นามสกุล แผนก และ Role ให้ครบ'); return;
+    }
     setSaving(true); setError('');
     const tok = localStorage.getItem('access_token');
     const username = form.employee_id || form.email.split('@')[0] || `user_${Date.now()}`;
     const body = {
       username,
-      password: 'TU@' + (form.employee_id || '1234'),
-      first_name: (form.prefix ? form.prefix + ' ' : '') + form.first_name,
+      password: 'TU@' + form.employee_id,
+      first_name: form.first_name,
       last_name: form.last_name,
       email: form.email,
       employee_id: form.employee_id,
       role: form.role,
       department: form.department || null,
-      phone: form.phone,
     };
     try {
       const res = await fetch('/api/users/', { method: 'POST', headers: { 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json(); setError(JSON.stringify(e)); }
-      else { setOpen(false); setForm({ employee_id:'',prefix:'',first_name:'',last_name:'',email:'',phone:'',department:'',role:'' }); onCreated?.(); }
+      else { setOpen(false); setForm({ employee_id:'',first_name:'',last_name:'',email:'',department:'',role:'' }); onCreated?.(); }
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   }
@@ -1238,17 +1298,10 @@ function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
           <DialogTitle className="text-white">เพิ่มผู้ใช้ใหม่</DialogTitle>
         </div>
         <div className="grid grid-cols-2 gap-4 p-6">
-          <div><label className="text-[13px] font-medium">รหัสพนักงาน</label><Input className="mt-1" value={form.employee_id} onChange={e => set('employee_id', e.target.value)} /></div>
-          <div><label className="text-[13px] font-medium">คำนำหน้า</label>
-            <Select value={form.prefix} onValueChange={v => set('prefix', v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="เลือก" /></SelectTrigger>
-              <SelectContent><SelectItem value="นาย">นาย</SelectItem><SelectItem value="นางสาว">นางสาว</SelectItem><SelectItem value="นาง">นาง</SelectItem></SelectContent>
-            </Select>
-          </div>
-          <div><label className="text-[13px] font-medium">ชื่อ</label><Input className="mt-1" value={form.first_name} onChange={e => set('first_name', e.target.value)} /></div>
-          <div><label className="text-[13px] font-medium">นามสกุล</label><Input className="mt-1" value={form.last_name} onChange={e => set('last_name', e.target.value)} /></div>
-          <div><label className="text-[13px] font-medium">อีเมล</label><Input className="mt-1" value={form.email} onChange={e => set('email', e.target.value)} /></div>
-          <div><label className="text-[13px] font-medium">เบอร์โทร</label><Input className="mt-1" value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">รหัสพนักงาน <span className="text-danger">*</span></label><Input className="mt-1" value={form.employee_id} onChange={e => set('employee_id', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">อีเมล TU</label><Input className="mt-1" value={form.email} onChange={e => set('email', e.target.value)} placeholder="xxx@tu.ac.th" /></div>
+          <div><label className="text-[13px] font-medium">ชื่อ <span className="text-danger">*</span></label><Input className="mt-1" value={form.first_name} onChange={e => set('first_name', e.target.value)} /></div>
+          <div><label className="text-[13px] font-medium">นามสกุล <span className="text-danger">*</span></label><Input className="mt-1" value={form.last_name} onChange={e => set('last_name', e.target.value)} /></div>
           <div className="col-span-2"><label className="text-[13px] font-medium">แผนก</label>
             <Select value={form.department} onValueChange={v => set('department', v)}>
               <SelectTrigger className="mt-1"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
