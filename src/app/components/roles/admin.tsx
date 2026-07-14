@@ -653,6 +653,7 @@ function EditRoleApiDialog({ user, onSaved, onClose, depts }: {
   const [primaryRole, setPrimaryRole] = useState(user.role);
   const [extraRoles, setExtraRoles] = useState<string[]>(user.extra_roles || []);
   const [editUsername, setEditUsername] = useState(user.username);
+  const [editEmail, setEditEmail] = useState(user.email || '');
   const [editDept, setEditDept] = useState(user.department ? String(user.department) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -677,6 +678,7 @@ function EditRoleApiDialog({ user, onSaved, onClose, depts }: {
         role: primaryRole,
         extra_roles: extraRoles,
         username: editUsername.trim(),
+        email: editEmail.trim(),
         department: editDept ? Number(editDept) : null,
       }),
     });
@@ -707,6 +709,10 @@ function EditRoleApiDialog({ user, onSaved, onClose, depts }: {
               <Input className="mt-1 font-mono text-[13px]" value={editUsername} onChange={e => setEditUsername(e.target.value)} />
             </div>
             <div>
+              <label className="text-[13px] font-medium">Email TU</label>
+              <Input className="mt-1 text-[13px]" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="xxx@tu.ac.th" />
+            </div>
+            <div className="col-span-2">
               <label className="text-[13px] font-medium">แผนก</label>
               <Select value={editDept} onValueChange={setEditDept}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
