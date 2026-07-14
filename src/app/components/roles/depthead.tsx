@@ -154,7 +154,7 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
     const token = localStorage.getItem('access_token');
     const h = { 'Authorization': `Bearer ${token}` };
     const gregYear = parseInt(selThaiYear) - 543;
-    const monthNum = period === 'month' ? parseInt(selMonth) : _now.getMonth() + 1;
+    const monthNum = period === 'month' ? parseInt(selMonth) : new Date().getMonth() + 1;
     const actualGregYear = period === 'month' && monthNum >= 10 ? gregYear - 1 : gregYear;
     const monthStr = `${actualGregYear}-${String(monthNum).padStart(2, '0')}`;
 
