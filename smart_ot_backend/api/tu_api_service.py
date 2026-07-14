@@ -105,7 +105,9 @@ def verify_tu_credentials(username: str, password: str) -> dict | None:
             logger.info(f'TU Auth: invalid credentials for {username}')
             return None
 
-        return _parse_tu_auth(data)
+        parsed = _parse_tu_auth(data)
+        logger.warning(f'TU Auth OK: username={parsed["username"]} email={parsed["email"]} dept={parsed["dept_name"]} name={parsed["first_name"]} {parsed["last_name"]}')
+        return parsed
 
     except urllib.error.HTTPError as e:
         logger.error(f'TU Auth: HTTP {e.code} for {username}')
