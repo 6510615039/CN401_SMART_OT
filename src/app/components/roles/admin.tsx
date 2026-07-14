@@ -820,6 +820,7 @@ export function AdminUsers() {
   const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [editUser, setEditUser] = useState<ApiUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<ApiUser | null>(null);
+  const [deletedName, setDeletedName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const token = () => localStorage.getItem('access_token');
 
@@ -892,6 +893,7 @@ export function AdminUsers() {
     if (res.ok || res.status === 204) {
       setAllUsers(us => us.filter(x => x.id !== u.id));
       setDeleteUser(null);
+      setDeletedName(`${u.first_name} ${u.last_name}`.trim() || u.username);
     }
   }
 
@@ -1055,6 +1057,17 @@ export function AdminUsers() {
             <Button className="bg-danger text-white" onClick={() => deleteUser && handleDeleteUser(deleteUser)}>
               <Trash2 className="size-4 mr-1" />ลบถาวร
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete success dialog */}
+      <Dialog open={!!deletedName} onOpenChange={open => { if (!open) setDeletedName(null); }}>
+        <DialogContent className="max-w-[380px]">
+          <DialogHeader><DialogTitle>ลบผู้ใช้เรียบร้อย</DialogTitle></DialogHeader>
+          <p className="text-[14px]">ลบ <strong>{deletedName}</strong> ออกจากระบบแล้ว</p>
+          <DialogFooter>
+            <Button className="bg-tu-red text-white" onClick={() => setDeletedName(null)}>ตกลง</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
