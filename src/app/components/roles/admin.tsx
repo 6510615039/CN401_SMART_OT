@@ -1954,10 +1954,6 @@ export function AdminAudit() {
                       <strong>{a.user_name}</strong>
                       {' — '}
                       <span className="capitalize">{a.action}</span>
-                      {' '}
-                      <span className="text-[var(--neutral-500)]">[{a.model_name}
-                        {a.object_id ? ` #${a.object_id}` : ''}]
-                      </span>
                     </p>
                     {a.detail && (
                       <p className="text-[11px] text-[var(--neutral-500)] mt-0.5 truncate">{a.detail}</p>
