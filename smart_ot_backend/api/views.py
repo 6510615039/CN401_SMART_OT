@@ -191,11 +191,12 @@ def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
                 setattr(user, k, v)
             user.save()
         else:
-            # 4) ค้นหาจากชื่อ-นามสกุล (กัน ghost user ซ้อนกัน)
+            # 4) ค้นหาจากชื่อ-นามสกุล (กัน ghost user ซ้อนกัน) — match เฉพาะกรณีเจอคนเดียวเท่านั้น
             first = tu_data.get('first_name', '').strip()
             last  = tu_data.get('last_name', '').strip()
             if first and last:
-                user = User.objects.filter(first_name=first, last_name=last, is_active=True).first()
+                name_matches = User.objects.filter(first_name=first, last_name=last, is_active=True)
+                user = name_matches.first() if name_matches.count() == 1 else None
             if user:
                 # เจอ match ด้วยชื่อ — อัปเดต username ให้ตรงกับ TU
                 user.username = username
