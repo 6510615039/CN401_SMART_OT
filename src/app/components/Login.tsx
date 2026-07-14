@@ -112,7 +112,7 @@ export function Login({ onLogin, onForgot }: Props) {
                 <User className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
                 <Input
                   className={`pl-10 h-11 ${isError ? 'border-danger focus-visible:ring-danger' : ''}`}
-                  placeholder="เช่น sariya@tu.ac.th หรือ sariya"
+                  placeholder="อีเมล TU หรือ Username TU"
                   value={username}
                   onChange={e => { setUsername(e.target.value); if (isError) setState('idle'); }}
                   disabled={isLoading}
