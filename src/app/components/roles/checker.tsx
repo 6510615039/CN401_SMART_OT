@@ -200,7 +200,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
       } />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <KpiCard label="รอตรวจสอบ" value={String(groups.filter(g => g.pending.length > 0).length) + ' แผนก'} hint={`${totalPending} รายการ`} accent="orange" />
-        <KpiCard label="รวมยอด OT รอตรวจ" value={`${fmtAmt(totalAmt)} ฿`} hint="ทุกแผนก" accent="red" />
+        <KpiCard label="รวมยอด OT รอตรวจ" value={`${fmtAmt(totalAmt)} บาท`} hint="ทุกแผนก" accent="red" />
         <KpiCard label="อนุมัติแล้ว" value={String(approvedDepts) + ' แผนก'} hint="เดือนนี้" accent="green" />
         <KpiCard label="รายการทั้งหมด" value={String(groups.reduce((s, g) => s + g.pending.length + g.approved.length + g.rejected.length, 0))} hint="rep_forwarded+" accent="blue" />
       </div>
@@ -342,7 +342,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                               {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
                             </StatusChip>
                           </td>
-                          <td className="px-3 py-2 text-[12px] font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} ฿</td>
+                          <td className="px-3 py-2 text-[12px] font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} บาท</td>
                           <td className="px-3 py-2 text-[12px]">
                             {(r.status === 'checker_approved' || r.status === 'completed') &&
                               <span className="text-success text-[11px]">อนุมัติแล้ว</span>}
@@ -453,7 +453,7 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
                 <tr className="border-t-2 border-tu-red bg-tu-red/5">
                   <td className="px-4 py-3 font-bold text-tu-red" colSpan={4}>รวม</td>
                   <td className="px-4 py-3 font-bold font-mono text-tu-red">{Math.floor(totalHrs)} ชม.</td>
-                  <td className="px-4 py-3 font-bold font-mono text-tu-red">{fmtAmt(totalAmt)} ฿</td>
+                  <td className="px-4 py-3 font-bold font-mono text-tu-red">{fmtAmt(totalAmt)} บาท</td>
                 </tr>
               </tbody>
             </table>
@@ -830,9 +830,9 @@ export function CheckerReport() {
       ) : (
         <>
           <div className="grid grid-cols-4 gap-5 mb-5">
-            <KpiCard label="รวม OT ทั้งหมด" value={totalAmt >= 1000 ? `${Math.round(totalAmt/1000)}K` : String(Math.round(totalAmt))} hint="บาท" accent="red" />
+            <KpiCard label="รวม OT ทั้งหมด" value={Math.round(totalAmt).toLocaleString()} hint="บาท" accent="red" />
             <KpiCard label="จำนวนรายการ" value={String(filtered.length)} accent="blue" />
-            <KpiCard label="งบประมาณ" value={totalBudget >= 1000 ? `${Math.round(totalBudget/1000)}K` : String(Math.round(totalBudget))} hint="บาท" accent="yellow" />
+            <KpiCard label="งบประมาณ" value={Math.round(totalBudget).toLocaleString()} hint="บาท" accent="yellow" />
             <KpiCard label="% ใช้งบ" value={`${pct}%`} accent={pct > 90 ? 'red' : pct > 70 ? 'yellow' : 'green'} />
           </div>
           <div className="grid grid-cols-2 gap-5">

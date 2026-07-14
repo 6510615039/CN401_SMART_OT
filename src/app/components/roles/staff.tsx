@@ -127,7 +127,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
   return (
     <>
       <PageHeader
-        title={userName ? `สวัสดี, คุณ${userName}` : 'สวัสดี'}
+        title={userName ? `สวัสดี ${userName}` : 'สวัสดี'}
         subtitle="ระบบ SMART OT"
         right={<MonthYearPicker value={filterMonth} onChange={setFilterMonth} />}
       />

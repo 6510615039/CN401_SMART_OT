@@ -269,7 +269,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
           }} className="bg-tu-red text-white">ไปส่งออก <ChevronRight className="size-4 ml-1" /></Button>
         </div>
         <KpiCard label="ส่งออกแล้วเดือนนี้" value={<span className="text-success">{loading ? '...' : `${exportedMonths} ไฟล์`}</span>} accent="green" />
-        <KpiCard label="รวมยอดรอส่งออก" value={`${totalAmt.toLocaleString()} ฿`} accent="blue" />
+        <KpiCard label="รวมยอดรอส่งออก" value={`${totalAmt.toLocaleString()} บาท`} accent="blue" />
       </div>
 
       {pending.length > 0 && (
