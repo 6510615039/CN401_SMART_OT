@@ -132,11 +132,10 @@ class ImportHistorySerializer(serializers.ModelSerializer):
 
 class AuditLogSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
-    user_role = serializers.CharField(source='user.role', read_only=True)
 
     class Meta:
         model = AuditLog
-        fields = ['id', 'user', 'user_name', 'user_role', 'action', 'model_name', 'object_id', 'detail', 'ip_address', 'created_at']
+        fields = ['id', 'user', 'user_name', 'action', 'model_name', 'object_id', 'detail', 'ip_address', 'created_at']
 
 
 class NotificationSerializer(serializers.ModelSerializer):

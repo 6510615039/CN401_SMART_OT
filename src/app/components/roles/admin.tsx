@@ -1870,7 +1870,6 @@ type AuditEntry = {
   id: number;
   user: number;
   user_name: string;
-  user_role: string;
   action: string;
   model_name: string;
   object_id: string | null;
@@ -1896,34 +1895,21 @@ function fmtRelative(iso: string) {
   return `${Math.floor(h / 24)} วันก่อน`;
 }
 
-const ROLE_OPTIONS = [
-  { value: 'all',      label: 'ทุก Role' },
-  { value: 'staff',    label: 'บุคลากร' },
-  { value: 'depthead', label: 'หัวหน้างาน' },
-  { value: 'deptrep',  label: 'ตัวแทนฝ่าย' },
-  { value: 'checker',  label: 'ผู้ตรวจสอบ' },
-  { value: 'executive',label: 'ผู้บริหาร' },
-  { value: 'admin',    label: 'แอดมิน' },
-];
-
 export function AdminAudit() {
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
 
   useEffect(() => {
-    setLoading(true);
     const token = localStorage.getItem('access_token');
-    const params = roleFilter !== 'all' ? `?role=${roleFilter}` : '';
-    fetch(`/api/audit-log/${params}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/api/audit-log/', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then((data: any) => {
         const list: AuditEntry[] = Array.isArray(data) ? data : (data?.results ?? []);
         setLogs(list); setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [roleFilter]);
+  }, []);
 
   const filtered = search
     ? logs.filter(l =>
@@ -1938,26 +1924,14 @@ export function AdminAudit() {
       <PageHeader
         title="Audit Log"
         right={
-          <div className="flex items-center gap-2">
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map(o => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-[var(--neutral-500)]" />
-              <Input
-                className="pl-8 w-[220px]"
-                placeholder="ค้นหาผู้ใช้ / action…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-[var(--neutral-500)]" />
+            <Input
+              className="pl-8 w-[220px]"
+              placeholder="ค้นหาผู้ใช้ / action…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
         }
       />
@@ -1976,11 +1950,9 @@ export function AdminAudit() {
                     <CheckCircle2 className="size-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] flex items-center gap-2 flex-wrap">
+                    <p className="text-[13px]">
                       <strong>{a.user_name}</strong>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--neutral-200)] text-[var(--neutral-600)]">
-                        {ROLE_OPTIONS.find(o => o.value === a.user_role)?.label ?? a.user_role}
-                      </span>
+                      {' — '}
                       <span className="capitalize">{a.action}</span>
                     </p>
                     {a.detail && (
