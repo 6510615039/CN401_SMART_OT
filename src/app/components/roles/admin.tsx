@@ -1896,7 +1896,7 @@ function fmtRelative(iso: string) {
   return `${Math.floor(h / 24)} วันก่อน`;
 }
 
-const ROLE_OPTIONS = [
+const AUDIT_ROLE_OPTIONS = [
   { value: 'all',      label: 'ทุก Role' },
   { value: 'staff',    label: 'บุคลากร' },
   { value: 'depthead', label: 'หัวหน้างาน' },
@@ -1944,7 +1944,7 @@ export function AdminAudit() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map(o => (
+                {AUDIT_ROLE_OPTIONS.map(o => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -1979,7 +1979,7 @@ export function AdminAudit() {
                     <p className="text-[13px] flex items-center gap-2 flex-wrap">
                       <strong>{a.user_name}</strong>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--neutral-200)] text-[var(--neutral-600)]">
-                        {ROLE_OPTIONS.find(o => o.value === a.user_role)?.label ?? a.user_role}
+                        {AUDIT_ROLE_OPTIONS.find(o => o.value === a.user_role)?.label ?? a.user_role}
                       </span>
                       <span className="capitalize">{a.action}</span>
                     </p>
