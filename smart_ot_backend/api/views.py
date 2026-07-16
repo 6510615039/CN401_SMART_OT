@@ -1391,7 +1391,14 @@ class ImportHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = AuditLogSerializer
-    queryset = AuditLog.objects.filter(user__role='admin').order_by('-created_at')
+    queryset = AuditLog.objects.select_related('user').order_by('-created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        role = self.request.query_params.get('role')
+        if role:
+            qs = qs.filter(user__role=role)
+        return qs
 
 
 # ─── Timelog & Dashboard API ──────────────────────────────────────────────────
