@@ -242,6 +242,7 @@ export function AdminImport() {
     setUploading(true); setError(''); setImportWarn('');
     const fd = new FormData();
     fd.append('file', file);
+    fd.append('expected_month', month);
     try {
       const res = await fetch('/api/timelog/import/', {
         method: 'POST',

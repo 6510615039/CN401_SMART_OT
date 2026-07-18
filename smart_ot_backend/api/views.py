@@ -1049,6 +1049,9 @@ def import_timelog(request):
     if import_dept is None and request.user.department:
         import_dept = request.user.department
 
+    # ตรวจสอบ expected_month ถ้าส่งมา (format: YYYY-MM เช่น 2026-04)
+    expected_month = request.data.get('expected_month')  # e.g. "2569-04"
+
     history = ImportHistory.objects.create(
         filename=f.name, imported_by=request.user, status='partial'
     )
@@ -1222,6 +1225,33 @@ def import_timelog(request):
                     best_col, best_hits = ci, hits
             if best_col is not None and best_hits >= 3:
                 col_time_period = best_col
+
+        # ── validate expected_month vs actual file month ──────────
+        if expected_month and col_date is not None:
+            for row in ws.iter_rows(min_row=data_start_row, max_row=data_start_row + 10, values_only=True):
+                if not any(row):
+                    continue
+                first_date = row[col_date] if len(row) > col_date else None
+                if first_date:
+                    from datetime import date as _date
+                    import datetime as _dt
+                    if hasattr(first_date, 'strftime'):
+                        file_month = f'{first_date.year}-{first_date.month:02d}'
+                    else:
+                        s = str(first_date).strip()[:7]  # "2026-04"
+                        file_month = s
+                    # แปลง expected_month จาก Thai year เป็น Greg year (2569-04 → 2026-04)
+                    try:
+                        parts = expected_month.split('-')
+                        exp_greg = f'{int(parts[0]) - 543}-{parts[1]}'
+                    except Exception:
+                        exp_greg = expected_month
+                    if file_month != exp_greg:
+                        history.delete()
+                        return Response({
+                            'error': f'ไฟล์เป็นข้อมูลเดือน {file_month} แต่คุณเลือกเดือน {exp_greg} — กรุณาเลือกไฟล์ให้ตรงกับเดือนที่ต้องการนำเข้า'
+                        }, status=400)
+                    break
 
         total = success = errors = skipped_users = 0
         error_lines = []
