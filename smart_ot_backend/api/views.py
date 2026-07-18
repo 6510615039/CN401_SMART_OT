@@ -1248,8 +1248,16 @@ def import_timelog(request):
                         exp_greg = expected_month
                     if file_month != exp_greg:
                         history.delete()
+                        THAI_MONTHS = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                                       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
+                        def greg_to_thai_label(ym):
+                            try:
+                                y, m = ym.split('-')
+                                return f'{THAI_MONTHS[int(m)]} {int(y) + 543}'
+                            except Exception:
+                                return ym
                         return Response({
-                            'error': f'ไฟล์เป็นข้อมูลเดือน {file_month} แต่คุณเลือกเดือน {exp_greg} — กรุณาเลือกไฟล์ให้ตรงกับเดือนที่ต้องการนำเข้า'
+                            'error': f'ไฟล์เป็นข้อมูลเดือน{greg_to_thai_label(file_month)} แต่คุณเลือกเดือน{greg_to_thai_label(exp_greg)} — กรุณาเลือกไฟล์ให้ตรงกับเดือนที่ต้องการนำเข้า'
                         }, status=400)
                     break
 
