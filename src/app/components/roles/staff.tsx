@@ -9,6 +9,13 @@ function currentThaiMonth(): string {
 
 const THAI_MONTHS_LIST = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
+function formatThaiDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  const [y, m, d] = dateStr.split('-');
+  if (!y || !m || !d) return dateStr;
+  return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${parseInt(y) + 543}`;
+}
+
 function MonthYearPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const parts = value.split('-');
   const year = parts[0] || String(new Date().getFullYear() + 543);
@@ -301,8 +308,8 @@ export function StaffTimeLog() {
                   })();
                   return (
                   <tr key={i} className="border-t border-[var(--neutral-300)] hover:bg-tu-yellow-soft">
-                    <td className="px-3 py-2">{r.date}</td>
-                    <td className="px-3 py-2 text-center text-[12px]">{r.timePeriod || ''}</td>
+                    <td className="px-3 py-2">{formatThaiDate(r.date)}</td>
+                    <td className="px-3 py-2 text-[12px]">{r.timePeriod || ''}</td>
                     <td className="px-3 py-2 font-mono">{r.in || '-'}</td>
                     <td className="px-3 py-2 font-mono">{r.out || '-'}</td>
                     <td className="px-3 py-2 font-mono">{r.ot}</td>
@@ -618,7 +625,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
                           />
                         )}
                       </td>
-                      <td className="px-3 py-2 font-medium">{r.date}</td>
+                      <td className="px-3 py-2 font-medium">{formatThaiDate(r.date)}</td>
                       <td className="px-3 py-2"><StatusChip kind={isHoliday ? 'danger' : 'neutral'}>{isHoliday ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                       <td className="px-3 py-2 font-mono">{r.in || '-'}</td>
                       <td className="px-3 py-2 font-mono">{r.out || '-'}</td>
