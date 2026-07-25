@@ -155,7 +155,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     });
   });
 
-  const sumRowIdx = curRow; // track สำหรับ merge + left-align
+  rows.push([]); // แถวเปล่าก่อน sumRow ตามแบบฟอร์มต้นฉบับ
+  const sumRowIdx = curRow + 1; // +1 เพราะเพิ่มแถวเปล่าไปแล้ว
   leftAlignCells.push({ r: sumRowIdx, c: 2 }); // "รวมเงินจ่ายทั้งสิ้น..." col C
   // A(0) B(1) C(2=text merged C-J) D-J(3-9 = 7 empties) K(10) L(11) M(12=total) N O P
   const sumRow: any[] = ['', '', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
@@ -203,8 +204,9 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     // กำหนด font size ตามแถว: title=16bold, header columns=13, content=14
     const isTitle  = r <= 1;
     const isColHdr = r >= 2 && r <= 6;
+    const isSumRow = r === sumRowIdx;
     const fontSize = isTitle ? 16 : isColHdr ? 13 : 14;
-    const bold     = isTitle;
+    const bold     = isTitle || isColHdr || isSumRow;
     const font = { name: FONT, sz: fontSize, bold };
     for (let c = range.s.c; c <= range.e.c; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
