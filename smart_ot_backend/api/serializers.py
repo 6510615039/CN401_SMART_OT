@@ -81,9 +81,9 @@ class OTRequestSerializer(serializers.ModelSerializer):
     rep_document_url  = serializers.SerializerMethodField(read_only=True)
 
     def get_rep_document_url(self, obj):
-        if obj.rep_document:
+        if obj.rep_document_data or obj.rep_document:
             request = self.context.get('request')
-            url = obj.rep_document.url
+            url = f'/api/ot-requests/{obj.id}/document/'
             return request.build_absolute_uri(url) if request else url
         return None
 

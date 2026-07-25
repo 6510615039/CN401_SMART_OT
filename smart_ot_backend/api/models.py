@@ -135,6 +135,8 @@ class OTRequest(models.Model):
     rep_forwarded_at   = models.DateTimeField(null=True, blank=True)
     rep_note           = models.TextField(blank=True, verbose_name='หมายเหตุตัวแทนแผนก')
     rep_document       = models.FileField(upload_to='ot_documents/', null=True, blank=True, verbose_name='เอกสาร Excel ที่แนบ')
+    rep_document_data  = models.BinaryField(null=True, blank=True, verbose_name='เนื้อหาไฟล์เอกสาร (เก็บใน DB)')
+    rep_document_name  = models.CharField(max_length=255, null=True, blank=True, verbose_name='ชื่อไฟล์เอกสาร')
 
     checker_approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='checker_approvals')
     checker_approved_at = models.DateTimeField(null=True, blank=True)

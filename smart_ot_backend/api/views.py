@@ -677,6 +677,35 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         return Response(_S(ot).data)
 
 
+    @action(detail=True, methods=['get'], url_path='document', permission_classes=[IsAuthenticated])
+    def document(self, request, pk=None):
+        """GET /api/ot-requests/{id}/document/ — serve rep_document from DB (fallback to filesystem)"""
+        ot = self.get_object()
+        if not ot.rep_document_data and not ot.rep_document:
+            from django.http import Http404
+            raise Http404('ไม่พบไฟล์เอกสาร')
+
+        if ot.rep_document_data:
+            data = bytes(ot.rep_document_data)
+            filename = ot.rep_document_name or 'document.xlsx'
+        else:
+            try:
+                with ot.rep_document.open('rb') as f:
+                    data = f.read()
+                filename = ot.rep_document.name.split('/')[-1]
+            except Exception:
+                from django.http import Http404
+                raise Http404('ไฟล์ไม่พบบน server')
+
+        from django.http import HttpResponse
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(filename)
+        content_type = content_type or 'application/octet-stream'
+        response = HttpResponse(data, content_type=content_type)
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
 # ─── Holidays ────────────────────────────────────────────────────────────────
 
 class HolidayViewSet(viewsets.ModelViewSet):
@@ -1957,6 +1986,11 @@ def bulk_forward_view(request):
 
     doc = request.FILES.get('document')
 
+    doc_bytes = doc.read() if doc else None
+    doc_name  = doc.name  if doc else None
+    if doc:
+        doc.seek(0)
+
     forwarded_list = []
     for ot_id in ids:
         try:
@@ -1966,7 +2000,10 @@ def bulk_forward_view(request):
             ot.rep_forwarded_at = timezone.now()
             ot.rep_note         = note
             if doc:
-                ot.rep_document = doc
+                doc.seek(0)
+                ot.rep_document      = doc
+                ot.rep_document_data = doc_bytes
+                ot.rep_document_name = doc_name
             ot.save()
             log_action(request.user, f'ส่งต่อคำร้อง OT #{ot.id}',
                        'OTRequest', ot.id, request=request)
