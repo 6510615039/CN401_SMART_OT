@@ -76,15 +76,18 @@ def _send_checker_notification(ot_list, note, sender):
 
 
 def _send_email(user, subject: str, body: str):
-    """ส่งเมลให้ user คนเดียว (fail-silent) ใช้ notify_email ก่อน ถ้าไม่มีใช้ email"""
-    try:
-        from django.core.mail import send_mail
-        from django.conf import settings as djsettings
-        email = getattr(user, 'notify_email', '') or getattr(user, 'email', '')
-        if email:
-            send_mail(subject, body, djsettings.DEFAULT_FROM_EMAIL, [email], fail_silently=True)
-    except Exception:
-        pass
+    """ส่งเมลให้ user คนเดียว (fail-silent, non-blocking) ใช้ notify_email ก่อน ถ้าไม่มีใช้ email"""
+    import threading
+    def _do_send():
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings as djsettings
+            email = getattr(user, 'notify_email', '') or getattr(user, 'email', '')
+            if email:
+                send_mail(subject, body, djsettings.DEFAULT_FROM_EMAIL, [email], fail_silently=True)
+        except Exception:
+            pass
+    threading.Thread(target=_do_send, daemon=True).start()
 
 
 def _push_ws(user_id: int, notif_data: dict):
