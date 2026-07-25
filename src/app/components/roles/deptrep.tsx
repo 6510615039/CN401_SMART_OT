@@ -133,7 +133,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
     chunks.forEach((chunk, ci) => {
       const isLast = ci === chunks.length - 1;
-      const dateRow: any[] = [ci === 0 ? emp.seq : '', '']; // ชื่อย้ายไป time row
+      const dateRow: any[] = ['', '']; // A-B ว่างทั้งคู่ใน date row
       for (let i = 0; i < DATES_PER_ROW; i++) {
         dateRow.push(chunk[i]?.date ?? '');
         if (chunk[i]?.isWeekend) {
@@ -151,8 +151,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
       rows.push(dateRow);
       isFirstDataRow = false;
 
-      // time row: ชื่อพนักงานอยู่ใน B (col 1), hours และ amount ใน last chunk
-      const timeRow: any[] = ['', ci === 0 ? emp.name : ''];
+      // time row: A=seq, B=ชื่อ (เฉพาะ chunk แรก), hours และ amount ใน last chunk
+      const timeRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
       if (ci === 0) leftAlignCells.push({ r: curRow + 1, c: 1 }); // ชื่อพนักงาน col B (time row)
       for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
       if (isLast) {
