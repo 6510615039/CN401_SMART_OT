@@ -1955,6 +1955,180 @@ def bulk_approve_view(request):
     return Response(resp)
 
 
+# ─── Bulk Reject (checker) ──────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_reject_view(request):
+    """POST /api/ot-requests/bulk-reject/
+    checker ตีกลับหลายคำร้องพร้อมกัน — notification รวม 1 ครั้งต่อแผนก (ไม่ spam)
+    body: { ids: [1,2,...], note: "..." }
+    """
+    effective_role = get_effective_role(request.user, request)
+    if effective_role != 'checker':
+        return Response({'error': 'สิทธิ์ไม่เพียงพอ'}, status=status.HTTP_403_FORBIDDEN)
+
+    ids  = request.data.get('ids', [])
+    note = request.data.get('note', '')
+    if not ids:
+        return Response({'error': 'ไม่มีรายการที่เลือก'}, status=status.HTTP_400_BAD_REQUEST)
+
+    checker_name  = request.user.get_full_name() or request.user.username
+    rejected_list = []
+    for ot_id in ids:
+        try:
+            ot = OTRequest.objects.get(id=ot_id, status='rep_forwarded')
+            ot.status           = 'checker_rejected'
+            ot.checker_note     = note
+            ot.save()
+            log_action(request.user, f'ผู้ตรวจสอบตีกลับคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            rejected_list.append(ot)
+        except OTRequest.DoesNotExist:
+            pass
+
+    from collections import defaultdict
+    reason_text = f' — เหตุผล: {note}' if note else ''
+
+    # แจ้ง staff แต่ละคน รวมจำนวนรายการของตน
+    by_staff = defaultdict(list)
+    for ot in rejected_list:
+        by_staff[ot.staff_id].append(ot)
+    for staff_id, staff_ots in by_staff.items():
+        staff = staff_ots[0].staff
+        count = len(staff_ots)
+        try:
+            thai_month = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][staff_ots[0].work_date.month - 1]
+            period = f'{thai_month} {staff_ots[0].work_date.year + 543}'
+        except Exception:
+            period = ''
+        msg = (f'ผู้ตรวจสอบ ({checker_name}) ตีกลับคำร้อง OT ของคุณ '
+               f'ประจำ{period} จำนวน {count} รายการ{reason_text}')
+        _notify_ot(staff_ots[0], 'ot_checker_rejected', [staff], msg)
+
+    # แจ้ง deptrep และ depthead แต่ละแผนก รวมเป็น 1 ครั้ง
+    by_dept = defaultdict(list)
+    for ot in rejected_list:
+        by_dept[ot.department_id].append(ot)
+    for dept_id, dept_ots in by_dept.items():
+        count = len(dept_ots)
+        try:
+            thai_month = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][dept_ots[0].work_date.month - 1]
+            period = f'{thai_month} {dept_ots[0].work_date.year + 543}'
+        except Exception:
+            period = ''
+        dept_name = dept_ots[0].department.name
+        msg = (f'ผู้ตรวจสอบ ({checker_name}) ตีกลับ OT แผนก {dept_name} '
+               f'ประจำ{period} จำนวน {count} รายการ{reason_text}')
+        deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True))
+        deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True))
+        if deptheads:
+            _notify_ot(dept_ots[0], 'ot_checker_rejected', deptheads, msg)
+        if deptreps:
+            _notify_ot(dept_ots[0], 'ot_checker_rejected', deptreps, msg)
+
+    return Response({'rejected': len(rejected_list)})
+
+
+# ─── Bulk Head Approve / Reject (depthead) ───────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_head_approve_view(request):
+    """POST /api/ot-requests/bulk-head-approve/
+    depthead อนุมัติหลายคำร้องพร้อมกัน — notification รวม 1 ครั้งต่อ staff
+    body: { ids: [1,2,...] }
+    """
+    effective_role = get_effective_role(request.user, request)
+    if effective_role != 'depthead':
+        return Response({'error': 'สิทธิ์ไม่เพียงพอ'}, status=status.HTTP_403_FORBIDDEN)
+
+    ids = request.data.get('ids', [])
+    if not ids:
+        return Response({'error': 'ไม่มีรายการที่เลือก'}, status=status.HTTP_400_BAD_REQUEST)
+
+    head_name    = request.user.get_full_name() or request.user.username
+    approved_list = []
+    for ot_id in ids:
+        try:
+            ot = OTRequest.objects.get(id=ot_id, status='submitted')
+            ot.status              = 'head_approved'
+            ot.head_approved_by    = request.user
+            ot.head_approved_at    = timezone.now()
+            ot.save()
+            log_action(request.user, f'หัวหน้าอนุมัติคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            approved_list.append(ot)
+        except OTRequest.DoesNotExist:
+            pass
+
+    from collections import defaultdict
+    by_staff = defaultdict(list)
+    for ot in approved_list:
+        by_staff[ot.staff_id].append(ot)
+    for staff_id, staff_ots in by_staff.items():
+        staff = staff_ots[0].staff
+        count = len(staff_ots)
+        try:
+            thai_month = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][staff_ots[0].work_date.month - 1]
+            period = f'{thai_month} {staff_ots[0].work_date.year + 543}'
+        except Exception:
+            period = ''
+        total_amt = sum(float(o.amount) for o in staff_ots)
+        msg = (f'หัวหน้างาน ({head_name}) อนุมัติคำร้อง OT ของคุณ '
+               f'ประจำ{period} จำนวน {count} รายการ รวม {total_amt:,.0f} บาท')
+        _notify_ot(staff_ots[0], 'ot_head_approved', [staff], msg)
+
+    return Response({'approved': len(approved_list)})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_head_reject_view(request):
+    """POST /api/ot-requests/bulk-head-reject/
+    depthead ตีกลับหลายคำร้องพร้อมกัน — notification รวม 1 ครั้งต่อ staff
+    body: { ids: [1,2,...], note: "..." }
+    """
+    effective_role = get_effective_role(request.user, request)
+    if effective_role != 'depthead':
+        return Response({'error': 'สิทธิ์ไม่เพียงพอ'}, status=status.HTTP_403_FORBIDDEN)
+
+    ids  = request.data.get('ids', [])
+    note = request.data.get('note', '')
+    if not ids:
+        return Response({'error': 'ไม่มีรายการที่เลือก'}, status=status.HTTP_400_BAD_REQUEST)
+
+    head_name    = request.user.get_full_name() or request.user.username
+    rejected_list = []
+    for ot_id in ids:
+        try:
+            ot = OTRequest.objects.get(id=ot_id, status='submitted')
+            ot.status    = 'head_rejected'
+            ot.head_note = note
+            ot.save()
+            log_action(request.user, f'หัวหน้าตีกลับคำร้อง OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            rejected_list.append(ot)
+        except OTRequest.DoesNotExist:
+            pass
+
+    from collections import defaultdict
+    reason_text = f' — เหตุผล: {note}' if note else ''
+    by_staff = defaultdict(list)
+    for ot in rejected_list:
+        by_staff[ot.staff_id].append(ot)
+    for staff_id, staff_ots in by_staff.items():
+        staff = staff_ots[0].staff
+        count = len(staff_ots)
+        try:
+            thai_month = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][staff_ots[0].work_date.month - 1]
+            period = f'{thai_month} {staff_ots[0].work_date.year + 543}'
+        except Exception:
+            period = ''
+        msg = (f'หัวหน้างาน ({head_name}) ตีกลับคำร้อง OT ของคุณ '
+               f'ประจำ{period} จำนวน {count} รายการ{reason_text}')
+        _notify_ot(staff_ots[0], 'ot_head_rejected', [staff], msg)
+
+    return Response({'rejected': len(rejected_list)})
+
+
 # ─── Bulk Forward (deptrep → checker) ───────────────────────────────────────
 
 @api_view(['POST'])

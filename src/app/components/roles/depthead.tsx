@@ -692,16 +692,17 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   }
 
   async function handleApprove() {
-    const errors: string[] = [];
-    for (const id of sel) {
-      const err = await doApprove(id);
-      if (err) errors.push(err);
-    }
+    const res = await fetch('/api/ot-requests/bulk-head-approve/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: sel }),
+    });
+    const d = await res.json().catch(() => ({}));
     setSel([]);
-    if (errors.length > 0) {
-      setActionMsg({ kind: 'danger', text: errors[0] });
+    if (!res.ok) {
+      setActionMsg({ kind: 'danger', text: d.error || 'เกิดข้อผิดพลาด' });
     } else {
-      setActionMsg({ kind: 'success', text: `อนุมัติ ${sel.length} คำร้องเรียบร้อยแล้ว` });
+      setActionMsg({ kind: 'success', text: `อนุมัติ ${d.approved ?? sel.length} คำร้องเรียบร้อยแล้ว` });
     }
     setTimeout(() => setActionMsg(null), 5000);
     loadRequests();
@@ -734,13 +735,11 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   }
 
   async function handleRejectConfirm() {
-    const tok = token();
-    for (const id of sel) {
-      await fetch(`/api/ot-requests/${id}/reject/`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: rejectReason }),
-      });
-    }
+    await fetch('/api/ot-requests/bulk-head-reject/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: sel, note: rejectReason }),
+    });
     setRejectOpen(false);
     setSel([]);
     setRejectReason('');

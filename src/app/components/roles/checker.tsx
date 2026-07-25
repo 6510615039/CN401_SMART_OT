@@ -163,13 +163,11 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
   async function rejectAll() {
     if (!rejectNote.trim() || rejectNote.length < 10) return;
     setProcessing(true);
-    for (const r of rejectDlg.requests) {
-      await fetch(`/api/ot-requests/${r.id}/reject/`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: rejectNote }),
-      });
-    }
+    await fetch('/api/ot-requests/bulk-reject/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: rejectDlg.requests.map((r: any) => r.id), note: rejectNote }),
+    });
     setProcessing(false);
     setRejectDlg({ open: false, requests: [], dept: '' });
     setRejectNote('');
@@ -291,11 +289,21 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           {(() => {
                             const docUrl = [...g.pending, ...g.approved, ...g.rejected].find(r => r.rep_document_url)?.rep_document_url;
                             return docUrl ? (
-                              <a href={docUrl} target="_blank" rel="noreferrer">
-                                <Button size="sm" variant="outline" className="h-7 px-2 border-blue-400 text-blue-600 hover:bg-blue-50">
-                                  <Download className="size-3 mr-1" />ดาวน์โหลด
-                                </Button>
-                              </a>
+                              <Button size="sm" variant="outline" className="h-7 px-2 border-blue-400 text-blue-600 hover:bg-blue-50"
+                                onClick={async () => {
+                                  const res = await fetch(docUrl, { headers: { 'Authorization': `Bearer ${token()}` } });
+                                  if (!res.ok) return;
+                                  const blob = await res.blob();
+                                  const a = document.createElement('a');
+                                  a.href = URL.createObjectURL(blob);
+                                  const cd = res.headers.get('content-disposition') || '';
+                                  const m = cd.match(/filename="?([^"]+)"?/);
+                                  a.download = m ? m[1] : 'document';
+                                  a.click();
+                                  URL.revokeObjectURL(a.href);
+                                }}>
+                                <Download className="size-3 mr-1" />ดาวน์โหลด
+                              </Button>
                             ) : <span className="text-[12px] text-[var(--neutral-400)]">—</span>;
                           })()}
                         </td>

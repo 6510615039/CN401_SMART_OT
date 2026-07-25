@@ -35,6 +35,11 @@ urlpatterns = [
     path('ot-requests/bulk-forward/',       views.bulk_forward_view),
     # Bulk approve (checker) — notification รวมต่อแผนก
     path('ot-requests/bulk-approve/',       views.bulk_approve_view),
+    # Bulk reject (checker) — notification รวม (1 ต่อแผนก)
+    path('ot-requests/bulk-reject/',        views.bulk_reject_view),
+    # Bulk approve/reject (depthead) — notification รวมต่อ staff
+    path('ot-requests/bulk-head-approve/',  views.bulk_head_approve_view),
+    path('ot-requests/bulk-head-reject/',   views.bulk_head_reject_view),
     # Budget status real-time
     path('budget-status/',                  views.budget_status_view),
     # DeptHead notify deptrep "ready to forward"
