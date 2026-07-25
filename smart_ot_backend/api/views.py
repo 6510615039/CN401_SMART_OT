@@ -155,9 +155,9 @@ def _auto_create_user_from_tu(tu_data: dict) -> 'User | None':
         return None
 
     dept_name = tu_data.get('dept_name', '')
-    dept = Department.objects.get_or_create(
-        name=dept_name, defaults={'code': dept_name[:15].upper().replace(' ', '_')}
-    )[0] if dept_name else None
+    # ใช้แผนกที่มีอยู่ในระบบเท่านั้น — ไม่สร้างแผนกใหม่จาก TU API
+    # (ชื่อแผนกใน TU API อาจต่างจากชื่อจริงในระบบ ทำให้เกิดแผนกผี)
+    dept = Department.objects.filter(name=dept_name).first() if dept_name else None
     defaults = {
         'first_name': tu_data.get('first_name', ''),
         'last_name':  tu_data.get('last_name', ''),
