@@ -229,7 +229,9 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                           if (n.ot_request_date) {
                             const d = new Date(n.ot_request_date);
                             if (!isNaN(d.getTime())) {
-                              sessionStorage.setItem('notif_nav_month', `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                              const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                              sessionStorage.setItem('notif_nav_month', val);
+                              window.dispatchEvent(new CustomEvent('notif_nav_month_change'));
                             }
                           }
                           onNavigate(targetPage);
