@@ -10,6 +10,7 @@ class Department(models.Model):
 
     class Meta:
         verbose_name = 'แผนก'
+        verbose_name_plural = 'แผนก'
 
     def __str__(self):
         return self.name
@@ -69,6 +70,7 @@ class Holiday(models.Model):
         ordering = ['date']
         unique_together = ['date']
         verbose_name = 'วันหยุด'
+        verbose_name_plural = 'วันหยุด'
 
     def __str__(self):
         return f'{self.date} - {self.name}'
@@ -91,6 +93,7 @@ class SystemSettings(models.Model):
 
     class Meta:
         verbose_name = 'ตั้งค่าระบบ'
+        verbose_name_plural = 'ตั้งค่าระบบ'
 
     def __str__(self):
         return 'System Settings'
@@ -148,6 +151,7 @@ class OTRequest(models.Model):
     class Meta:
         ordering = ['-work_date']
         verbose_name = 'คำร้อง OT'
+        verbose_name_plural = 'คำร้อง OT'
 
     def __str__(self):
         return f'{self.staff.get_full_name()} - {self.work_date} ({self.status})'
@@ -184,6 +188,7 @@ class TimeLog(models.Model):
         ordering = ['-log_date']
         unique_together = ['user', 'log_date']
         verbose_name = 'ข้อมูลเวลา'
+        verbose_name_plural = 'ข้อมูลเวลา'
 
     def __str__(self):
         return f'{self.user.get_full_name()} - {self.log_date}'
@@ -209,6 +214,7 @@ class ImportHistory(models.Model):
     class Meta:
         ordering = ['-imported_at']
         verbose_name = 'ประวัติการนำเข้า'
+        verbose_name_plural = 'ประวัติการนำเข้า'
 
 
 class AuditLog(models.Model):
@@ -223,6 +229,7 @@ class AuditLog(models.Model):
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Audit Log'
+        verbose_name_plural = 'Audit Log'
 
     def __str__(self):
         return f'{self.user} - {self.action} ({self.created_at})'
@@ -244,6 +251,7 @@ class OTDeadline(models.Model):
     class Meta:
         ordering = ['-thai_month']
         verbose_name = 'กำหนดวันปิดรับ OT'
+        verbose_name_plural = 'กำหนดวันปิดรับ OT'
 
     def __str__(self):
         return f'{self.thai_month} → {self.deadline_date}'
@@ -272,6 +280,7 @@ class Notification(models.Model):
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'การแจ้งเตือน'
+        verbose_name_plural = 'การแจ้งเตือน'
 
     def __str__(self):
         return f'{self.recipient.get_full_name()} — {self.notif_type}'
@@ -305,6 +314,7 @@ class DepartmentMonthlyBudget(models.Model):
         unique_together = ('department', 'year', 'month')
         ordering = ['-year', '-month']
         verbose_name = 'งบประมาณ OT รายเดือน'
+        verbose_name_plural = 'งบประมาณ OT รายเดือน'
 
     def __str__(self):
         return f'{self.department.name} {self.year}/{self.month:02d} = {self.budget}'
