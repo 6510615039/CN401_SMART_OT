@@ -185,7 +185,17 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                           key="grouped-submitted"
                           onClick={() => {
                             if (n.anyUnread) onMarkRead?.(submitted.filter(x => !x.is_read).map(x => x.id));
-                            if (targetPage) onNavigate(targetPage);
+                            if (targetPage) {
+                              // หาเดือนที่มีคำร้องมากที่สุดใน batch นี้
+                              const monthCounts: Record<string, number> = {};
+                              submitted.forEach(s => {
+                                const ym = (s.ot_request_date || '').slice(0, 7);
+                                if (ym) monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+                              });
+                              const dom = Object.entries(monthCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+                              if (dom) sessionStorage.setItem('notif_nav_month', dom);
+                              onNavigate(targetPage);
+                            }
                           }}
                           className={cn(
                             'w-full text-left flex gap-3 p-4 border-b border-[var(--neutral-300)] transition-colors',
