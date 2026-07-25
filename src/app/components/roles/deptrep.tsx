@@ -561,11 +561,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   // ── Step: เลือกข้อมูล ──
   if (step === 'select') return (
     <>
-      <PageHeader title="ส่งออกข้อมูลเป็น Excel"
-        right={headNotified
-          ? <StatusChip kind="success">✅ หัวหน้าแจ้งพร้อมส่งออกแล้ว</StatusChip>
-          : <StatusChip kind="neutral">⏳ รอหัวหน้างานแจ้ง</StatusChip>}
-      />
+      <PageHeader title="ส่งออกข้อมูลเป็น Excel" />
       <StepBar step={0} />
       <SectionCard>
         {autoDetecting && (
@@ -605,6 +601,9 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
           <Button variant="outline" size="sm" onClick={loadRequests} disabled={loading || autoDetecting}>
             <RefreshCw className={`size-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> รีเฟรช
           </Button>
+          {headNotified
+            ? <StatusChip kind="success">✅ หัวหน้าแจ้งพร้อมส่งออกแล้ว</StatusChip>
+            : <StatusChip kind="neutral">⏳ รอหัวหน้างานแจ้ง</StatusChip>}
         </div>
 
         {(loading || autoDetecting) ? (
