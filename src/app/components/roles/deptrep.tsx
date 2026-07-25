@@ -113,14 +113,15 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   rows.push(['','','','','','','','','','','ปฏิบัติงาน','','','ว.ด.ป.','ลายมือชื่อ','']);
   rows.push(['','','','','','','','','','','วันปกติ','วันหยุด','','ที่รับเงิน','ผู้รับเงิน','']);
   rows.push(['','','','','','','','','','','(ชั่วโมง)','(ชั่วโมง)','','','','']);
-  rows.push(['','','','','','','','','','','ยอดยกมา','','','','','']);
+  // ไม่มีแถว "ยอดยกมา" แยก — จะใส่ใน K ของ dateRow แรกแทน
 
   const grandTotal = employees.reduce((s, e) => s + e.amount, 0);
 
-  // track cell positions for styling (rows 0-6 = header)
+  // track cell positions for styling (rows 0-5 = header)
   const holidayCells: {r: number; c: number}[] = [];
   const leftAlignCells: {r: number; c: number}[] = [];
-  let curRow = 7;
+  let curRow = 6; // data เริ่มจากแถว 6 (0-indexed) พร้อมกับ "ยอดยกมา"
+  let isFirstDataRow = true;
 
   employees.forEach(emp => {
     const chunks: OTDay[][] = [];
@@ -141,11 +142,16 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
         }
       }
       if (isLast) {
-        dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
+        // "ยอดยกมา" อยู่ใน K ของ dateRow แรกสุด — ถ้า first chunk = last chunk ก็ใส่ weekdayHrs ด้านหลัง
+        dateRow.push(
+          isFirstDataRow && !isLast ? 'ยอดยกมา' : (emp.weekdayHrs || ''),
+          emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString()
+        );
       } else {
-        dateRow.push('', '', '', '', '', '');
+        dateRow.push(isFirstDataRow ? 'ยอดยกมา' : '', '', '', '', '', '');
       }
       rows.push(dateRow);
+      isFirstDataRow = false;
 
       const timeRow: any[] = ['', ''];
       for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
@@ -229,7 +235,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   const leftAlign = { horizontal: 'left', vertical: 'center', wrapText: true };
   leftAlignCells.forEach(({ r, c }) => {
     const addr = XLSX.utils.encode_cell({ r, c });
-    const font = { name: FONT, sz: 14 };
+    const font = { name: FONT, sz: 14, bold: r === sumRowIdx }; // sumRow ต้อง bold
     const s = { font, alignment: leftAlign };
     if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...s };
     else ws[addr] = { v: '', t: 's', s };
