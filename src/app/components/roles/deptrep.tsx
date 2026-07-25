@@ -562,9 +562,9 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   if (step === 'select') return (
     <>
       <PageHeader title="ส่งออกข้อมูลเป็น Excel"
-        subtitle={headNotified
-          ? '✓ หัวหน้างานแจ้งว่าพร้อมส่งออกแล้ว'
-          : 'รอหัวหน้างานกดแจ้งพร้อมส่งออก'}
+        right={headNotified
+          ? <StatusChip kind="success">✅ หัวหน้าแจ้งพร้อมส่งออกแล้ว</StatusChip>
+          : <StatusChip kind="neutral">⏳ รอหัวหน้างานแจ้ง</StatusChip>}
       />
       <StepBar step={0} />
       <SectionCard>
