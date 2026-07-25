@@ -335,65 +335,89 @@ function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[];
 export function RepDashboard({ onGo }: { onGo: () => void }) {
   const [pending, setPending] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [headNotified, setHeadNotified] = useState(false); // หัวหน้าแจ้งพร้อมแล้วหรือไม่
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const h = { Authorization: `Bearer ${token()}` };
-    // history = ทุก status ที่ผ่าน rep_forwarded แล้ว (รวมที่ checker ดำเนินการแล้ว)
     const now = new Date();
     const monthParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     Promise.all([
       fetch('/api/ot-requests/?status=head_approved', { headers: h }).then(r => r.json()),
       fetch(`/api/ot-requests/?status_in=rep_forwarded,checker_approved,checker_rejected,completed&month=${monthParam}`, { headers: h }).then(r => r.json()),
-    ]).then(([p, f]) => {
+      fetch('/api/notifications/', { headers: h }).then(r => r.json()),
+    ]).then(([p, f, notifs]) => {
       setPending(Array.isArray(p) ? p : (p.results || []));
       setHistory(Array.isArray(f) ? f : (f.results || []));
+      const notifList: any[] = Array.isArray(notifs) ? notifs : (notifs.results || []);
+      setHeadNotified(notifList.some((n: any) => n.notif_type === 'ot_rep_action_needed'));
     }).finally(() => setLoading(false));
   }, []);
 
   const totalAmt = pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
-
+  // นับเป็นเดือน ไม่ใช่รายคำร้อง
+  const pendingMonths = new Set(pending.map((r: any) => (r.work_date || '').substring(0, 7)).filter(Boolean));
   const exportedMonths = loading ? 0 : new Set(history.map((r: any) => (r.work_date || '').substring(0, 7)).filter(Boolean)).size;
+
+  const goExport = () => {
+    if (pending.length > 0) {
+      const cnt: Record<string, number> = {};
+      pending.forEach((r: any) => { const k = (r.work_date || '').substring(0, 7); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+      const dom = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
+      if (dom) sessionStorage.setItem('notif_nav_month', dom);
+    }
+    onGo();
+  };
 
   return (
     <>
       <PageHeader title="Dashboard ตัวแทนฝ่าย" />
       <div className="grid grid-cols-3 gap-5 mb-6">
-        <div className="bg-white rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[var(--neutral-300)] flex flex-col justify-between">
-          <p className="text-[12px] text-[var(--neutral-500)]">พร้อมส่งออก</p>
-          <p className="text-[32px] font-bold text-tu-red tabular-nums">{loading ? '...' : pending.length}</p>
-          <Button size="sm" onClick={() => {
-            if (pending.length > 0) {
-              const cnt: Record<string, number> = {};
-              pending.forEach((r: any) => { const k = (r.work_date || '').substring(0, 7); if (k) cnt[k] = (cnt[k] || 0) + 1; });
-              const dom = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
-              if (dom) sessionStorage.setItem('notif_nav_month', dom);
-            }
-            onGo();
-          }} className="bg-tu-red text-white">ไปส่งออก <ChevronRight className="size-4 ml-1" /></Button>
+        {/* Card 1: สถานะจากหัวหน้างาน */}
+        <div className={`rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] border flex flex-col justify-between ${headNotified ? 'bg-green-50 border-green-300' : 'bg-white border-[var(--neutral-300)]'}`}>
+          <p className="text-[12px] text-[var(--neutral-500)] font-medium">สถานะจากหัวหน้างาน</p>
+          {loading ? (
+            <p className="text-[28px] font-bold text-[var(--neutral-400)]">...</p>
+          ) : headNotified ? (
+            <div className="flex items-center gap-2 my-2">
+              <CheckCircle2 className="size-7 text-success shrink-0" />
+              <p className="text-[17px] font-bold text-success leading-tight">หัวหน้าแจ้งพร้อมส่งออกแล้ว</p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 my-2">
+              <Bell className="size-6 text-[var(--neutral-400)] shrink-0" />
+              <p className="text-[15px] font-medium text-[var(--neutral-500)] leading-tight">รอหัวหน้างานกดแจ้ง</p>
+            </div>
+          )}
+          <Button size="sm" onClick={goExport} disabled={pending.length === 0}
+            className={pending.length > 0 ? 'bg-tu-red text-white' : 'opacity-40'}>
+            ไปส่งออก <ChevronRight className="size-4 ml-1" />
+          </Button>
         </div>
-        <KpiCard label="ส่งออกแล้วเดือนนี้" value={<span className="text-success">{loading ? '...' : `${exportedMonths} ไฟล์`}</span>} accent="green" />
-        <KpiCard label="รวมยอดรอส่งออก" value={`${totalAmt.toLocaleString()} บาท`} accent="blue" />
+
+        <KpiCard
+          label="รอส่งออก"
+          value={<span className={pendingMonths.size > 0 ? 'text-tu-red' : ''}>{loading ? '...' : `${pendingMonths.size} เดือน`}</span>}
+          accent="red"
+        />
+        <KpiCard label="ส่งออกแล้ว" value={<span className="text-success">{loading ? '...' : `${exportedMonths} เดือน`}</span>} accent="green" />
       </div>
 
       {pending.length > 0 && (
-        <div className="bg-tu-yellow-soft border border-tu-yellow rounded-xl p-6 mb-6 flex items-center gap-5">
-          <div className="size-20 rounded-xl bg-success grid place-items-center text-white">
+        <div className={`${headNotified ? 'bg-green-50 border-green-300' : 'bg-tu-yellow-soft border-tu-yellow'} border rounded-xl p-6 mb-6 flex items-center gap-5`}>
+          <div className={`size-20 rounded-xl ${headNotified ? 'bg-success' : 'bg-tu-yellow'} grid place-items-center ${headNotified ? 'text-white' : 'text-[var(--neutral-black)]'}`}>
             <FileSpreadsheet className="size-10" />
           </div>
           <div className="flex-1">
-            <h2>มี {pending.length} คำร้องพร้อมส่งออก</h2>
-            <p className="text-[var(--neutral-500)] mt-1">รวมยอด {totalAmt.toLocaleString()} บาท • ผ่านการอนุมัติจากหัวหน้างานแล้วทั้งหมด</p>
+            <div className="flex items-center gap-2 mb-1">
+              <h2>{pendingMonths.size} เดือน พร้อมส่งออก</h2>
+              {headNotified
+                ? <StatusChip kind="success">หัวหน้าแจ้งแล้ว ✓</StatusChip>
+                : <StatusChip kind="warning">รอหัวหน้าแจ้ง</StatusChip>}
+            </div>
+            <p className="text-[var(--neutral-500)]">รวมยอด {totalAmt.toLocaleString()} บาท • ผ่านการอนุมัติจากหัวหน้างานแล้วทั้งหมด</p>
           </div>
-          <Button onClick={() => {
-            if (pending.length > 0) {
-              const cnt: Record<string, number> = {};
-              pending.forEach((r: any) => { const k = (r.work_date || '').substring(0, 7); if (k) cnt[k] = (cnt[k] || 0) + 1; });
-              const dom = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
-              if (dom) sessionStorage.setItem('notif_nav_month', dom);
-            }
-            onGo();
-          }} className="bg-tu-red hover:bg-tu-red-dark text-white h-12 px-6">
+          <Button onClick={goExport} className="bg-tu-red hover:bg-tu-red-dark text-white h-12 px-6">
             ส่งออกเลย <ChevronRight className="size-4 ml-1" />
           </Button>
         </div>
@@ -449,13 +473,21 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [downloaded, setDownloaded] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [checkers, setCheckers] = useState<{ id: number; full_name: string; notify_email: string; email: string }[]>([]);
+  const [headNotified, setHeadNotified] = useState(false);
 
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (u) setDeptName(JSON.parse(u).department_name || '');
-    fetch('/api/users/?role=checker', { headers: { Authorization: `Bearer ${token()}` } })
+    const h = { Authorization: `Bearer ${token()}` };
+    fetch('/api/users/?role=checker', { headers: h })
       .then(r => r.json())
       .then(d => setCheckers(Array.isArray(d) ? d : (d.results || [])));
+    fetch('/api/notifications/', { headers: h })
+      .then(r => r.json())
+      .then((d: any) => {
+        const list: any[] = Array.isArray(d) ? d : (d.results || []);
+        setHeadNotified(list.some((n: any) => n.notif_type === 'ot_rep_action_needed'));
+      }).catch(() => {});
 
     // auto-detect เดือนที่มี head_approved request — ลองย้อนหลัง 12 เดือนแบบ parallel
     const now = new Date();
@@ -530,7 +562,11 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   // ── Step: เลือกข้อมูล ──
   if (step === 'select') return (
     <>
-      <PageHeader title="ส่งออกข้อมูลเป็น Excel" />
+      <PageHeader title="ส่งออกข้อมูลเป็น Excel"
+        subtitle={headNotified
+          ? '✓ หัวหน้างานแจ้งว่าพร้อมส่งออกแล้ว'
+          : 'รอหัวหน้างานกดแจ้งพร้อมส่งออก'}
+      />
       <StepBar step={0} />
       <SectionCard>
         {autoDetecting && (
