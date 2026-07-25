@@ -294,8 +294,9 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
               <tbody>
                 {groups.map(g => {
                   const hasPending = g.pending.length > 0;
-                  const isApproved = !hasPending && g.approved.length > 0;
-                  const isRejected = !hasPending && g.rejected.length > 0;
+                  const isApproved = !hasPending && g.approved.length > 0 && g.rejected.length === 0;
+                  const isRejected = !hasPending && g.rejected.length > 0 && g.approved.length === 0;
+                  const isMixed   = !hasPending && g.approved.length > 0 && g.rejected.length > 0;
                   const pendingAmt = g.pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
                   const expanded = expandedDept === g.dept_id;
 
@@ -309,7 +310,8 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                           {hasPending && <StatusChip kind="warning">รอตรวจสอบ</StatusChip>}
                           {isApproved && <StatusChip kind="success">อนุมัติแล้ว</StatusChip>}
                           {isRejected && <StatusChip kind="danger">ตีกลับแล้ว</StatusChip>}
-                          {!hasPending && !isApproved && !isRejected && <StatusChip kind="warning">ยังไม่ส่งเอกสาร</StatusChip>}
+                          {isMixed && <><StatusChip kind="success">อนุมัติ {g.approved.length}</StatusChip><StatusChip kind="danger">ตีกลับ {g.rejected.length}</StatusChip></>}
+                          {!hasPending && !isApproved && !isRejected && !isMixed && <StatusChip kind="warning">ยังไม่ส่งเอกสาร</StatusChip>}
                         </td>
                         <td className="px-3 py-2">
                           {(() => {
@@ -373,6 +375,17 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                             </div>
                           )}
                           {isRejected && <span className="text-[11px] text-danger font-semibold">ตีกลับแล้ว</span>}
+                          {isMixed && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-[var(--neutral-500)]">อนุมัติ {g.approved.length} / ตีกลับ {g.rejected.length}</span>
+                              <Button size="sm" variant="outline"
+                                className="h-7 px-2 text-[11px] border-neutral-300 text-neutral-500 hover:border-danger hover:text-danger"
+                                disabled={processing}
+                                onClick={() => setUnapproveConfirm({ open: true, ids: g.approved.map(r => r.id), dept: g.dept_name })}>
+                                ยกเลิกอนุมัติที่เหลือ
+                              </Button>
+                            </div>
+                          )}
                         </td>
                       </tr>
 
