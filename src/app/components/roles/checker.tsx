@@ -95,9 +95,18 @@ function BudgetGauge({ percent }: { percent: number }) {
 // ─── CheckerDashboard ─────────────────────────────────────────────────────────
 
 export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp: any) => void }) {
-  const _sd = smartDefaultDate();
-  const [thaiYear, setThaiYear] = useState(String(_sd.year + 543));
-  const [selMonth, setSelMonth] = useState(_sd.month);
+  const _initDate = (() => {
+    const stored = sessionStorage.getItem('notif_nav_month');
+    if (stored) {
+      sessionStorage.removeItem('notif_nav_month');
+      const d = new Date(stored + '-01');
+      return { year: d.getFullYear() + 543, month: d.getMonth() + 1 };
+    }
+    const sd = smartDefaultDate();
+    return { year: sd.year + 543, month: sd.month };
+  })();
+  const [thaiYear, setThaiYear] = useState(String(_initDate.year));
+  const [selMonth, setSelMonth] = useState(_initDate.month);
   const [groups, setGroups] = useState<DeptGroup[]>([]);
   const [noOtDepts, setNoOtDepts] = useState<{ id: number; name: string; code: string }[]>([]);
   const [noOtDeclarations, setNoOtDeclarations] = useState<{ dept_id: number; dept_name: string; declared_by: string; note: string }[]>([]);
