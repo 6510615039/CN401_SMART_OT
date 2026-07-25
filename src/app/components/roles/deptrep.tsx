@@ -153,6 +153,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     });
   });
 
+  const sumRowIdx = curRow; // track สำหรับ merge
   const sumRow: any[] = ['', '', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
   for (let i = 0; i < DATES_PER_ROW; i++) sumRow.push('');
   sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
@@ -182,7 +183,9 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:2,c:12},e:{r:5,c:12}},  // M: จำนวนเงิน (merge 4 แถว)
     // N,O: ไม่ merge ตลอด 4 แถว เพื่อให้ "ว.ด.ป." / "ที่รับเงิน" แสดงได้
     {s:{r:2,c:15},e:{r:5,c:15}},  // P: หมายเหตุ (merge 4 แถว)
-    {s:{r:6,c:10},e:{r:6,c:11}},  // K-L แถว 7: "ยอดยกมา" (merge K-L)
+    {s:{r:6,c:10},e:{r:6,c:11}},                          // K-L แถว 7: "ยอดยกมา"
+    {s:{r:sumRowIdx,c:2},e:{r:sumRowIdx,c:9}},            // C-J: "รวมเงินจ่ายทั้งสิ้น..."
+    {s:{r:sumRowIdx,c:10},e:{r:sumRowIdx,c:11}},          // K-L: "รวมเป็นเงิน"
   ];
 
   // center ทุก cell + wrap text
