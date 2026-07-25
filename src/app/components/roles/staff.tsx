@@ -468,7 +468,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
         const isRejectedReq = existingReq?.status === 'head_rejected' || existingReq?.status === 'checker_rejected';
         const payload = {
           work_date: r.date,
-          start_time: r.in || '08:00',
+          start_time: isHol ? (r.in || '08:00') : '16:30',
           end_time: r.out || '17:00',
           ot_hours: h,
           work_detail: detailPrefix + (reason || 'ปฏิบัติงานนอกเวลาราชการ'),

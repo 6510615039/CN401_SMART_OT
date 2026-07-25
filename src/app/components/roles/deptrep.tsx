@@ -54,11 +54,16 @@ function requestsToEmployees(requests: any[]): OTEmployee[] {
     grouped[name].reqs.push(r);
   });
   return Object.values(grouped).map((g, i) => {
-    const days: OTDay[] = g.reqs.map(r => ({
-      date: thaiDate(r.work_date),
-      time: `${(r.start_time || '').slice(0,5)}-${(r.end_time || '').slice(0,5)} น.`,
-      isWeekend: r.day_type === 'holiday',
-    }));
+    const sorted = [...g.reqs].sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''));
+    const days: OTDay[] = sorted.map(r => {
+      const otStart = r.day_type === 'weekday' ? '16:30' : (r.start_time || '').slice(0, 5);
+      const otEnd = (r.end_time || '').slice(0, 5);
+      return {
+        date: thaiDate(r.work_date),
+        time: `${otStart}-${otEnd} น.`,
+        isWeekend: r.day_type === 'holiday',
+      };
+    });
     const weekdayHrs = g.reqs.filter(r => r.day_type === 'weekday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
     const weekendHrs = g.reqs.filter(r => r.day_type === 'holiday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
     const amount = g.reqs.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
