@@ -297,8 +297,10 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                                   const a = document.createElement('a');
                                   a.href = URL.createObjectURL(blob);
                                   const cd = res.headers.get('content-disposition') || '';
-                                  const m = cd.match(/filename="?([^"]+)"?/);
-                                  a.download = m ? m[1] : 'document';
+                                  const rfc5987 = cd.match(/filename\*=UTF-8''([^;]+)/i);
+                                  const plain   = cd.match(/filename="([^"]+)"/);
+                                  const fname   = rfc5987 ? decodeURIComponent(rfc5987[1]) : plain ? plain[1] : '';
+                                  a.download = fname || 'OT-Report.xlsx';
                                   a.click();
                                   URL.revokeObjectURL(a.href);
                                 }}>

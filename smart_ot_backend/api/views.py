@@ -698,11 +698,12 @@ class OTRequestViewSet(viewsets.ModelViewSet):
                 raise Http404('ไฟล์ไม่พบบน server')
 
         from django.http import HttpResponse
-        import mimetypes
+        import mimetypes, urllib.parse
         content_type, _ = mimetypes.guess_type(filename)
         content_type = content_type or 'application/octet-stream'
         response = HttpResponse(data, content_type=content_type)
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        encoded = urllib.parse.quote(filename, safe='')
+        response['Content-Disposition'] = f"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded}"
         return response
 
 
