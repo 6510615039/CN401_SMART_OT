@@ -174,7 +174,15 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  saveAs(new Blob([buf], { type: 'application/octet-stream' }), `OT-Report-${month}.xlsx`);
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `OT-Report-${month}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Excel Preview ────────────────────────────────────────────────────────────
