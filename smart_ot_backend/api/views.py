@@ -2030,6 +2030,42 @@ def bulk_reject_view(request):
     return Response({'rejected': len(rejected_list)})
 
 
+# ─── Bulk Unapprove (checker) ────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_unapprove_view(request):
+    """POST /api/ot-requests/bulk-unapprove/
+    checker ยกเลิกการอนุมัติ — คืน status กลับเป็น rep_forwarded
+    body: { ids: [1,2,...] }
+    อนุญาตเฉพาะ checker_approved (ยังไม่ถึง completed)
+    """
+    effective_role = get_effective_role(request.user, request)
+    if effective_role != 'checker':
+        return Response({'error': 'สิทธิ์ไม่เพียงพอ'}, status=status.HTTP_403_FORBIDDEN)
+
+    ids = request.data.get('ids', [])
+    if not ids:
+        return Response({'error': 'ไม่มีรายการที่เลือก'}, status=status.HTTP_400_BAD_REQUEST)
+
+    unapproved = []
+    skipped = []
+    for ot_id in ids:
+        try:
+            ot = OTRequest.objects.get(id=ot_id, status='checker_approved')
+            ot.status              = 'rep_forwarded'
+            ot.checker_approved_by = None
+            ot.checker_approved_at = None
+            ot.checker_note        = ''
+            ot.save()
+            log_action(request.user, f'ผู้ตรวจสอบยกเลิกการอนุมัติ OT #{ot.id}', 'OTRequest', ot.id, request=request)
+            unapproved.append(ot_id)
+        except OTRequest.DoesNotExist:
+            skipped.append(ot_id)
+
+    return Response({'unapproved': len(unapproved), 'skipped': len(skipped)})
+
+
 # ─── Bulk Head Approve / Reject (depthead) ───────────────────────────────────
 
 @api_view(['POST'])

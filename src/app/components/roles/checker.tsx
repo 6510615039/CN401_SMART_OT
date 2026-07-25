@@ -114,6 +114,8 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
   const [expandedDept, setExpandedDept] = useState<number | null>(null);
   const [rejectDlg, setRejectDlg] = useState<{ open: boolean; requests: OTReq[]; dept: string }>({ open: false, requests: [], dept: '' });
   const [rejectNote, setRejectNote] = useState('');
+  const [approveDlg, setApproveDlg] = useState<{ open: boolean; requests: OTReq[]; dept: string }>({ open: false, requests: [], dept: '' });
+  const [unapproveConfirm, setUnapproveConfirm] = useState<{ open: boolean; ids: number[]; dept: string }>({ open: false, ids: [], dept: '' });
   const [processing, setProcessing] = useState(false);
   const token = () => localStorage.getItem('access_token');
 
@@ -154,6 +156,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   async function approveAll(requests: OTReq[]) {
+    setApproveDlg({ open: false, requests: [], dept: '' });
     setProcessing(true);
     setSuccessMsg(null);
     const res = await fetch('/api/ot-requests/bulk-approve/', {
@@ -165,6 +168,20 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
     setProcessing(false);
     if (data?.budget_warning) setBudgetWarning(data.budget_warning);
     setSuccessMsg(`อนุมัติ ${requests.length} รายการเรียบร้อยแล้ว`);
+    setTimeout(() => setSuccessMsg(null), 4000);
+    await load(monthStr, gregYear, selMonth);
+  }
+
+  async function unapproveAll(ids: number[]) {
+    setUnapproveConfirm({ open: false, ids: [], dept: '' });
+    setProcessing(true);
+    await fetch('/api/ot-requests/bulk-unapprove/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    setProcessing(false);
+    setSuccessMsg('ยกเลิกการอนุมัติเรียบร้อยแล้ว คำร้องกลับสู่สถานะรอตรวจสอบ');
     setTimeout(() => setSuccessMsg(null), 4000);
     await load(monthStr, gregYear, selMonth);
   }
@@ -334,7 +351,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                             <div className="flex gap-2">
                               <Button size="sm" className="h-8 px-3 bg-success hover:bg-success/90 text-white text-[12px] font-semibold shadow-sm"
                                 disabled={processing}
-                                onClick={() => approveAll(g.pending)}>
+                                onClick={() => setApproveDlg({ open: true, requests: g.pending, dept: g.dept_name })}>
                                 <CheckCircle2 className="size-4 mr-1" />อนุมัติทั้งหมด ({g.pending.length} รายการ)
                               </Button>
                               <Button size="sm" className="h-8 px-3 bg-danger hover:bg-danger/90 text-white text-[12px] font-semibold shadow-sm"
@@ -344,7 +361,17 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                               </Button>
                             </div>
                           )}
-                          {isApproved && <span className="text-[11px] text-success font-semibold">อนุมัติแล้ว ✓</span>}
+                          {isApproved && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-success font-semibold">อนุมัติแล้ว ✓</span>
+                              <Button size="sm" variant="outline"
+                                className="h-7 px-2 text-[11px] border-neutral-300 text-neutral-500 hover:border-danger hover:text-danger"
+                                disabled={processing}
+                                onClick={() => setUnapproveConfirm({ open: true, ids: g.approved.map(r => r.id), dept: g.dept_name })}>
+                                ยกเลิกการอนุมัติ
+                              </Button>
+                            </div>
+                          )}
                           {isRejected && <span className="text-[11px] text-danger font-semibold">ตีกลับแล้ว</span>}
                         </td>
                       </tr>
@@ -383,6 +410,47 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
       </SectionCard>
 
       {/* Reject dialog */}
+      {/* Confirm Approve Dialog */}
+      <Dialog open={approveDlg.open} onOpenChange={open => { if (!open) setApproveDlg({ open: false, requests: [], dept: '' }); }}>
+        <DialogContent className="max-w-[440px]">
+          <DialogHeader><DialogTitle>ยืนยันการอนุมัติ — {approveDlg.dept}</DialogTitle></DialogHeader>
+          <div className="bg-green-50 border border-green-300 rounded-lg p-3 text-[13px]">
+            <p className="font-semibold text-green-700">
+              อนุมัติ {approveDlg.requests.length} รายการ รวมเป็นเงิน{' '}
+              {approveDlg.requests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0).toLocaleString()} บาท
+            </p>
+            <p className="text-green-600 mt-1">ระบบจะแจ้งเตือนพนักงานและหัวหน้างาน</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveDlg({ open: false, requests: [], dept: '' })}>ยกเลิก</Button>
+            <Button className="bg-success text-white" disabled={processing} onClick={() => approveAll(approveDlg.requests)}>
+              <CheckCircle2 className="size-4 mr-1" />{processing ? 'กำลังดำเนินการ...' : 'ยืนยันอนุมัติ'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Unapprove Dialog */}
+      <Dialog open={unapproveConfirm.open} onOpenChange={open => { if (!open) setUnapproveConfirm({ open: false, ids: [], dept: '' }); }}>
+        <DialogContent className="max-w-[440px]">
+          <DialogHeader><DialogTitle>ยกเลิกการอนุมัติ — {unapproveConfirm.dept}</DialogTitle></DialogHeader>
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 text-[13px]">
+            <p className="font-semibold text-yellow-700">
+              คำร้อง {unapproveConfirm.ids.length} รายการจะถูกคืนสถานะเป็น "รอตรวจสอบ"
+            </p>
+            <p className="text-yellow-600 mt-1">ใช้เมื่อต้องการตรวจสอบซ้ำหรืออนุมัติใหม่</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnapproveConfirm({ open: false, ids: [], dept: '' })}>ยกเลิก</Button>
+            <Button className="bg-yellow-500 hover:bg-yellow-600 text-white" disabled={processing}
+              onClick={() => unapproveAll(unapproveConfirm.ids)}>
+              {processing ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิกการอนุมัติ'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Dialog */}
       <Dialog open={rejectDlg.open} onOpenChange={open => { if (!open) setRejectDlg({ open: false, requests: [], dept: '' }); }}>
         <DialogContent className="max-w-[480px]">
           <DialogHeader><DialogTitle>ตีกลับ — {rejectDlg.dept}</DialogTitle></DialogHeader>

@@ -37,6 +37,8 @@ urlpatterns = [
     path('ot-requests/bulk-approve/',       views.bulk_approve_view),
     # Bulk reject (checker) — notification รวม (1 ต่อแผนก)
     path('ot-requests/bulk-reject/',        views.bulk_reject_view),
+    # Bulk unapprove (checker) — ยกเลิกการอนุมัติ → คืนสถานะ rep_forwarded
+    path('ot-requests/bulk-unapprove/',     views.bulk_unapprove_view),
     # Bulk approve/reject (depthead) — notification รวมต่อ staff
     path('ot-requests/bulk-head-approve/',  views.bulk_head_approve_view),
     path('ot-requests/bulk-head-reject/',   views.bulk_head_reject_view),
