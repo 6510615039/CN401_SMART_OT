@@ -62,12 +62,22 @@ function groupByDept(reqs: OTReq[]): DeptGroup[] {
     else if (r.status === 'checker_approved' || r.status === 'completed') g.approved.push(r);
     else if (r.status === 'checker_rejected') g.rejected.push(r);
   }
-  const sortAsc = (arr: OTReq[]) => arr.sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''));
+  // เรียงแบบแบ่งเป็นคน ๆ ก่อน แล้วเรียงวันที่น้อย→มากภายในแต่ละคน
+  const sortByPersonThenDate = (arr: OTReq[]) => {
+    const grouped: Record<string, OTReq[]> = {};
+    arr.forEach(r => {
+      const key = r.staff_name || String(r.staff);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(r);
+    });
+    Object.values(grouped).forEach(g => g.sort((a, b) => (a.work_date || '').localeCompare(b.work_date || '')));
+    return Object.values(grouped).flat();
+  };
   return Array.from(map.values()).map(g => ({
     ...g,
-    pending: sortAsc(g.pending),
-    approved: sortAsc(g.approved),
-    rejected: sortAsc(g.rejected),
+    pending: sortByPersonThenDate(g.pending),
+    approved: sortByPersonThenDate(g.approved),
+    rejected: sortByPersonThenDate(g.rejected),
   })).sort((a, b) => b.pending.length - a.pending.length);
 }
 
