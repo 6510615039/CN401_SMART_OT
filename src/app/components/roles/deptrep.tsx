@@ -185,8 +185,19 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:6,c:10},e:{r:6,c:11}},  // K-L แถว 7: "ยอดยกมา" (merge K-L)
   ];
 
-  // ใส่ตัวอักษรสีแดงสำหรับวันหยุด
-  const redStyle = { font: { color: { rgb: 'FF0000' } } };
+  // center ทุก cell + wrap text
+  const centerAlign = { alignment: { horizontal: 'center', vertical: 'center', wrapText: true } };
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...centerAlign };
+      else ws[addr] = { v: '', t: 's', s: centerAlign };
+    }
+  }
+
+  // ใส่ตัวอักษรสีแดงสำหรับวันหยุด (ทำทีหลัง center เพื่อไม่ให้ถูก overwrite)
+  const redStyle = { font: { color: { rgb: 'FF0000' } }, ...centerAlign };
   holidayCells.forEach(({ r, c }) => {
     const addr = XLSX.utils.encode_cell({ r, c });
     if (ws[addr]) ws[addr].s = redStyle;
