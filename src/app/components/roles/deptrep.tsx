@@ -117,6 +117,10 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
   const grandTotal = employees.reduce((s, e) => s + e.amount, 0);
 
+  // track holiday cell positions for red styling (rows 0-6 = header)
+  const holidayCells: {r: number; c: number}[] = [];
+  let curRow = 7;
+
   employees.forEach(emp => {
     const chunks: OTDay[][] = [];
     for (let i = 0; i < emp.days.length; i += DATES_PER_ROW) {
@@ -127,7 +131,13 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     chunks.forEach((chunk, ci) => {
       const isLast = ci === chunks.length - 1;
       const dateRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
-      for (let i = 0; i < DATES_PER_ROW; i++) dateRow.push(chunk[i]?.date ?? '');
+      for (let i = 0; i < DATES_PER_ROW; i++) {
+        dateRow.push(chunk[i]?.date ?? '');
+        if (chunk[i]?.isWeekend) {
+          holidayCells.push({ r: curRow, c: 2 + i });       // date cell
+          holidayCells.push({ r: curRow + 1, c: 2 + i });   // time cell (row below)
+        }
+      }
       if (isLast) {
         dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
       } else {
@@ -139,6 +149,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
       for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
       timeRow.push('', '', '', '', '', '');
       rows.push(timeRow);
+      curRow += 2;
     });
   });
 
@@ -164,16 +175,26 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:1,c:0},e:{r:1,c:15}},   // แถว 2: แผนก + เดือน
     {s:{r:2,c:0},e:{r:5,c:0}},    // A: ลำดับที่ (merge 4 แถว)
     {s:{r:2,c:1},e:{r:5,c:1}},    // B: ชื่อ-สกุล (merge 4 แถว)
-    {s:{r:2,c:2},e:{r:2,c:9}},    // C-J: "วันปฏิบัติงาน..." (แถวเดียว)
+    {s:{r:2,c:2},e:{r:5,c:9}},    // C-J: "วันปฏิบัติงาน..." (merge 4 แถว เหมือน template)
     {s:{r:2,c:10},e:{r:2,c:11}},  // K-L แถว 3: "รวมเวลา"
     {s:{r:3,c:10},e:{r:3,c:11}},  // K-L แถว 4: "ปฏิบัติงาน"
     // แถว 5,6: K="วันปกติ" L="วันหยุด" — ไม่ merge เพื่อให้แสดงแยกกัน
     {s:{r:2,c:12},e:{r:5,c:12}},  // M: จำนวนเงิน (merge 4 แถว)
     // N,O: ไม่ merge ตลอด 4 แถว เพื่อให้ "ว.ด.ป." / "ที่รับเงิน" แสดงได้
     {s:{r:2,c:15},e:{r:5,c:15}},  // P: หมายเหตุ (merge 4 แถว)
+    {s:{r:6,c:10},e:{r:6,c:11}},  // K-L แถว 7: "ยอดยกมา" (merge K-L)
   ];
+
+  // ใส่ตัวอักษรสีแดงสำหรับวันหยุด
+  const redStyle = { font: { color: { rgb: 'FF0000' } } };
+  holidayCells.forEach(({ r, c }) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (ws[addr]) ws[addr].s = redStyle;
+    else ws[addr] = { v: '', t: 's', s: redStyle };
+  });
+
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
-  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
