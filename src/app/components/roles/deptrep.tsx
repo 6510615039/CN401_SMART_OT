@@ -46,6 +46,15 @@ interface OTEmployee {
   weekdayHrs: number; weekendHrs: number; amount: number; note: string;
 }
 
+// คำนวณเวลาสิ้นสุด OT จาก start + ot_hours แล้ว format เป็น HH.MM
+function calcOTEnd(startHHMM: string, otHours: number): string {
+  const [h, m] = startHHMM.split(':').map(Number);
+  const totalMins = h * 60 + m + Math.round(otHours * 60);
+  const nh = Math.floor(totalMins / 60);
+  const nm = totalMins % 60;
+  return `${String(nh).padStart(2, '0')}.${String(nm).padStart(2, '0')}`;
+}
+
 function requestsToEmployees(requests: any[]): OTEmployee[] {
   const grouped: Record<string, { name: string; reqs: any[] }> = {};
   requests.forEach(r => {
@@ -56,11 +65,13 @@ function requestsToEmployees(requests: any[]): OTEmployee[] {
   return Object.values(grouped).map((g, i) => {
     const sorted = [...g.reqs].sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''));
     const days: OTDay[] = sorted.map(r => {
-      const otStart = r.day_type === 'weekday' ? '16:30' : (r.start_time || '').slice(0, 5);
-      const otEnd = (r.end_time || '').slice(0, 5);
+      const startHHMM = r.day_type === 'weekday' ? '16:30' : (r.start_time || '08:00').slice(0, 5);
+      const otHours = parseFloat(r.ot_hours || '0');
+      const startDisp = startHHMM.replace(':', '.');
+      const endDisp = calcOTEnd(startHHMM, otHours);
       return {
         date: thaiDate(r.work_date),
-        time: `${otStart}-${otEnd} น.`,
+        time: `${startDisp}-${endDisp} น.`,
         isWeekend: r.day_type === 'holiday',
       };
     });
@@ -149,19 +160,17 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {wch:7},{wch:7},{wch:9},{wch:8},{wch:13},{wch:11},
   ];
   ws['!merges'] = [
-    {s:{r:0,c:0},e:{r:0,c:15}},
-    {s:{r:1,c:0},e:{r:1,c:15}},
-    {s:{r:2,c:0},e:{r:5,c:0}},
-    {s:{r:2,c:1},e:{r:5,c:1}},
-    {s:{r:2,c:2},e:{r:2,c:9}},
-    {s:{r:2,c:10},e:{r:2,c:11}},
-    {s:{r:3,c:10},e:{r:3,c:11}},
-    {s:{r:4,c:10},e:{r:4,c:11}},
-    {s:{r:5,c:10},e:{r:5,c:11}},
-    {s:{r:2,c:12},e:{r:5,c:12}},
-    {s:{r:2,c:13},e:{r:5,c:13}},
-    {s:{r:2,c:14},e:{r:5,c:14}},
-    {s:{r:2,c:15},e:{r:5,c:15}},
+    {s:{r:0,c:0},e:{r:0,c:15}},   // แถว 1: ชื่อเอกสาร
+    {s:{r:1,c:0},e:{r:1,c:15}},   // แถว 2: แผนก + เดือน
+    {s:{r:2,c:0},e:{r:5,c:0}},    // A: ลำดับที่ (merge 4 แถว)
+    {s:{r:2,c:1},e:{r:5,c:1}},    // B: ชื่อ-สกุล (merge 4 แถว)
+    {s:{r:2,c:2},e:{r:2,c:9}},    // C-J: "วันปฏิบัติงาน..." (แถวเดียว)
+    {s:{r:2,c:10},e:{r:2,c:11}},  // K-L แถว 3: "รวมเวลา"
+    {s:{r:3,c:10},e:{r:3,c:11}},  // K-L แถว 4: "ปฏิบัติงาน"
+    // แถว 5,6: K="วันปกติ" L="วันหยุด" — ไม่ merge เพื่อให้แสดงแยกกัน
+    {s:{r:2,c:12},e:{r:5,c:12}},  // M: จำนวนเงิน (merge 4 แถว)
+    // N,O: ไม่ merge ตลอด 4 แถว เพื่อให้ "ว.ด.ป." / "ที่รับเงิน" แสดงได้
+    {s:{r:2,c:15},e:{r:5,c:15}},  // P: หมายเหตุ (merge 4 แถว)
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
