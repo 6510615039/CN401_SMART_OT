@@ -62,7 +62,13 @@ function groupByDept(reqs: OTReq[]): DeptGroup[] {
     else if (r.status === 'checker_approved' || r.status === 'completed') g.approved.push(r);
     else if (r.status === 'checker_rejected') g.rejected.push(r);
   }
-  return Array.from(map.values()).sort((a, b) => b.pending.length - a.pending.length);
+  const sortAsc = (arr: OTReq[]) => arr.sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''));
+  return Array.from(map.values()).map(g => ({
+    ...g,
+    pending: sortAsc(g.pending),
+    approved: sortAsc(g.approved),
+    rejected: sortAsc(g.rejected),
+  })).sort((a, b) => b.pending.length - a.pending.length);
 }
 
 function fmtAmt(amt: string | number) {

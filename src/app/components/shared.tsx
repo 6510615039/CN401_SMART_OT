@@ -7,8 +7,8 @@ export function fmtDate(dateStr: string | undefined | null): string {
   const parts = s.split('-');
   if (parts.length !== 3) return s;
   const [y, m, d] = parts;
-  const shortYear = String(Number(y) % 100).padStart(2, '0');
-  return `${d}-${m}-${shortYear}`;
+  const thaiShortYear = String((Number(y) + 543) % 100).padStart(2, '0');
+  return `${d}/${m}/${thaiShortYear}`;
 }
 
 export function fmtDateTime(isoStr: string | undefined | null): string {
