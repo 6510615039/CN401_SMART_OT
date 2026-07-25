@@ -107,6 +107,19 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
   })();
   const [thaiYear, setThaiYear] = useState(String(_initDate.year));
   const [selMonth, setSelMonth] = useState(_initDate.month);
+
+  // รองรับกรณี component ยังอยู่ใน DOM แต่ navigate มาจาก notification
+  useEffect(() => {
+    const stored = sessionStorage.getItem('notif_nav_month');
+    if (stored) {
+      sessionStorage.removeItem('notif_nav_month');
+      const d = new Date(stored + '-01');
+      if (!isNaN(d.getTime())) {
+        setThaiYear(String(d.getFullYear() + 543));
+        setSelMonth(d.getMonth() + 1);
+      }
+    }
+  }, []);
   const [groups, setGroups] = useState<DeptGroup[]>([]);
   const [noOtDepts, setNoOtDepts] = useState<{ id: number; name: string; code: string }[]>([]);
   const [noOtDeclarations, setNoOtDeclarations] = useState<{ dept_id: number; dept_name: string; declared_by: string; note: string }[]>([]);
