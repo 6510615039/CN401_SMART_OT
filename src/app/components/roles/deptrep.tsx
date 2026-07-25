@@ -490,8 +490,17 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       .then(r => r.json())
       .then(d => {
         const list = Array.isArray(d) ? d : (d.results || []);
-        setRequests(list);
-        setSelIds(list.map((r: any) => r.id));
+        // จัดกลุ่มตามชื่อพนักงาน แล้วเรียงวันที่น้อย→มากภายในแต่ละกลุ่ม
+        const grouped: Record<string, any[]> = {};
+        list.forEach((r: any) => {
+          const key = r.staff_name || '';
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(r);
+        });
+        Object.values(grouped).forEach(g => g.sort((a: any, b: any) => (a.work_date || '').localeCompare(b.work_date || '')));
+        const sorted = Object.values(grouped).flat();
+        setRequests(sorted);
+        setSelIds(sorted.map((r: any) => r.id));
       })
       .finally(() => setLoading(false));
   }
@@ -594,7 +603,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
                         />
                       </td>
                       <td className="px-3 py-2">{r.staff_name}</td>
-                      <td className="px-3 py-2 text-[var(--neutral-500)]">{r.work_date}</td>
+                      <td className="px-3 py-2 text-[var(--neutral-500)]">{r.work_date ? (() => { const [y,m,d] = r.work_date.split('-'); return `${d}/${m}/${String(parseInt(y)+543).slice(-2)}`; })() : ''}</td>
                       <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))} ชม.</td>
                       <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
                       <td className="px-3 py-2">
