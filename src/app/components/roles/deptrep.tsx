@@ -153,13 +153,13 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     });
   });
 
-  const sumRow: any[] = ['', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
+  const sumRow: any[] = ['', '', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
   for (let i = 0; i < DATES_PER_ROW; i++) sumRow.push('');
   sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
   rows.push(sumRow);
 
   rows.push([]);
-  rows.push(['ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-1)]);
+  rows.push(['', 'ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-2)]);
   rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลายมือชื่อ', '', 'ลงชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
   const signerName = signer || 'นางสาวสาริยา  นวมจิต';
   rows.push(['', `(${signerName})`, '', '', '', '', '', '', '', '', '(นางสาวทองยุ่น  มธุรส)', '', '', '', '', '']);
