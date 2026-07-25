@@ -154,8 +154,9 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   });
 
   const sumRowIdx = curRow; // track สำหรับ merge
+  // A(0) B(1) C(2=text merged C-J) D-J(3-9 = 7 empties) K(10) L(11) M(12=total) N O P
   const sumRow: any[] = ['', '', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
-  for (let i = 0; i < DATES_PER_ROW; i++) sumRow.push('');
+  for (let i = 0; i < DATES_PER_ROW - 1; i++) sumRow.push('');
   sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
   rows.push(sumRow);
 
