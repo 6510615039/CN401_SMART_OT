@@ -142,22 +142,24 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
           holidayCells.push({ r: curRow + 1, c: 2 + i });   // time cell (row below)
         }
       }
-      if (isLast) {
-        dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
+      // date row: "ยอดยกมา" ใน K ของ first data row เสมอ (ไม่ชนกับ weekday hours เพราะ hours อยู่ใน time row)
+      if (isFirstDataRow) {
+        dateRow.push('ยอดยกมา', '', '', '', '', '');
+        boldCells.push({ r: curRow, c: 10 });
       } else {
-        if (isFirstDataRow) {
-          dateRow.push('ยอดยกมา', '', '', '', '', '');
-          boldCells.push({ r: curRow, c: 10 }); // "ยอดยกมา" bold
-        } else {
-          dateRow.push('', '', '', '', '', '');
-        }
+        dateRow.push('', '', '', '', '', '');
       }
       rows.push(dateRow);
       isFirstDataRow = false;
 
+      // time row: weekday/weekend hours และ amount อยู่ที่นี่ (last chunk เท่านั้น)
       const timeRow: any[] = ['', ''];
       for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
-      timeRow.push('', '', '', '', '', '');
+      if (isLast) {
+        timeRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
+      } else {
+        timeRow.push('', '', '', '', '', '');
+      }
       rows.push(timeRow);
       curRow += 2;
     });
