@@ -196,7 +196,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   ];
 
   // center + wrap text + THSarabunPSK font ทุก cell
-  const FONT = 'TH SarabunPSK';
+  const FONT = 'TH Sarabun New';
   const centerAlign = { horizontal: 'center', vertical: 'center', wrapText: true };
   const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
   for (let r = range.s.r; r <= range.e.r; r++) {
