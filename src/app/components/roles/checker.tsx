@@ -362,7 +362,8 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                                   const rfc5987 = cd.match(/filename\*=UTF-8''([^;]+)/i);
                                   const plain   = cd.match(/filename="([^"]+)"/);
                                   const fname   = rfc5987 ? decodeURIComponent(rfc5987[1]) : plain ? plain[1] : '';
-                                  a.download = fname || 'OT-Report.xlsx';
+                                  const thaiMonth = THAI_MONTHS[selMonth - 1];
+                                  a.download = fname || `หลักฐานเบิกจ่าย OT-${g.dept_name}-${thaiMonth} ${thaiYear}.xlsx`;
                                   a.click();
                                   URL.revokeObjectURL(a.href);
                                 }}>
