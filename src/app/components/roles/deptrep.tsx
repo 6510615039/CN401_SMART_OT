@@ -495,7 +495,6 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       return { ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, year: d.getFullYear(), mon: d.getMonth() + 1 };
     });
-    const h = { Authorization: `Bearer ${token()}` };
     Promise.all(
       candidates.map(c =>
         fetch(`/api/ot-requests/?status_in=head_approved,checker_rejected&month=${c.ym}&page_size=1`, { headers: h })
