@@ -117,8 +117,9 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
   const grandTotal = employees.reduce((s, e) => s + e.amount, 0);
 
-  // track holiday cell positions for red styling (rows 0-6 = header)
+  // track cell positions for styling (rows 0-6 = header)
   const holidayCells: {r: number; c: number}[] = [];
+  const rightAlignCells: {r: number; c: number}[] = [];
   let curRow = 7;
 
   employees.forEach(emp => {
@@ -131,6 +132,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     chunks.forEach((chunk, ci) => {
       const isLast = ci === chunks.length - 1;
       const dateRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
+      if (ci === 0) rightAlignCells.push({ r: curRow, c: 1 }); // ชื่อพนักงาน col B
       for (let i = 0; i < DATES_PER_ROW; i++) {
         dateRow.push(chunk[i]?.date ?? '');
         if (chunk[i]?.isWeekend) {
@@ -153,7 +155,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     });
   });
 
-  const sumRowIdx = curRow; // track สำหรับ merge
+  const sumRowIdx = curRow; // track สำหรับ merge + right-align
+  rightAlignCells.push({ r: sumRowIdx, c: 2 }); // "รวมเงินจ่ายทั้งสิ้น..." col C
   // A(0) B(1) C(2=text merged C-J) D-J(3-9 = 7 empties) K(10) L(11) M(12=total) N O P
   const sumRow: any[] = ['', '', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiAmountText(grandTotal)}-`];
   for (let i = 0; i < DATES_PER_ROW - 1; i++) sumRow.push('');
@@ -187,6 +190,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:6,c:10},e:{r:6,c:11}},                          // K-L แถว 7: "ยอดยกมา"
     {s:{r:sumRowIdx,c:2},e:{r:sumRowIdx,c:9}},            // C-J: "รวมเงินจ่ายทั้งสิ้น..."
     {s:{r:sumRowIdx,c:10},e:{r:sumRowIdx,c:11}},          // K-L: "รวมเป็นเงิน"
+    {s:{r:sumRowIdx+4,c:10},e:{r:sumRowIdx+4,c:11}},     // K-L: "(นางสาวทองยุ่น มธุรส)"
+    {s:{r:sumRowIdx+5,c:10},e:{r:sumRowIdx+5,c:11}},     // K-L: "นักวิชาการเงินและบัญชีชำนาญการ"
   ];
 
   // center ทุก cell + wrap text
@@ -206,6 +211,14 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     const addr = XLSX.utils.encode_cell({ r, c });
     if (ws[addr]) ws[addr].s = redStyle;
     else ws[addr] = { v: '', t: 's', s: redStyle };
+  });
+
+  // ชิดขวาสำหรับชื่อพนักงาน (col B) และ "รวมเงินจ่ายทั้งสิ้น..." (col C)
+  const rightStyle = { alignment: { horizontal: 'right', vertical: 'center', wrapText: true } };
+  rightAlignCells.forEach(({ r, c }) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...rightStyle };
+    else ws[addr] = { v: '', t: 's', s: rightStyle };
   });
 
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
