@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { StatusChip, fmtDateTime } from './shared';
+import { otRate } from '../constants/otRate';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 
@@ -70,7 +71,7 @@ export function OTDetailPage({ onBack, requestId }: Props) {
   const isRejected = req.status === 'head_rejected' || req.status === 'checker_rejected';
   const isApproved = req.status === 'checker_approved' || req.status === 'completed';
   const completedStep = STATUS_STEP[req.status] ?? 0;
-  const rate = req.day_type === 'holiday' ? 70 : 60;
+  const rate = otRate(req.day_type);
   const ot_hours = parseFloat(req.ot_hours || 0);
   const amount = parseFloat(req.amount || 0);
 

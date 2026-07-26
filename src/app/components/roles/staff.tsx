@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { smartDefaultDate } from '../../utils/smartDefault';
+import { otRate, OT_RATE_WEEKDAY } from '../../constants/otRate';
 
 function currentThaiMonth(): string {
   const { year, month } = smartDefaultDate();
@@ -169,7 +170,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
                   <div className={`size-9 rounded-full grid place-items-center ${k === 'success' ? 'bg-green-100 text-success' : k === 'danger' ? 'bg-tu-red-soft text-danger' : 'bg-blue-100 text-info'}`}><CheckCircle2 className="size-4" /></div>
                   <div className="flex-1">
                     <p className="text-[13px]">{label} — {dateStr}</p>
-                    <p className="text-[11px] text-[var(--neutral-500)]">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()} บาท</p>
+                    <p className="text-[11px] text-[var(--neutral-500)]">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()} บาท</p>
                   </div>
                 </div>
               );
@@ -252,7 +253,7 @@ export function StaffTimeLog() {
   }, [month]);
 
   const totalOT = summary?.total_ot ?? 0;
-  const otBaht = summary?.total_ot_baht != null ? Math.round(parseFloat(summary.total_ot_baht)).toLocaleString() : Math.round(totalOT * 60).toLocaleString();
+  const otBaht = summary?.total_ot_baht != null ? Math.round(parseFloat(summary.total_ot_baht)).toLocaleString() : Math.round(totalOT * OT_RATE_WEEKDAY).toLocaleString();
 
   return (
     <>
@@ -422,7 +423,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
   function calcAmount(dayType: string, hrs: string) {
     const h = Math.floor(parseFloat(hrs) || 0);  // ปัดลงเหลือชั่วโมงเต็ม
     // dayType จาก API แล้ว ครอบคลุมทั้ง เสาร์-อาทิตย์ และ วันหยุดราชการ
-    const rate = dayType === 'holiday' ? 70 : 60;
+    const rate = otRate(dayType);
     return h * rate;
   }
 
@@ -817,7 +818,7 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: (id: number, date: 
                         <td className="px-3 py-2">{r.work_date}</td>
                         <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                         <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
-                        <td className="px-3 py-2 font-mono">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
+                        <td className="px-3 py-2 font-mono">{(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()}</td>
                         <td className="px-3 py-2"><StatusChip kind={STATUS_KIND[r.status] as any}>{STATUS_LABEL[r.status] || r.status}</StatusChip></td>
                         <td className="px-3 py-2 max-w-[180px]">
                           {note ? (

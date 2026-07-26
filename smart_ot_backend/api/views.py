@@ -13,6 +13,7 @@ from .models import (
     User, Department, OTRequest, Holiday,
     SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline,
     Notification, NoOTDeclaration, DepartmentMonthlyBudget, Shift,
+    DEFAULT_OT_RATE_WEEKDAY, DEFAULT_OT_RATE_HOLIDAY,
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -128,6 +129,14 @@ def _notify_ot(ot, notif_type, recipients, message):
     body = f'{message}\n\nวันที่ OT: {ot.work_date}  {float(ot.ot_hours):.1f} ชม.  {float(ot.amount):,.0f} บาท\n\nกรุณาเข้าสู่ระบบ SMART OT เพื่อดำเนินการ'
     for user in recipients:
         _send_email(user, f'[SMART OT] {message[:60]}', body)
+
+
+def _get_ot_rates():
+    """คืน (rate_weekday, rate_holiday) บาท/ชม. จาก SystemSettings หรือค่า default ถ้ายังไม่เคยตั้งค่า"""
+    s = SystemSettings.objects.first()
+    if s:
+        return float(s.ot_rate_weekday), float(s.ot_rate_holiday)
+    return float(DEFAULT_OT_RATE_WEEKDAY), float(DEFAULT_OT_RATE_HOLIDAY)
 
 
 def log_action(user, action, model_name='', object_id='', detail='', request=None):
@@ -451,12 +460,13 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         is_weekend = work_date.weekday() >= 5
         day_type = 'holiday' if (is_holiday or is_weekend) else 'weekday'
 
-        # คำนวณค่าตอบแทน: วันธรรมดา 60 บาท/ชม. max 4ชม, วันหยุด 70 บาท/ชม. max 7ชม
+        # คำนวณค่าตอบแทนตามอัตราที่ตั้งค่าไว้ใน SystemSettings (ตั้งค่าระบบ)
         max_hours = 7 if day_type == 'holiday' else 4
         # ot_hours เป็น read_only ใน serializer → ต้องอ่านจาก request.data โดยตรง
         ot_hours_raw = float(self.request.data.get('ot_hours', 0))
         ot_hours = min(ot_hours_raw, max_hours)  # cap ที่ ceiling เสมอ
-        hourly_rate = 70 if day_type == 'holiday' else 60
+        rate_weekday, rate_holiday = _get_ot_rates()
+        hourly_rate = rate_holiday if day_type == 'holiday' else rate_weekday
         amount = ot_hours * hourly_rate
 
         # ถ้า user ไม่มีแผนก ให้ใช้แผนก default หรือสร้างใหม่
@@ -654,7 +664,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         max_hours = 7 if ot.day_type == 'holiday' else 4
         ot_hours_raw = float(request.data.get('ot_hours', ot.ot_hours))
         ot_hours = min(ot_hours_raw, max_hours)
-        hourly_rate = 70 if ot.day_type == 'holiday' else 60
+        rate_weekday, rate_holiday = _get_ot_rates()
+        hourly_rate = rate_holiday if ot.day_type == 'holiday' else rate_weekday
 
         ot.ot_hours = ot_hours
         ot.amount = ot_hours * hourly_rate
@@ -743,10 +754,28 @@ def settings_view(request):
     obj, _ = SystemSettings.objects.get_or_create(pk=1)
     if request.method == 'GET':
         return Response(SystemSettingsSerializer(obj).data)
+
+    if request.user.role != 'admin':
+        return Response({'error': 'เฉพาะแอดมินเท่านั้นที่สามารถแก้ไขตั้งค่าระบบได้'}, status=403)
+
+    old_rate_weekday = obj.ot_rate_weekday
+    old_rate_holiday = obj.ot_rate_holiday
+
     serializer = SystemSettingsSerializer(obj, data=request.data, partial=True)
     if serializer.is_valid():
-        serializer.save(updated_by=request.user)
-        log_action(request.user, 'อัปเดตตั้งค่าระบบ', request=request)
+        updated = serializer.save(updated_by=request.user)
+
+        rate_changes = []
+        if 'ot_rate_weekday' in request.data and updated.ot_rate_weekday != old_rate_weekday:
+            rate_changes.append(f'วันธรรมดา {old_rate_weekday} → {updated.ot_rate_weekday} บาท/ชม.')
+        if 'ot_rate_holiday' in request.data and updated.ot_rate_holiday != old_rate_holiday:
+            rate_changes.append(f'วันหยุด {old_rate_holiday} → {updated.ot_rate_holiday} บาท/ชม.')
+        if rate_changes:
+            log_action(request.user, 'เปลี่ยนอัตราค่าจ้าง OT', 'SystemSettings', obj.id,
+                       detail='; '.join(rate_changes), request=request)
+        else:
+            log_action(request.user, 'อัปเดตตั้งค่าระบบ', 'SystemSettings', obj.id, request=request)
+
         return Response(serializer.data)
     return Response(serializer.errors, status=400)
 
@@ -1627,8 +1656,9 @@ def timelog_my_view(request):
 
     total_ot = sum(float(r.get('ot', 0)) for r in rows)
     flag_count = sum(1 for r in rows if r.get('flag'))
+    _rate_weekday, _rate_holiday = _get_ot_rates()
     total_ot_baht = sum(
-        float(r.get('ot', 0)) * (70 if r.get('dayType') == 'holiday' else 60)
+        float(r.get('ot', 0)) * (_rate_holiday if r.get('dayType') == 'holiday' else _rate_weekday)
         for r in rows
     )
     return Response({
@@ -2485,7 +2515,8 @@ APPROVED_STATUSES = ['checker_approved', 'completed']
 
 
 def _calc_ot_amount(ot_hours, day_type):
-    return int(float(ot_hours or 0)) * (70 if day_type == 'holiday' else 60)
+    rate_weekday, rate_holiday = _get_ot_rates()
+    return int(float(ot_hours or 0)) * (rate_holiday if day_type == 'holiday' else rate_weekday)
 
 
 @api_view(['GET', 'POST'])
@@ -2681,7 +2712,7 @@ def head_report_view(request):
     data = OTRequestSerializer(qs, many=True).data
     total_hours = sum(int(float(r.get('ot_hours') or 0)) for r in data)
     total_amount = sum(
-        int(float(r.get('ot_hours') or 0)) * (70 if r.get('day_type') == 'holiday' else 60)
+        _calc_ot_amount(r.get('ot_hours'), r.get('day_type'))
         for r in data
     )
     return Response({
@@ -2758,7 +2789,7 @@ def head_report_pdf_view(request):
                 y = h - 60
                 p.setFont(font_name, 10)
             hrs = int(float(r.ot_hours or 0))
-            amt = hrs * (70 if r.day_type == 'holiday' else 60)
+            amt = _calc_ot_amount(r.ot_hours, r.day_type)
             total_amt += amt
             row = [
                 r.staff.get_full_name()[:12],

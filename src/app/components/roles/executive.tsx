@@ -416,7 +416,7 @@ export function ExecDashboard() {
                         <div key={d.id}>
                           <div className="flex justify-between text-[13px] mb-1">
                             <span className="font-medium">{i + 1}. {d.name}</span>
-                            <span className="font-mono font-semibold">{Math.round(d.amount).toLocaleString()} ฿</span>
+                            <span className="font-mono font-semibold">{Math.round(d.amount).toLocaleString()} บาท</span>
                           </div>
                           <div className="h-2 rounded-full bg-[var(--neutral-100)]">
                             <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: COLORS[i % COLORS.length] }} />
@@ -614,9 +614,9 @@ export function ExecTrend() {
           {/* KPI summary row */}
           {totalRow && (
             <div className="grid grid-cols-3 gap-5 mb-5">
-              <KpiCard label={`ค่า OT เดือนล่าสุดใน${curLabel}`} value={`${Math.round(totalRow.total).toLocaleString()} ฿`} accent="red" />
+              <KpiCard label={`ค่า OT เดือนล่าสุดใน${curLabel}`} value={`${Math.round(totalRow.total).toLocaleString()} บาท`} accent="red" />
               <KpiCard label="ค่า OT เฉลี่ย/เดือน"
-                value={`${Math.round(trendData.reduce((s, r) => s + r.total, 0) / trendData.length).toLocaleString()} ฿`}
+                value={`${Math.round(trendData.reduce((s, r) => s + r.total, 0) / trendData.length).toLocaleString()} บาท`}
                 accent="blue" />
               <KpiCard label="จำนวนแผนกที่มี OT"
                 value={`${deptNames.filter(d => (totalRow[d] || 0) > 0).length} แผนก`}
@@ -667,7 +667,7 @@ export function ExecTrend() {
                   {[...trendData].reverse().slice(0, 6).map((r, i) => (
                     <div key={i} className="flex justify-between items-center py-1 border-b border-[var(--neutral-200)] last:border-0 text-[13px]">
                       <span className="text-[var(--neutral-600)]">{r.m}</span>
-                      <span className="font-mono font-semibold">{Math.round(r.total).toLocaleString()} ฿</span>
+                      <span className="font-mono font-semibold">{Math.round(r.total).toLocaleString()} บาท</span>
                     </div>
                   ))}
                 </div>

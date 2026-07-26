@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
+import { otRate } from '../../constants/otRate';
 import {
   LayoutDashboard, Wallet, History, FileBarChart, Send,
   CheckCircle2, X, Eye, ChevronDown, ChevronUp, AlertTriangle, Download,
@@ -235,7 +236,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
   }
 
   const totalPending = groups.reduce((s, g) => s + g.pending.length, 0);
-  const totalAmt = groups.reduce((s, g) => s + g.pending.reduce((a, r) => a + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0), 0);
+  const totalAmt = groups.reduce((s, g) => s + g.pending.reduce((a, r) => a + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0), 0);
   const approvedDepts = groups.filter(g => g.pending.length === 0 && g.approved.length > 0).length;
 
   return (
@@ -331,7 +332,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                   const isApproved = !hasPending && g.approved.length > 0 && g.rejected.length === 0;
                   const isRejected = !hasPending && g.rejected.length > 0 && g.approved.length === 0;
                   const isMixed   = !hasPending && g.approved.length > 0 && g.rejected.length > 0;
-                  const pendingAmt = g.pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+                  const pendingAmt = g.pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
                   const expanded = expandedDept === g.dept_id;
 
                   return (
@@ -436,7 +437,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
                               {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
                             </StatusChip>
                           </td>
-                          <td className="px-3 py-2 text-[12px] font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))} บาท</td>
+                          <td className="px-3 py-2 text-[12px] font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))} ชม. • {fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)))} บาท</td>
                           <td className="px-3 py-2 text-[12px]">
                             {(r.status === 'checker_approved' || r.status === 'completed') &&
                               <span className="text-success text-[11px]">อนุมัติแล้ว</span>}
@@ -465,7 +466,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
           <div className="bg-green-50 border border-green-300 rounded-lg p-3 text-[13px]">
             <p className="font-semibold text-green-700">
               อนุมัติ {approveDlg.requests.length} รายการ รวมเป็นเงิน{' '}
-              {approveDlg.requests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0).toLocaleString()} บาท
+              {approveDlg.requests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0).toLocaleString()} บาท
             </p>
             <p className="text-green-600 mt-1">ระบบจะแจ้งเตือนพนักงานและหัวหน้างาน</p>
           </div>
@@ -545,7 +546,7 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
   }, [name]);
 
   const totalHrs = requests.reduce((s, r) => s + Number(r.ot_hours), 0);
-  const totalAmt = requests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const totalAmt = requests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
 
   return (
     <>
@@ -582,7 +583,7 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
                     <td className="px-4 py-3 font-mono">{r.start_time}</td>
                     <td className="px-4 py-3 font-mono">{r.end_time}</td>
                     <td className="px-4 py-3 font-mono font-semibold">{r.ot_hours}</td>
-                    <td className="px-4 py-3 font-mono">{fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60))}</td>
+                    <td className="px-4 py-3 font-mono">{fmtAmt(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)))}</td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-tu-red bg-tu-red/5">
@@ -678,7 +679,7 @@ export function CheckerHistory() {
             const workMonth = (r0.work_date || '').substring(0, 7);
             const [wY, wM] = workMonth.split('-').map(Number);
             const thaiMonthLabel = wM ? `${THAI_MONTHS[wM - 1]} ${wY + 543}` : workMonth;
-            const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+            const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
             const reviewedAt = r0.checker_approved_at
               ? new Date(r0.checker_approved_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
               : null;
@@ -912,10 +913,10 @@ export function CheckerReport() {
   for (const r of filtered) {
     const k = r.department_name || String(r.department);
     if (!deptMap[k]) deptMap[k] = { name: k, a: 0 };
-    deptMap[k].a += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+    deptMap[k].a += Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type));
   }
   const chartData = Object.values(deptMap).sort((a, b) => b.a - a.a);
-  const totalAmt  = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const totalAmt  = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
   const totalBudget = budgetData?.total_budget || 0;
   const pct = totalBudget > 0 ? Math.round(totalAmt / totalBudget * 100) : 0;
   const COLORS = ['#B8001F', '#FFD400', '#1976D2', '#0A8A44', '#7B1FA2', '#F57C00', '#0097A7'];

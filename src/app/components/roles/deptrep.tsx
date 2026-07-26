@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { smartDefaultDate } from '../../utils/smartDefault';
+import { otRate } from '../../constants/otRate';
 import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import {
   LayoutDashboard, FileSpreadsheet, History, Users, Download, CheckCircle2,
-  ChevronRight, Send, RefreshCw, Upload,
+  ChevronRight, Send, RefreshCw, Upload, Bell,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
@@ -77,7 +78,7 @@ function requestsToEmployees(requests: any[]): OTEmployee[] {
     });
     const weekdayHrs = g.reqs.filter(r => r.day_type === 'weekday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
     const weekendHrs = g.reqs.filter(r => r.day_type === 'holiday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
-    const amount = g.reqs.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+    const amount = g.reqs.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
     return { seq: i + 1, name: g.name, days, weekdayHrs: Math.round(weekdayHrs * 10) / 10, weekendHrs: Math.round(weekendHrs * 10) / 10, amount: Math.round(amount), note: '' };
   });
 }
@@ -354,7 +355,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
     }).finally(() => setLoading(false));
   }, []);
 
-  const totalAmt = pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const totalAmt = pending.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
   // นับเป็นเดือน ไม่ใช่รายคำร้อง
   const pendingMonths = new Set(pending.map((r: any) => (r.work_date || '').substring(0, 7)).filter(Boolean));
   const exportedMonths = loading ? 0 : new Set(history.map((r: any) => (r.work_date || '').substring(0, 7)).filter(Boolean)).size;
@@ -434,7 +435,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
                   <CheckCircle2 className="size-4" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-[14px]"><strong>{r.staff_name}</strong> — {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()} บาท</p>
+                  <p className="text-[14px]"><strong>{r.staff_name}</strong> — {Math.floor(parseFloat(r.ot_hours || '0'))} ชม. {(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()} บาท</p>
                   <p className="text-[12px] text-[var(--neutral-500)]">{r.work_date}</p>
                 </div>
                 <StatusChip kind="success">ส่งต่อแล้ว</StatusChip>
@@ -540,7 +541,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
 
   const selRequests = requests.filter(r => selIds.includes(r.id));
   const employees = requestsToEmployees(selRequests);
-  const totalAmt = selRequests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const totalAmt = selRequests.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
   const monthLabel = month ? thaiMonthFull(month) : '';
 
   async function forwardAll() {
@@ -639,7 +640,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
                       <td className="px-3 py-2">{r.staff_name}</td>
                       <td className="px-3 py-2 text-[var(--neutral-500)]">{r.work_date ? (() => { const [y,m,d] = r.work_date.split('-'); return `${d}/${m}/${String(parseInt(y)+543).slice(-2)}`; })() : ''}</td>
                       <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))} ชม.</td>
-                      <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()}</td>
                       <td className="px-3 py-2">
                         <StatusChip kind={r.day_type === 'holiday' ? 'warning' : 'info'}>
                           {r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}
@@ -951,7 +952,7 @@ export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => voi
             const gregM = parseInt(monthKey.split('-')[1]);
             const gregY = parseInt(monthKey.split('-')[0]);
             const thaiMonthLabel = `${THAI_MONTHS_FULL[gregM - 1]} ${gregY + 543}`;
-            const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+            const totalAmt = rows.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
             const isRejected = st === 'checker_rejected';
             // หาเวลาส่งล่าสุดของกลุ่มนี้
             const latestForwardedAt = rows.reduce((m: string, r: any) => (r.rep_forwarded_at || '') > m ? (r.rep_forwarded_at || '') : m, '');
@@ -1028,7 +1029,7 @@ export function RepHistory({ onGoExport }: { onGoExport?: (month: string) => voi
                               </td>
                               <td className="px-3 py-2 text-right font-mono">{Math.floor(parseFloat(r.ot_hours || '0'))}</td>
                               <td className="px-3 py-2 text-right font-mono font-semibold">
-                                {(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}
+                                {(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()}
                               </td>
                               <td className="px-3 py-2"><StatusChip kind={rs.kind as any}>{rs.label}</StatusChip></td>
                             </tr>

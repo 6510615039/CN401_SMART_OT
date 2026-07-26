@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
+import { otRate, OT_RATE_WEEKDAY, OT_RATE_HOLIDAY } from '../../constants/otRate';
 import * as XLSX from 'xlsx';
 import {
   LayoutDashboard, Inbox, History, Users, FileBarChart, ChevronRight,
@@ -202,7 +203,7 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
   // approved — filter ตาม period เดียวกัน
   const approved  = selArr.filter(r => ['head_approved','rep_forwarded','checker_approved','completed'].includes(r.status)).length;
   const totalBaht = selArr.reduce((s: number, r: any) =>
-    s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+    s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
 
   // งบประมาณสำหรับช่วงที่เลือก
   const periodMultiplier = period === 'month' ? 1 : period === 'quarter' ? 3 : period === 'half' ? 6 : 12;
@@ -271,7 +272,7 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
   allRequests.forEach((r: any) => {
     const key = (r.work_date || '').substring(0, 7);
     if (key in trendMap) {
-      trendMap[key] += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+      trendMap[key] += Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type));
     }
   });
   const trendData = Object.entries(trendMap).map(([k, v]) => ({
@@ -663,7 +664,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   }, [requests, gregYearPending, selMonth]);
 
   const all = filtered.length > 0 && sel.length === filtered.length;
-  const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
 
   // คำนวณ cumulative: เรียงตาม work_date แล้วหา ณ แต่ละแถวว่าถ้าอนุมัติจะเกินงบหรือยัง
   const rowBudgetMap = (() => {
@@ -672,7 +673,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
     const m = new Map<number, boolean>();
     const sorted = [...filtered].sort((a, b) => a.work_date.localeCompare(b.work_date));
     for (const r of sorted) {
-      const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+      const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type));
       cum += amt;
       m.set(r.id, cum > (budgetStatus.remaining ?? 0));
     }
@@ -802,7 +803,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
       {/* Budget bar */}
       {budgetStatus && budgetStatus.budget > 0 && (() => {
         const pct = Math.min(100, Math.round((budgetStatus.used / budgetStatus.budget) * 100));
-        const selAmt = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+        const selAmt = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
         const afterPct = Math.min(100, Math.round(((budgetStatus.used + selAmt) / budgetStatus.budget) * 100));
         const willExceed = budgetStatus.used + selAmt > budgetStatus.budget;
         return (
@@ -876,7 +877,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                     <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                     <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                     <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
-                    <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()}</td>
                     <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDateTime(r.created_at)}</td>
                     <td className="px-3 py-2 flex gap-1">
                       {rowBudgetMap.get(r.id) ? (
@@ -1044,8 +1045,8 @@ export function HeadDetail() {
                   <td className="px-3 py-2 font-mono">{r.in}</td>
                   <td className="px-3 py-2 font-mono">{r.out}</td>
                   <td className="px-3 py-2 font-mono">{r.hours}</td>
-                  <td className="px-3 py-2 font-mono">{r.weekend ? 70 : 60} บ/ชม.</td>
-                  <td className="px-3 py-2 font-mono">{(Math.floor(r.hours) * (r.weekend ? 70 : 60)).toLocaleString()}</td>
+                  <td className="px-3 py-2 font-mono">{r.weekend ? OT_RATE_HOLIDAY : OT_RATE_WEEKDAY} บ/ชม.</td>
+                  <td className="px-3 py-2 font-mono">{(Math.floor(r.hours) * (r.weekend ? OT_RATE_HOLIDAY : OT_RATE_WEEKDAY)).toLocaleString()}</td>
                   <td className="px-3 py-2"><StatusChip kind="warning">รออนุมัติ</StatusChip></td>
                 </tr>
               ))}
@@ -1197,7 +1198,7 @@ export function HeadHistory() {
                       <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
                       <td className="px-3 py-2"><StatusChip kind={r.day_type === 'holiday' ? 'danger' : 'neutral'}>{r.day_type === 'holiday' ? 'วันหยุด' : 'วันธรรมดา'}</StatusChip></td>
                       <td className="px-3 py-2 font-mono">{Math.floor(parseFloat(r.ot_hours))}</td>
-                      <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60)).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()}</td>
                       <td className="px-3 py-2"><StatusChip kind={st.kind}>{st.label}</StatusChip></td>
                       <td className="px-3 py-2 text-[var(--neutral-500)] max-w-[160px] truncate" title={note}>{note}</td>
                     </tr>
@@ -1251,7 +1252,7 @@ export function HeadMembers() {
   }, []);
 
   const totalHours = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + parseFloat(r.ot_hours || 0), 0), 0);
-  const totalAmt   = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0), 0);
+  const totalAmt   = members.reduce((s, m) => s + (otMap[m.id] || []).reduce((ss: number, r: any) => ss + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0), 0);
   const hasOt      = members.filter(m => (otMap[m.id] || []).length > 0).length;
 
   if (loading) return (
@@ -1272,7 +1273,7 @@ export function HeadMembers() {
       return true;
     });
     const totalDetailAmt = reqs.reduce((s: number, r: any) =>
-      s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+      s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
 
     return (
       <>
@@ -1336,7 +1337,7 @@ export function HeadMembers() {
                 <tbody>
                   {reqs.sort((a: any, b: any) => b.work_date.localeCompare(a.work_date)).map((r: any) => {
                     const st  = STATUS_HIST[r.status] || { kind: 'neutral' as const, label: r.status };
-                    const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+                    const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type));
                     return (
                       <tr key={r.id} className="border-t border-[var(--neutral-300)] hover:bg-[var(--neutral-50)]">
                         <td className="px-3 py-2">{fmtDate(r.work_date)}</td>
@@ -1383,7 +1384,7 @@ export function HeadMembers() {
           {members.map(m => {
             const reqs = otMap[m.id] || [];
             const hrs  = reqs.reduce((s: number, r: any) => s + parseFloat(r.ot_hours || 0), 0);
-            const amt  = reqs.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+            const amt  = reqs.reduce((s: number, r: any) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
             return (
               <div key={m.id} className="bg-white border border-[var(--neutral-300)] rounded-xl p-5 text-center shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
                 <Avatar className="size-20 mx-auto mb-3">
@@ -1470,7 +1471,7 @@ function generateHeadXlsx(requests: any[], deptName: string, signatoryName: stri
     }));
     const weekdayHrs = s.reqs.filter(r => r.day_type !== 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
     const weekendHrs = s.reqs.filter(r => r.day_type === 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
-    const amount = s.reqs.reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)) * (r.day_type === 'holiday' ? 70 : 60), 0);
+    const amount = s.reqs.reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)) * (otRate(r.day_type)), 0);
     return { seq: idx + 1, name: s.name, days, weekdayHrs: Math.round(weekdayHrs * 10) / 10, weekendHrs: Math.round(weekendHrs * 10) / 10, amount: Math.round(amount) };
   });
 
@@ -1625,11 +1626,11 @@ export function HeadReport() {
     const k = r.staff_name || String(r.staff);
     if (!byStaff[k]) byStaff[k] = { name: k, hours: 0, amount: 0 };
     byStaff[k].hours  += parseFloat(r.ot_hours || 0);
-    byStaff[k].amount += Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60);
+    byStaff[k].amount += Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type));
   }
   const chartData    = Object.values(byStaff).sort((a, b) => b.hours - a.hours).slice(0, 8);
   const totalHrs     = filtered.reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
-  const totalAmt     = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (r.day_type === 'holiday' ? 70 : 60), 0);
+  const totalAmt     = filtered.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
   const weekdayCount = filtered.filter(r => r.day_type !== 'holiday').length;
   const holidayCount = filtered.filter(r => r.day_type === 'holiday').length;
   const staffCount   = Object.keys(byStaff).length;

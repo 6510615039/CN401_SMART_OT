@@ -76,11 +76,17 @@ class Holiday(models.Model):
         return f'{self.date} - {self.name}'
 
 
+DEFAULT_OT_RATE_WEEKDAY = 60  # บาท/ชม. — ใช้เป็นค่าเริ่มต้นก่อนมีการตั้งค่าใน SystemSettings
+DEFAULT_OT_RATE_HOLIDAY = 70  # บาท/ชม.
+
+
 class SystemSettings(models.Model):
     max_ot_hours_weekday  = models.DecimalField(max_digits=4, decimal_places=1, default=4.0,  verbose_name='ชม. OT สูงสุดวันธรรมดา')
     max_ot_hours_holiday  = models.DecimalField(max_digits=4, decimal_places=1, default=7.0,  verbose_name='ชม. OT สูงสุดวันหยุด')
     rate_multiplier_weekday = models.DecimalField(max_digits=4, decimal_places=2, default=1.5, verbose_name='อัตราคูณวันธรรมดา')
     rate_multiplier_holiday = models.DecimalField(max_digits=4, decimal_places=2, default=3.0, verbose_name='อัตราคูณวันหยุด')
+    ot_rate_weekday       = models.DecimalField(max_digits=6, decimal_places=2, default=DEFAULT_OT_RATE_WEEKDAY, verbose_name='อัตราค่าจ้าง OT วันธรรมดา (บาท/ชม.)')
+    ot_rate_holiday       = models.DecimalField(max_digits=6, decimal_places=2, default=DEFAULT_OT_RATE_HOLIDAY, verbose_name='อัตราค่าจ้าง OT วันหยุด (บาท/ชม.)')
     notify_on_submit      = models.BooleanField(default=True,  verbose_name='แจ้งเตือนเมื่อยื่นคำร้อง')
     notify_on_approve     = models.BooleanField(default=True,  verbose_name='แจ้งเตือนเมื่ออนุมัติ')
     notify_on_reject      = models.BooleanField(default=True,  verbose_name='แจ้งเตือนเมื่อตีกลับ')

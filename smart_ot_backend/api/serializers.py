@@ -66,6 +66,7 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
             'id',
             'max_ot_hours_weekday', 'max_ot_hours_holiday',
             'rate_multiplier_weekday', 'rate_multiplier_holiday',
+            'ot_rate_weekday', 'ot_rate_holiday',
             'notify_on_submit', 'notify_on_approve', 'notify_on_reject',
             'tu_api_url', 'tu_api_key', 'tu_api_enabled',
             'updated_at',

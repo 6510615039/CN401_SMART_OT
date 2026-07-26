@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
+import { OT_RATE_WEEKDAY, OT_RATE_HOLIDAY } from '../../constants/otRate';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -1591,8 +1592,10 @@ export function AdminDepts() {
 
 export function AdminSettings() {
   const [settings, setSettings] = useState<any>(null);
+  const [originalSettings, setOriginalSettings] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [rateConfirmOpen, setRateConfirmOpen] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const token = () => localStorage.getItem('access_token');
   const h = { 'Authorization': `Bearer ${token()}` };
@@ -1600,7 +1603,7 @@ export function AdminSettings() {
   useEffect(() => {
     fetch('/api/settings/', { headers: h })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setSettings(d); })
+      .then(d => { if (d) { setSettings(d); setOriginalSettings(d); } })
       .catch(() => {});
   }, []);
 
@@ -1608,8 +1611,19 @@ export function AdminSettings() {
     setSettings((s: any) => ({ ...s, [key]: val }));
   }
 
+  const rateChanged = !!settings && !!originalSettings && (
+    String(settings.ot_rate_weekday) !== String(originalSettings.ot_rate_weekday) ||
+    String(settings.ot_rate_holiday) !== String(originalSettings.ot_rate_holiday)
+  );
+
+  function handleSaveClick() {
+    if (rateChanged) { setRateConfirmOpen(true); return; }
+    handleSave();
+  }
+
   async function handleSave() {
     if (!settings) return;
+    setRateConfirmOpen(false);
     setSaving(true);
     try {
       const res = await fetch('/api/settings/', {
@@ -1620,6 +1634,7 @@ export function AdminSettings() {
       if (res.ok) {
         const updated = await res.json();
         setSettings(updated);
+        setOriginalSettings(updated);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       } else {
@@ -1650,7 +1665,7 @@ export function AdminSettings() {
   return (
     <>
       <PageHeader title="ตั้งค่าระบบ" right={
-        <Button onClick={handleSave} disabled={saving} className="bg-tu-red text-white">
+        <Button onClick={handleSaveClick} disabled={saving} className="bg-tu-red text-white">
           {saving ? 'กำลังบันทึก...' : saved ? '✓ บันทึกแล้ว' : 'บันทึกการตั้งค่า'}
         </Button>
       } />
@@ -1665,8 +1680,8 @@ export function AdminSettings() {
           <TabsContent value="rules" className="mt-6 grid grid-cols-2 gap-6 max-w-2xl">
             <div><label>ชม. OT สูงสุดวันธรรมดา</label><Input className="mt-1" value={settings?.max_ot_hours_weekday ?? 4} onChange={e => set('max_ot_hours_weekday', e.target.value)} /></div>
             <div><label>ชม. OT สูงสุดวันหยุด</label><Input className="mt-1" value={settings?.max_ot_hours_holiday ?? 7} onChange={e => set('max_ot_hours_holiday', e.target.value)} /></div>
-            <div><label>อัตราค่าจ้างวันธรรมดา (บาท/ชม.)</label><Input className="mt-1" defaultValue="60" disabled /></div>
-            <div><label>อัตราค่าจ้างวันหยุด (บาท/ชม.)</label><Input className="mt-1" defaultValue="70" disabled /></div>
+            <div><label>อัตราค่าจ้างวันธรรมดา (บาท/ชม.)</label><Input className="mt-1" type="number" value={settings?.ot_rate_weekday ?? OT_RATE_WEEKDAY} onChange={e => set('ot_rate_weekday', e.target.value)} /></div>
+            <div><label>อัตราค่าจ้างวันหยุด (บาท/ชม.)</label><Input className="mt-1" type="number" value={settings?.ot_rate_holiday ?? OT_RATE_HOLIDAY} onChange={e => set('ot_rate_holiday', e.target.value)} /></div>
           </TabsContent>
 
           <TabsContent value="noti" className="mt-6 space-y-4 max-w-md">
@@ -1715,6 +1730,32 @@ export function AdminSettings() {
 
         </Tabs>
       </SectionCard>
+
+      <Dialog open={rateConfirmOpen} onOpenChange={setRateConfirmOpen}>
+        <DialogContent className="max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>ยืนยันการเปลี่ยนอัตราค่าจ้าง OT</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 p-3 bg-tu-yellow-soft border border-tu-yellow rounded-lg text-[12px]">
+              <AlertTriangle className="size-4 text-[var(--warning)] shrink-0 mt-0.5" />
+              <span>การเปลี่ยนอัตรานี้จะมีผลกับคำร้อง OT ที่ยื่นใหม่หลังจากนี้ และจะถูกบันทึกลง Audit Log</span>
+            </div>
+            {String(settings?.ot_rate_weekday) !== String(originalSettings?.ot_rate_weekday) && (
+              <p className="text-[13px]">วันธรรมดา: <strong>{originalSettings?.ot_rate_weekday}</strong> → <strong>{settings?.ot_rate_weekday}</strong> บาท/ชม.</p>
+            )}
+            {String(settings?.ot_rate_holiday) !== String(originalSettings?.ot_rate_holiday) && (
+              <p className="text-[13px]">วันหยุด: <strong>{originalSettings?.ot_rate_holiday}</strong> → <strong>{settings?.ot_rate_holiday}</strong> บาท/ชม.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRateConfirmOpen(false)}>ยกเลิก</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-tu-red text-white">
+              {saving ? 'กำลังบันทึก...' : 'ยืนยันการเปลี่ยนแปลง'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

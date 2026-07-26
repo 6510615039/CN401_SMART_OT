@@ -1,7 +1,7 @@
 """
 Management command: fix_ot_amounts
 Recalculates OTRequest.amount for all records using the correct formula:
-  amount = floor(ot_hours) * rate  (rate: 60 weekday / 70 holiday)
+  amount = floor(ot_hours) * rate  (rate: from SystemSettings.ot_rate_weekday / ot_rate_holiday)
 
 Run with:
   python manage.py fix_ot_amounts          # preview changes (dry-run)
@@ -10,11 +10,11 @@ Run with:
 
 import math
 from django.core.management.base import BaseCommand
-from api.models import OTRequest
+from api.models import OTRequest, SystemSettings, DEFAULT_OT_RATE_WEEKDAY, DEFAULT_OT_RATE_HOLIDAY
 
 
 class Command(BaseCommand):
-    help = 'Recalculate OTRequest.amount using floor(ot_hours) × flat rate (60/70)'
+    help = 'Recalculate OTRequest.amount using floor(ot_hours) × flat rate from SystemSettings'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -27,11 +27,15 @@ class Command(BaseCommand):
         apply = options['apply']
         qs = OTRequest.objects.all()
 
+        settings_obj = SystemSettings.objects.first()
+        rate_weekday = float(settings_obj.ot_rate_weekday) if settings_obj else float(DEFAULT_OT_RATE_WEEKDAY)
+        rate_holiday = float(settings_obj.ot_rate_holiday) if settings_obj else float(DEFAULT_OT_RATE_HOLIDAY)
+
         fixed = 0
         skipped = 0
 
         for req in qs:
-            rate = 70 if req.day_type == 'holiday' else 60
+            rate = rate_holiday if req.day_type == 'holiday' else rate_weekday
             floored_hours = math.floor(float(req.ot_hours))
             correct_amount = floored_hours * rate
 
