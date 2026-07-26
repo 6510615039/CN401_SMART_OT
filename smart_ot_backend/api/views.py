@@ -14,6 +14,7 @@ from .models import (
     SystemSettings, TimeLog, ImportHistory, AuditLog, OTDeadline,
     Notification, NoOTDeclaration, DepartmentMonthlyBudget, Shift,
     DEFAULT_OT_RATE_WEEKDAY, DEFAULT_OT_RATE_HOLIDAY,
+    DEFAULT_MAX_OT_HOURS_WEEKDAY, DEFAULT_MAX_OT_HOURS_HOLIDAY,
 )
 from .serializers import (
     UserSerializer, UserCreateSerializer, DepartmentSerializer,
@@ -137,6 +138,14 @@ def _get_ot_rates():
     if s:
         return float(s.ot_rate_weekday), float(s.ot_rate_holiday)
     return float(DEFAULT_OT_RATE_WEEKDAY), float(DEFAULT_OT_RATE_HOLIDAY)
+
+
+def _get_max_ot_hours():
+    """คืน (max_weekday, max_holiday) ชม. จาก SystemSettings หรือค่า default ถ้ายังไม่เคยตั้งค่า"""
+    s = SystemSettings.objects.first()
+    if s:
+        return float(s.max_ot_hours_weekday), float(s.max_ot_hours_holiday)
+    return float(DEFAULT_MAX_OT_HOURS_WEEKDAY), float(DEFAULT_MAX_OT_HOURS_HOLIDAY)
 
 
 def log_action(user, action, model_name='', object_id='', detail='', request=None):
@@ -461,7 +470,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         day_type = 'holiday' if (is_holiday or is_weekend) else 'weekday'
 
         # คำนวณค่าตอบแทนตามอัตราที่ตั้งค่าไว้ใน SystemSettings (ตั้งค่าระบบ)
-        max_hours = 7 if day_type == 'holiday' else 4
+        max_hours_weekday, max_hours_holiday = _get_max_ot_hours()
+        max_hours = max_hours_holiday if day_type == 'holiday' else max_hours_weekday
         # ot_hours เป็น read_only ใน serializer → ต้องอ่านจาก request.data โดยตรง
         ot_hours_raw = float(self.request.data.get('ot_hours', 0))
         ot_hours = min(ot_hours_raw, max_hours)  # cap ที่ ceiling เสมอ
@@ -661,7 +671,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': 'ไม่มีสิทธิ์แก้ไขคำร้องนี้'}, status=403)
 
         # คำนวณใหม่พร้อม cap
-        max_hours = 7 if ot.day_type == 'holiday' else 4
+        max_hours_weekday, max_hours_holiday = _get_max_ot_hours()
+        max_hours = max_hours_holiday if ot.day_type == 'holiday' else max_hours_weekday
         ot_hours_raw = float(request.data.get('ot_hours', ot.ot_hours))
         ot_hours = min(ot_hours_raw, max_hours)
         rate_weekday, rate_holiday = _get_ot_rates()
@@ -1118,6 +1129,8 @@ def import_timelog(request):
         filename=f.name, imported_by=request.user, status='partial'
     )
 
+    _max_hours_weekday, _max_hours_holiday = _get_max_ot_hours()
+
     # ── helpers ──────────────────────────────────────────────
     def fmt_time(t):
         if t is None:
@@ -1157,7 +1170,7 @@ def import_timelog(request):
                 overlap_end   = min(out_mins, 13 * 60)
                 overlap = max(0, overlap_end - overlap_start)
                 worked_mins -= overlap
-                ot_hours = min(7, worked_mins // 60)
+                ot_hours = min(_max_hours_holiday, worked_mins // 60)
                 return float(ot_hours)
             else:
                 ot_start = 16 * 60 if time_period == 'เช้า' else 16 * 60 + 30
@@ -1512,9 +1525,12 @@ def _thai_to_greg(month_str):
         return None, None
 
 
-def _calc_ot(check_in, check_out, time_period='', day_type='weekday'):
-    """Return OT hours (float) from time fields."""
+def _calc_ot(check_in, check_out, time_period='', day_type='weekday', max_hours=None):
+    """Return OT hours (float) from time fields.
+    max_hours: optional (max_weekday, max_holiday) tuple — pass this in when calling from a loop
+    to avoid re-fetching SystemSettings on every row."""
     try:
+        max_hours_weekday, max_hours_holiday = max_hours if max_hours else _get_max_ot_hours()
         in_mins  = check_in.hour * 60 + check_in.minute
         out_mins = check_out.hour * 60 + check_out.minute
         if day_type == 'holiday':
@@ -1523,22 +1539,22 @@ def _calc_ot(check_in, check_out, time_period='', day_type='weekday'):
             overlap_end   = min(out_mins, 13 * 60)
             overlap = max(0, overlap_end - overlap_start)
             worked_mins -= overlap
-            return float(min(7, worked_mins // 60))
+            return float(min(max_hours_holiday, worked_mins // 60))
         else:
             ot_start = 16 * 60 if time_period == 'เช้า' else 16 * 60 + 30
             ot_mins = max(0, out_mins - ot_start)
-            return float(min(4, ot_mins // 60))
+            return float(min(max_hours_weekday, ot_mins // 60))
     except Exception:
         return 0.0
 
 
-def _row_from_timelog(idx, tl):
+def _row_from_timelog(idx, tl, max_hours=None):
     in_str   = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
     out_str  = tl.check_out.strftime('%H:%M') if tl.check_out else ''
     h_obj    = Holiday.objects.filter(date=tl.log_date).first()
     is_weekend = tl.log_date.weekday() >= 5
     day_type = 'holiday' if (h_obj or is_weekend) else 'weekday'
-    ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
+    ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type, max_hours=max_hours) if (tl.check_in and tl.check_out) else 0.0
     flag     = (day_type == 'weekday' and (not in_str or not out_str)) or ot_val > 8
     return {
         'id':    idx,
@@ -1572,7 +1588,8 @@ def timelog_list_view(request):
         qs = qs.filter(log_date__year=greg_year, log_date__month=mon)
     qs = qs.order_by('user__employee_id', 'log_date')
 
-    rows = [_row_from_timelog(i + 1, tl) for i, tl in enumerate(qs)]
+    _max_hours = _get_max_ot_hours()
+    rows = [_row_from_timelog(i + 1, tl, max_hours=_max_hours) for i, tl in enumerate(qs)]
 
     # Fallback: if no TimeLog rows but ImportHistory has raw data for this month
     if not rows and greg_year and mon:
@@ -1636,7 +1653,8 @@ def timelog_my_view(request):
         qs = qs.filter(log_date__year=greg_year, log_date__month=mon)
     qs = qs.order_by('log_date')
 
-    rows = [_row_from_timelog(i + 1, tl) for i, tl in enumerate(qs)]
+    _max_hours = _get_max_ot_hours()
+    rows = [_row_from_timelog(i + 1, tl, max_hours=_max_hours) for i, tl in enumerate(qs)]
 
     # Fallback: use ImportHistory rows filtered by employee_id
     if not rows and greg_year and mon:
@@ -1801,9 +1819,10 @@ def staff_summary_view(request):
         tl_qs = tl_qs.filter(log_date__year=greg_year, log_date__month=mon)
 
     total_ot = 0.0
+    _max_hours = _get_max_ot_hours()
     for tl in tl_qs:
         day_type = 'holiday' if (Holiday.objects.filter(date=tl.log_date).exists() or tl.log_date.weekday() >= 5) else 'weekday'
-        total_ot += _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type) if (tl.check_in and tl.check_out) else 0.0
+        total_ot += _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type, max_hours=_max_hours) if (tl.check_in and tl.check_out) else 0.0
 
     # Fallback: use ImportHistory rows_data if no TimeLog entries
     if tl_qs.count() == 0 and greg_year and mon:

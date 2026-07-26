@@ -78,6 +78,8 @@ class Holiday(models.Model):
 
 DEFAULT_OT_RATE_WEEKDAY = 60  # บาท/ชม. — ใช้เป็นค่าเริ่มต้นก่อนมีการตั้งค่าใน SystemSettings
 DEFAULT_OT_RATE_HOLIDAY = 70  # บาท/ชม.
+DEFAULT_MAX_OT_HOURS_WEEKDAY = 4  # ชม. — ใช้เป็นค่าเริ่มต้นก่อนมีการตั้งค่าใน SystemSettings
+DEFAULT_MAX_OT_HOURS_HOLIDAY = 7  # ชม.
 
 
 class SystemSettings(models.Model):

@@ -261,7 +261,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `OT-Report-${month}.xlsx`;
+  a.download = `หลักฐานเบิกจ่าย OT-${deptName}-${month}.xlsx`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
