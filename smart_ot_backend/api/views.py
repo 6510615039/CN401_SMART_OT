@@ -793,7 +793,7 @@ def settings_view(request):
         if 'max_ot_hours_holiday' in request.data and updated.max_ot_hours_holiday != old_max_holiday:
             cap_changes.append(f'วันหยุด {old_max_holiday} → {updated.max_ot_hours_holiday} ชม.')
         if cap_changes:
-            log_action(request.user, 'เปลี่ยนแคปชั่วโมง OT สูงสุด', 'SystemSettings', obj.id,
+            log_action(request.user, 'เปลี่ยนชั่วโมง OT สูงสุด', 'SystemSettings', obj.id,
                        detail='; '.join(cap_changes), request=request)
 
         if not rate_changes and not cap_changes:
@@ -1719,7 +1719,7 @@ def timelog_update_view(request):
             max_allowed = max_holiday if day_type_pre == 'holiday' else max_weekday
             if new_ot_val > Decimal(str(max_allowed)):
                 return Response(
-                    {'error': f'ชั่วโมง OT เกินสูงสุดที่กำหนด ({max_allowed:.0f} ชม. สำหรับวัน{"หยุด" if day_type_pre == "holiday" else "ทำงาน"})'},
+                    {'error': f'ชั่วโมง OT เกินจำนวนสูงสุดที่กำหนด ({max_allowed:.0f} ชม. สำหรับวัน{"หยุด" if day_type_pre == "holiday" else "ทำงาน"})'},
                     status=400,
                 )
             tl.ot_hours_override = new_ot_val
