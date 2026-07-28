@@ -406,35 +406,36 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
 
   async function saveRow(id: number) {
     setRowSaving(true);
+    setSaveConfirmId(null); // ปิด dialog ก่อนรอ API
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const timer = setTimeout(() => ctrl.abort(), 12000);
     try {
-      const res = await fetch(`/api/timelog/${id}/update/`, {
-        method: 'PATCH',
+      const res = await fetch('/api/timelog/update/', {
+        method: 'POST',
         headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ check_in: draft.in, check_out: draft.out }),
+        body: JSON.stringify({ id, check_in: draft.in, check_out: draft.out }),
         signal: ctrl.signal,
       });
       clearTimeout(timer);
+      let data: any = {};
+      try { data = await res.json(); } catch {}
       if (!res.ok) {
-        let msg = 'บันทึกไม่สำเร็จ';
-        try { const e = await res.json(); msg = e.error || msg; } catch {}
-        setError(msg); setRowSaving(false); return;
+        setError(data.error || `บันทึกไม่สำเร็จ (${res.status})`);
+        setRowSaving(false);
+        return;
       }
-      const data = await res.json();
       setRows(rs => rs.map(r => r.id === id
         ? { ...r, in: data.row?.in ?? draft.in, out: data.row?.out ?? draft.out, ot: data.row?.ot ?? draft.ot, flag: false }
         : r
       ));
     } catch (err: any) {
       clearTimeout(timer);
-      setError(err?.name === 'AbortError' ? 'หมดเวลา กรุณาลองใหม่' : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+      setError(err?.name === 'AbortError' ? 'หมดเวลา กรุณาลองใหม่' : `เกิดข้อผิดพลาด: ${err?.message || 'unknown'}`);
       setRowSaving(false);
       return;
     }
     setRowSaving(false);
     setEditingId(null);
-    setSaveConfirmId(null);
     setSavedId(id);
     setTimeout(() => setSavedId(null), 2000);
   }

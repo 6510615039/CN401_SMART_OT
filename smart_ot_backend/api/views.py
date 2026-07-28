@@ -1640,17 +1640,20 @@ def _enrich_rows_day_type(rows):
     return enriched
 
 
-@api_view(['PATCH'])
+@api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def timelog_update_view(request, pk):
+def timelog_update_view(request):
     """Admin: แก้ไข check_in / check_out ของ TimeLog และบันทึก audit log."""
     import datetime as _dt
     if get_effective_role(request.user, request) != 'admin':
         return Response({'error': 'ไม่มีสิทธิ์'}, status=403)
+    pk = request.data.get('id')
+    if not pk:
+        return Response({'error': 'ไม่ระบุ id'}, status=400)
     try:
         tl = TimeLog.objects.select_related('user').get(pk=pk)
     except TimeLog.DoesNotExist:
-        return Response({'error': 'ไม่พบรายการ'}, status=404)
+        return Response({'error': 'ไม่พบรายการ (id=' + str(pk) + ')'}, status=404)
 
     def _parse_time(s):
         if not s or not str(s).strip():
