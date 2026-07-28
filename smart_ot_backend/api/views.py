@@ -1644,7 +1644,7 @@ def _enrich_rows_day_type(rows):
 @permission_classes([IsAuthenticated])
 def timelog_update_view(request, pk):
     """Admin: แก้ไข check_in / check_out ของ TimeLog และบันทึก audit log."""
-    if not (request.user.is_staff or getattr(request.user, 'role', '') == 'admin'):
+    if get_effective_role(request.user, request) != 'admin':
         return Response({'error': 'ไม่มีสิทธิ์'}, status=403)
     try:
         tl = TimeLog.objects.select_related('user').get(pk=pk)

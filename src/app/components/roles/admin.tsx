@@ -405,20 +405,29 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
 
   async function saveRow(id: number) {
     setRowSaving(true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
     try {
       const res = await fetch(`/api/timelog/${id}/update/`, {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ check_in: draft.in, check_out: draft.out }),
+        signal: ctrl.signal,
       });
-      if (!res.ok) { const e = await res.json(); setError(e.error || 'บันทึกไม่สำเร็จ'); setRowSaving(false); return; }
+      clearTimeout(timer);
+      if (!res.ok) {
+        let msg = 'บันทึกไม่สำเร็จ';
+        try { const e = await res.json(); msg = e.error || msg; } catch {}
+        setError(msg); setRowSaving(false); return;
+      }
       const data = await res.json();
       setRows(rs => rs.map(r => r.id === id
         ? { ...r, in: data.row?.in ?? draft.in, out: data.row?.out ?? draft.out, ot: data.row?.ot ?? draft.ot, flag: false }
         : r
       ));
-    } catch {
-      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } catch (err: any) {
+      clearTimeout(timer);
+      setError(err?.name === 'AbortError' ? 'หมดเวลา กรุณาลองใหม่' : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
       setRowSaving(false);
       return;
     }
