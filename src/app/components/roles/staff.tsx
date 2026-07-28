@@ -647,7 +647,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
                               }}
                               className={`w-20 h-8 font-mono ${overLimit ? 'bg-tu-red-soft border-tu-red border' : ''}`}
                             />
-                            {overLimit && <p className="text-[11px] text-danger mt-0.5">เกินสูงสุด {maxH} ชม. — ระบบจะปรับเหลือ {maxH} ชม. โดยอัตโนมัติ</p>}
+                            {overLimit && <p className="text-[11px] text-danger mt-0.5">กรอกได้ไม่เกิน {maxH} ชม.</p>}
                           </>
                         )}
                       </td>
