@@ -771,6 +771,8 @@ def settings_view(request):
 
     old_rate_weekday = obj.ot_rate_weekday
     old_rate_holiday = obj.ot_rate_holiday
+    old_max_weekday  = obj.max_ot_hours_weekday
+    old_max_holiday  = obj.max_ot_hours_holiday
 
     serializer = SystemSettingsSerializer(obj, data=request.data, partial=True)
     if serializer.is_valid():
@@ -784,7 +786,17 @@ def settings_view(request):
         if rate_changes:
             log_action(request.user, 'เปลี่ยนอัตราค่าจ้าง OT', 'SystemSettings', obj.id,
                        detail='; '.join(rate_changes), request=request)
-        else:
+
+        cap_changes = []
+        if 'max_ot_hours_weekday' in request.data and updated.max_ot_hours_weekday != old_max_weekday:
+            cap_changes.append(f'วันธรรมดา {old_max_weekday} → {updated.max_ot_hours_weekday} ชม.')
+        if 'max_ot_hours_holiday' in request.data and updated.max_ot_hours_holiday != old_max_holiday:
+            cap_changes.append(f'วันหยุด {old_max_holiday} → {updated.max_ot_hours_holiday} ชม.')
+        if cap_changes:
+            log_action(request.user, 'เปลี่ยนแคปชั่วโมง OT สูงสุด', 'SystemSettings', obj.id,
+                       detail='; '.join(cap_changes), request=request)
+
+        if not rate_changes and not cap_changes:
             log_action(request.user, 'อัปเดตตั้งค่าระบบ', 'SystemSettings', obj.id, request=request)
 
         return Response(serializer.data)

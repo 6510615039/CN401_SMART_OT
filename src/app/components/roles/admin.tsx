@@ -1673,8 +1673,10 @@ export function AdminSettings() {
   }
 
   const rateChanged = !!settings && !!originalSettings && (
-    String(settings.ot_rate_weekday) !== String(originalSettings.ot_rate_weekday) ||
-    String(settings.ot_rate_holiday) !== String(originalSettings.ot_rate_holiday)
+    String(settings.ot_rate_weekday)      !== String(originalSettings.ot_rate_weekday) ||
+    String(settings.ot_rate_holiday)      !== String(originalSettings.ot_rate_holiday) ||
+    String(settings.max_ot_hours_weekday) !== String(originalSettings.max_ot_hours_weekday) ||
+    String(settings.max_ot_hours_holiday) !== String(originalSettings.max_ot_hours_holiday)
   );
 
   function handleSaveClick() {
