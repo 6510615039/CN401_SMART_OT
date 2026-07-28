@@ -389,6 +389,7 @@ function getAttendanceStatus(r: ImportRow): { label: string; kind: 'success' | '
 }
 
 function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRows: React.Dispatch<React.SetStateAction<ImportRow[]>>; month: string }) {
+  const token = () => localStorage.getItem('access_token') || '';
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Partial<ImportRow>>({});
   const [savedId, setSavedId] = useState<number | null>(null);
@@ -457,7 +458,15 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
 
   return (
     <>
-    {error && <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-[13px]">{error}</div>}
+    <Dialog open={!!error} onOpenChange={open => { if (!open) setError(''); }}>
+      <DialogContent className="max-w-[400px]">
+        <DialogHeader><DialogTitle>เกิดข้อผิดพลาด</DialogTitle></DialogHeader>
+        <p className="text-[13px] text-danger">{error}</p>
+        <DialogFooter>
+          <Button className="bg-tu-red text-white" onClick={() => setError('')}>ตกลง</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <SectionCard title={`ข้อมูลเวลาเข้า-ออก ${thaiMonthLabel(month)}`}>
       <div className="grid grid-cols-3 gap-4 mb-5">
         <KpiCard label="รายการทั้งหมด" value={rows.length.toLocaleString()} accent="red" />
