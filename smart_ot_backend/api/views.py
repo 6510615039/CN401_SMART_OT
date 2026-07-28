@@ -1644,6 +1644,7 @@ def _enrich_rows_day_type(rows):
 @permission_classes([IsAuthenticated])
 def timelog_update_view(request, pk):
     """Admin: แก้ไข check_in / check_out ของ TimeLog และบันทึก audit log."""
+    import datetime as _dt
     if get_effective_role(request.user, request) != 'admin':
         return Response({'error': 'ไม่มีสิทธิ์'}, status=403)
     try:
@@ -1651,14 +1652,12 @@ def timelog_update_view(request, pk):
     except TimeLog.DoesNotExist:
         return Response({'error': 'ไม่พบรายการ'}, status=404)
 
-    from datetime import time as _time
     def _parse_time(s):
-        if not s:
+        if not s or not str(s).strip():
             return None
         for fmt in ('%H:%M:%S', '%H:%M'):
             try:
-                t = __import__('datetime').datetime.strptime(s.strip(), fmt).time()
-                return t
+                return _dt.datetime.strptime(str(s).strip(), fmt).time()
             except ValueError:
                 pass
         return None
@@ -1679,15 +1678,14 @@ def timelog_update_view(request, pk):
         return Response({'status': 'no_change'})
 
     tl.save(update_fields=['check_in', 'check_out'])
-    _max_hours = _get_max_ot_hours()
-    row = _row_from_timelog(0, tl, max_hours=_max_hours)
-
     log_action(
         request.user,
         f'แก้ไขเวลา {tl.user.get_full_name()} ({tl.log_date}): {", ".join(changed)}',
         'TimeLog', tl.id, request=request,
     )
-    return Response({'status': 'ok', 'row': row})
+    in_str  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
+    out_str = tl.check_out.strftime('%H:%M') if tl.check_out else ''
+    return Response({'status': 'ok', 'row': {'in': in_str, 'out': out_str}})
 
 
 @api_view(['GET'])
