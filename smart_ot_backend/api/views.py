@@ -1677,29 +1677,24 @@ def timelog_update_view(request):
                 pass
         return None
 
-    changed = []
-    if 'check_in' in request.data:
-        new_in = _parse_time(request.data['check_in'])
-        if str(tl.check_in or '') != str(new_in or ''):
-            changed.append(f'check_in: {tl.check_in} → {new_in}')
-            tl.check_in = new_in
-    if 'check_out' in request.data:
-        new_out = _parse_time(request.data['check_out'])
-        if str(tl.check_out or '') != str(new_out or ''):
-            changed.append(f'check_out: {tl.check_out} → {new_out}')
-            tl.check_out = new_out
+    old_in  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
+    old_out = tl.check_out.strftime('%H:%M') if tl.check_out else ''
 
-    if not changed:
-        return Response({'status': 'no_change'})
+    new_in  = _parse_time(request.data.get('check_in',  old_in))
+    new_out = _parse_time(request.data.get('check_out', old_out))
 
+    tl.check_in  = new_in
+    tl.check_out = new_out
     tl.save(update_fields=['check_in', 'check_out'])
-    log_action(
-        request.user,
-        f'แก้ไขเวลา {tl.user.get_full_name()} ({tl.log_date}): {", ".join(changed)}',
-        'TimeLog', tl.id, request=request,
-    )
+
     in_str  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
     out_str = tl.check_out.strftime('%H:%M') if tl.check_out else ''
+
+    log_action(
+        request.user,
+        f'แก้ไขเวลา {tl.user.get_full_name()} ({tl.log_date}): {old_in}→{in_str}, {old_out}→{out_str}',
+        'TimeLog', tl.id, request=request,
+    )
     return Response({'status': 'ok', 'row': {'in': in_str, 'out': out_str}})
 
 
