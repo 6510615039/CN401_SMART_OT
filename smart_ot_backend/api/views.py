@@ -1684,7 +1684,16 @@ def timelog_update_view(request):
 
     old_in  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
     old_out = tl.check_out.strftime('%H:%M') if tl.check_out else ''
-    old_ot  = float(tl.ot_hours_override) if tl.ot_hours_override is not None else None
+    # Compute effective OT before override (for accurate audit log)
+    h_obj_pre    = Holiday.objects.filter(date=tl.log_date).first()
+    is_weekend_pre = tl.log_date.weekday() >= 5
+    day_type_pre = 'holiday' if (h_obj_pre or is_weekend_pre) else 'weekday'
+    if tl.ot_hours_override is not None:
+        old_ot = float(tl.ot_hours_override)
+    elif tl.check_in and tl.check_out:
+        old_ot = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type_pre)
+    else:
+        old_ot = 0.0
 
     new_in  = _parse_time(request.data.get('check_in',  old_in))
     new_out = _parse_time(request.data.get('check_out', old_out))
@@ -1693,7 +1702,15 @@ def timelog_update_view(request):
     if ot_raw is not None and str(ot_raw).strip() != '':
         try:
             from decimal import Decimal
-            tl.ot_hours_override = Decimal(str(ot_raw))
+            new_ot_val = Decimal(str(ot_raw))
+            max_weekday, max_holiday = _get_max_ot_hours()
+            max_allowed = max_holiday if day_type_pre == 'holiday' else max_weekday
+            if new_ot_val > Decimal(str(max_allowed)):
+                return Response(
+                    {'error': f'ชั่วโมง OT เกินสูงสุดที่กำหนด ({max_allowed:.0f} ชม. สำหรับวัน{"หยุด" if day_type_pre == "holiday" else "ทำงาน"})'},
+                    status=400,
+                )
+            tl.ot_hours_override = new_ot_val
         except Exception:
             pass
     elif ot_raw == '' or ot_raw is None:
