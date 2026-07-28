@@ -399,7 +399,10 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   const [error, setError] = useState('');
   const [savedMsg, setSavedMsg] = useState('');
   const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('all');
   const [page, setPage] = useState(1);
+
+  const deptOptions = Array.from(new Set(rows.map(r => r.dept).filter(Boolean))).sort();
 
   function startEdit(r: ImportRow) {
     setEditingId(r.id);
@@ -460,6 +463,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   }
 
   const filtered = rows.filter(r => {
+    if (deptFilter !== 'all' && r.dept !== deptFilter) return false;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return r.name.toLowerCase().includes(q) || r.empId.toLowerCase().includes(q);
@@ -496,8 +500,8 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
       </div>
 
       {/* Search bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-[400px]">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 max-w-[340px]">
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
           <Input
             className="pl-10"
@@ -506,9 +510,18 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
             onChange={e => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        {search && (
-          <Button variant="outline" className="h-9 text-[13px]" onClick={() => { setSearch(''); setPage(1); }}>
-            ล้างการค้นหา
+        <Select value={deptFilter} onValueChange={v => { setDeptFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-[180px] h-9 text-[13px]">
+            <SelectValue placeholder="ทุกแผนก" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">ทุกแผนก</SelectItem>
+            {deptOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(search || deptFilter !== 'all') && (
+          <Button variant="outline" className="h-9 text-[13px]" onClick={() => { setSearch(''); setDeptFilter('all'); setPage(1); }}>
+            ล้างตัวกรอง
           </Button>
         )}
         <span className="text-[13px] text-[var(--neutral-500)] ml-auto">
