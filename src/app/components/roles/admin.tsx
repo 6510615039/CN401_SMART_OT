@@ -395,6 +395,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [saveConfirmId, setSaveConfirmId] = useState<number | null>(null);
   const [rowSaving, setRowSaving] = useState(false);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -455,6 +456,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
 
   return (
     <>
+    {error && <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-[13px]">{error}</div>}
     <SectionCard title={`ข้อมูลเวลาเข้า-ออก ${thaiMonthLabel(month)}`}>
       <div className="grid grid-cols-3 gap-4 mb-5">
         <KpiCard label="รายการทั้งหมด" value={rows.length.toLocaleString()} accent="red" />
