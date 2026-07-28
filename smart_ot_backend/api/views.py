@@ -1647,13 +1647,25 @@ def timelog_update_view(request):
     import datetime as _dt
     if get_effective_role(request.user, request) != 'admin':
         return Response({'error': 'ไม่มีสิทธิ์'}, status=403)
-    pk = request.data.get('id')
-    if not pk:
-        return Response({'error': 'ไม่ระบุ id'}, status=400)
-    try:
-        tl = TimeLog.objects.select_related('user').get(pk=pk)
-    except TimeLog.DoesNotExist:
-        return Response({'error': 'ไม่พบรายการ (id=' + str(pk) + ')'}, status=404)
+    pk     = request.data.get('id')
+    emp_id = request.data.get('empId', '').strip()
+    date_s = request.data.get('date', '').strip()
+
+    tl = None
+    if pk:
+        try:
+            tl = TimeLog.objects.select_related('user').get(pk=pk)
+        except TimeLog.DoesNotExist:
+            pass
+    if tl is None and emp_id and date_s:
+        try:
+            tl = TimeLog.objects.select_related('user').get(
+                user__employee_id=emp_id, log_date=date_s
+            )
+        except TimeLog.DoesNotExist:
+            pass
+    if tl is None:
+        return Response({'error': f'ไม่พบรายการ (id={pk}, empId={emp_id}, date={date_s})'}, status=404)
 
     def _parse_time(s):
         if not s or not str(s).strip():

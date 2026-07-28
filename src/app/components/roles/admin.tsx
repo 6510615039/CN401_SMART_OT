@@ -397,6 +397,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   const [saveConfirmId, setSaveConfirmId] = useState<number | null>(null);
   const [rowSaving, setRowSaving] = useState(false);
   const [error, setError] = useState('');
+  const [savedMsg, setSavedMsg] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -406,21 +407,29 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   }
 
   async function saveRow(id: number) {
+    const row = rows.find(r => r.id === id);
     setRowSaving(true);
-    setSaveConfirmId(null); // ปิด dialog ก่อนรอ API
+    setSaveConfirmId(null);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
     try {
       const res = await fetch('/api/timelog/update/', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, check_in: draft.in, check_out: draft.out }),
+        body: JSON.stringify({
+          id,
+          empId: row?.empId ?? '',
+          date: row?.date ?? '',
+          check_in: draft.in,
+          check_out: draft.out,
+        }),
         signal: ctrl.signal,
       });
       clearTimeout(timer);
       let data: any = {};
       try { data = await res.json(); } catch {}
       if (!res.ok) {
+        setEditingId(null);
         setError(data.error || `บันทึกไม่สำเร็จ (${res.status})`);
         setRowSaving(false);
         return;
@@ -431,6 +440,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
       ));
     } catch (err: any) {
       clearTimeout(timer);
+      setEditingId(null);
       setError(err?.name === 'AbortError' ? 'หมดเวลา กรุณาลองใหม่' : `เกิดข้อผิดพลาด: ${err?.message || 'unknown'}`);
       setRowSaving(false);
       return;
@@ -438,6 +448,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
     setRowSaving(false);
     setEditingId(null);
     setSavedId(id);
+    setSavedMsg('บันทึกการแก้ไขเรียบร้อยแล้ว');
     setTimeout(() => setSavedId(null), 2000);
   }
 
@@ -464,6 +475,15 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
         <p className="text-[13px] text-danger">{error}</p>
         <DialogFooter>
           <Button className="bg-tu-red text-white" onClick={() => setError('')}>ตกลง</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={!!savedMsg} onOpenChange={open => { if (!open) setSavedMsg(''); }}>
+      <DialogContent className="max-w-[400px]">
+        <DialogHeader><DialogTitle>บันทึกสำเร็จ</DialogTitle></DialogHeader>
+        <p className="text-[13px] text-success">{savedMsg}</p>
+        <DialogFooter>
+          <Button className="bg-success text-white" onClick={() => setSavedMsg('')}>ตกลง</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
