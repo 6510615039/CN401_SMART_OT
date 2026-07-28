@@ -422,6 +422,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
           date: row?.date ?? '',
           check_in: draft.in,
           check_out: draft.out,
+          ot_hours_override: draft.ot !== row?.ot ? draft.ot : undefined,
         }),
         signal: ctrl.signal,
       });

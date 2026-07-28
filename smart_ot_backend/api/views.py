@@ -1554,7 +1554,12 @@ def _row_from_timelog(idx, tl, max_hours=None):
     h_obj    = Holiday.objects.filter(date=tl.log_date).first()
     is_weekend = tl.log_date.weekday() >= 5
     day_type = 'holiday' if (h_obj or is_weekend) else 'weekday'
-    ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type, max_hours=max_hours) if (tl.check_in and tl.check_out) else 0.0
+    if tl.ot_hours_override is not None:
+        ot_val = float(tl.ot_hours_override)
+    elif tl.check_in and tl.check_out:
+        ot_val = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type, max_hours=max_hours)
+    else:
+        ot_val = 0.0
     flag     = (day_type == 'weekday' and (not in_str or not out_str)) or ot_val > 8
     return {
         'id':    tl.id,
@@ -1679,23 +1684,38 @@ def timelog_update_view(request):
 
     old_in  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
     old_out = tl.check_out.strftime('%H:%M') if tl.check_out else ''
+    old_ot  = float(tl.ot_hours_override) if tl.ot_hours_override is not None else None
 
     new_in  = _parse_time(request.data.get('check_in',  old_in))
     new_out = _parse_time(request.data.get('check_out', old_out))
 
+    ot_raw = request.data.get('ot_hours_override')
+    if ot_raw is not None and str(ot_raw).strip() != '':
+        try:
+            from decimal import Decimal
+            tl.ot_hours_override = Decimal(str(ot_raw))
+        except Exception:
+            pass
+    elif ot_raw == '' or ot_raw is None:
+        tl.ot_hours_override = None
+
     tl.check_in  = new_in
     tl.check_out = new_out
-    tl.save(update_fields=['check_in', 'check_out'])
+    tl.save(update_fields=['check_in', 'check_out', 'ot_hours_override'])
 
     in_str  = tl.check_in.strftime('%H:%M')  if tl.check_in  else ''
     out_str = tl.check_out.strftime('%H:%M') if tl.check_out else ''
+    ot_str  = str(float(tl.ot_hours_override)) if tl.ot_hours_override is not None else ''
 
+    changes = f'{old_in}→{in_str}, {old_out}→{out_str}'
+    if ot_raw is not None:
+        changes += f', OT {old_ot}→{ot_str}'
     log_action(
         request.user,
-        f'แก้ไขเวลา {tl.user.get_full_name()} ({tl.log_date}): {old_in}→{in_str}, {old_out}→{out_str}',
+        f'แก้ไขเวลา {tl.user.get_full_name()} ({tl.log_date}): {changes}',
         'TimeLog', tl.id, request=request,
     )
-    return Response({'status': 'ok', 'row': {'in': in_str, 'out': out_str}})
+    return Response({'status': 'ok', 'row': {'in': in_str, 'out': out_str, 'ot': ot_str}})
 
 
 @api_view(['GET'])

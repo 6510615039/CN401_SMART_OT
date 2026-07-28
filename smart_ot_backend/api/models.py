@@ -190,6 +190,7 @@ class TimeLog(models.Model):
     shift             = models.ForeignKey(Shift, on_delete=models.SET_NULL, null=True, blank=True, related_name='time_logs', verbose_name='กะการทำงาน')
     time_period       = models.CharField(max_length=10, choices=[('เช้า', 'เช้า'), ('ปกติ', 'ปกติ')], blank=True, verbose_name='กะการทำงาน (ข้อความเดิม)')
     attendance_status = models.CharField(max_length=50, blank=True, verbose_name='สถานะเข้างาน')
+    ot_hours_override = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True, verbose_name='จำนวน OT ที่แอดมินกำหนด')
     imported_at       = models.DateTimeField(auto_now_add=True)
 
     class Meta:
