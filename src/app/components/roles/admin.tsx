@@ -394,6 +394,7 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   const [savedId, setSavedId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [saveConfirmId, setSaveConfirmId] = useState<number | null>(null);
+  const [rowSaving, setRowSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -403,13 +404,14 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
   }
 
   async function saveRow(id: number) {
+    setRowSaving(true);
     try {
       const res = await fetch(`/api/timelog/${id}/update/`, {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ check_in: draft.in, check_out: draft.out }),
       });
-      if (!res.ok) { const e = await res.json(); setError(e.error || 'บันทึกไม่สำเร็จ'); return; }
+      if (!res.ok) { const e = await res.json(); setError(e.error || 'บันทึกไม่สำเร็จ'); setRowSaving(false); return; }
       const data = await res.json();
       setRows(rs => rs.map(r => r.id === id
         ? { ...r, in: data.row?.in ?? draft.in, out: data.row?.out ?? draft.out, ot: data.row?.ot ?? draft.ot, flag: false }
@@ -417,8 +419,10 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
       ));
     } catch {
       setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      setRowSaving(false);
       return;
     }
+    setRowSaving(false);
     setEditingId(null);
     setSaveConfirmId(null);
     setSavedId(id);
@@ -612,8 +616,8 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
         <p className="text-[13px]">ต้องการบันทึกการแก้ไขข้อมูลรายการนี้ใช่หรือไม่?</p>
         <DialogFooter>
           <Button variant="outline" onClick={() => setSaveConfirmId(null)}>ยกเลิก</Button>
-          <Button className="bg-success text-white" onClick={() => saveConfirmId !== null && saveRow(saveConfirmId)}>
-            <CheckCircle2 className="size-4 mr-1" />บันทึก
+          <Button className="bg-success text-white" disabled={rowSaving} onClick={() => saveConfirmId !== null && saveRow(saveConfirmId)}>
+            {rowSaving ? <><div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />กำลังบันทึก...</> : <><CheckCircle2 className="size-4 mr-1" />บันทึก</>}
           </Button>
         </DialogFooter>
       </DialogContent>
