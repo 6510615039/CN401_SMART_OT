@@ -1557,7 +1557,7 @@ def _row_from_timelog(idx, tl, max_hours=None):
     ot_val   = _calc_ot(tl.check_in, tl.check_out, tl.time_period, day_type, max_hours=max_hours) if (tl.check_in and tl.check_out) else 0.0
     flag     = (day_type == 'weekday' and (not in_str or not out_str)) or ot_val > 8
     return {
-        'id':    idx,
+        'id':    tl.id,
         'date':  str(tl.log_date),
         'empId': tl.user.employee_id or '',
         'name':  tl.user.get_full_name() or tl.user.username,
@@ -1638,6 +1638,56 @@ def _enrich_rows_day_type(rows):
             h_type = r.get('holidayType', '')
         enriched.append({**r, 'dayType': day_type, 'holidayName': h_name, 'holidayType': h_type})
     return enriched
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def timelog_update_view(request, pk):
+    """Admin: แก้ไข check_in / check_out ของ TimeLog และบันทึก audit log."""
+    if not (request.user.is_staff or getattr(request.user, 'role', '') == 'admin'):
+        return Response({'error': 'ไม่มีสิทธิ์'}, status=403)
+    try:
+        tl = TimeLog.objects.select_related('user').get(pk=pk)
+    except TimeLog.DoesNotExist:
+        return Response({'error': 'ไม่พบรายการ'}, status=404)
+
+    from datetime import time as _time
+    def _parse_time(s):
+        if not s:
+            return None
+        for fmt in ('%H:%M:%S', '%H:%M'):
+            try:
+                t = __import__('datetime').datetime.strptime(s.strip(), fmt).time()
+                return t
+            except ValueError:
+                pass
+        return None
+
+    changed = []
+    if 'check_in' in request.data:
+        new_in = _parse_time(request.data['check_in'])
+        if str(tl.check_in or '') != str(new_in or ''):
+            changed.append(f'check_in: {tl.check_in} → {new_in}')
+            tl.check_in = new_in
+    if 'check_out' in request.data:
+        new_out = _parse_time(request.data['check_out'])
+        if str(tl.check_out or '') != str(new_out or ''):
+            changed.append(f'check_out: {tl.check_out} → {new_out}')
+            tl.check_out = new_out
+
+    if not changed:
+        return Response({'status': 'no_change'})
+
+    tl.save(update_fields=['check_in', 'check_out'])
+    _max_hours = _get_max_ot_hours()
+    row = _row_from_timelog(0, tl, max_hours=_max_hours)
+
+    log_action(
+        request.user,
+        f'แก้ไขเวลา {tl.user.get_full_name()} ({tl.log_date}): {", ".join(changed)}',
+        'TimeLog', tl.id, request=request,
+    )
+    return Response({'status': 'ok', 'row': row})
 
 
 @api_view(['GET'])

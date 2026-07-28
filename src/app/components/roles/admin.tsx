@@ -402,8 +402,23 @@ function AdminEditableTable({ rows, setRows, month }: { rows: ImportRow[]; setRo
     setDraft({ in: r.in, out: r.out, ot: r.ot });
   }
 
-  function saveRow(id: number) {
-    setRows(rs => rs.map(r => r.id === id ? { ...r, ...draft, flag: false } : r));
+  async function saveRow(id: number) {
+    try {
+      const res = await fetch(`/api/timelog/${id}/update/`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ check_in: draft.in, check_out: draft.out }),
+      });
+      if (!res.ok) { const e = await res.json(); setError(e.error || 'บันทึกไม่สำเร็จ'); return; }
+      const data = await res.json();
+      setRows(rs => rs.map(r => r.id === id
+        ? { ...r, in: data.row?.in ?? draft.in, out: data.row?.out ?? draft.out, ot: data.row?.ot ?? draft.ot, flag: false }
+        : r
+      ));
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      return;
+    }
     setEditingId(null);
     setSaveConfirmId(null);
     setSavedId(id);

@@ -22,6 +22,7 @@ urlpatterns = [
     path('settings/',              views.settings_view),
     path('settings/tu-api-toggle/', views.tu_api_toggle_view),
     path('timelog/import/', views.import_timelog),
+    path('timelog/<int:pk>/update/', views.timelog_update_view),
     path('admin/import-staff/', views.import_staff_roster),
     path('timelog/list/',   views.timelog_list_view),
     path('timelog/my/',     views.timelog_my_view),
