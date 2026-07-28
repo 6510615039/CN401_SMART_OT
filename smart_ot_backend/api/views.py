@@ -394,6 +394,36 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
     queryset = Department.objects.all().order_by('name')
 
+    def _require_admin(self):
+        if get_effective_role(self.request.user, self.request) != 'admin':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('เฉพาะแอดมินเท่านั้น')
+
+    def perform_create(self, serializer):
+        self._require_admin()
+        dept = serializer.save()
+        log_action(self.request.user, f'เพิ่มแผนก "{dept.name}"', 'Department', dept.id, request=self.request)
+
+    def perform_update(self, serializer):
+        self._require_admin()
+        old_name = serializer.instance.name
+        dept = serializer.save()
+        if dept.name != old_name:
+            log_action(self.request.user, f'แก้ไขชื่อแผนก "{old_name}" → "{dept.name}"', 'Department', dept.id, request=self.request)
+        else:
+            log_action(self.request.user, f'แก้ไขแผนก "{dept.name}"', 'Department', dept.id, request=self.request)
+
+    def perform_destroy(self, instance):
+        self._require_admin()
+        name = instance.name
+        member_count = instance.members.filter(is_active=True).count()
+        if member_count > 0:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(f'ไม่สามารถลบแผนก "{name}" ได้ เนื่องจากยังมีสมาชิก {member_count} คน')
+        dept_id = instance.id
+        instance.delete()
+        log_action(self.request.user, f'ลบแผนก "{name}"', 'Department', dept_id, request=self.request)
+
 
 # ─── OT Requests ─────────────────────────────────────────────────────────────
 

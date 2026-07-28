@@ -1561,45 +1561,113 @@ function ViewMembersDialog({ deptName, members }: { deptName: string; members: A
 }
 
 export function AdminDepts() {
-  const [depts, setDepts] = useState<ApiDept[]>([]);
+  const [depts, setDepts]       = useState<ApiDept[]>([]);
   const [allUsers, setAllUsers] = useState<ApiUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [overrides, setOverrides] = useState<Record<number, { head?: string; rep?: string }>>({});
+
+  // dept CRUD state
+  const [addOpen, setAddOpen]         = useState(false);
+  const [addName, setAddName]         = useState('');
+  const [addSaving, setAddSaving]     = useState(false);
+  const [addError, setAddError]       = useState('');
+
+  const [editDept, setEditDept]       = useState<ApiDept | null>(null);
+  const [editName, setEditName]       = useState('');
+  const [editSaving, setEditSaving]   = useState(false);
+  const [editError, setEditError]     = useState('');
+
+  const [deleteDept, setDeleteDept]   = useState<ApiDept | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
+  const token = () => localStorage.getItem('access_token') || '';
+  const authH = () => ({ Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' });
+
+  async function loadAll() {
+    const h = { Authorization: `Bearer ${token()}` };
+    const deptRes  = await fetch('/api/departments/', { headers: h });
+    const deptData = await deptRes.json();
+    const deptList: ApiDept[] = Array.isArray(deptData) ? deptData : (deptData.results ?? []);
+
+    const users: ApiUser[] = [];
+    let url: string | null = '/api/users/';
+    while (url) {
+      try {
+        const res  = await fetch(url, { headers: h });
+        const data = await res.json();
+        users.push(...(Array.isArray(data) ? data : (data.results ?? [])));
+        url = data.next ?? null;
+      } catch { break; }
+    }
+    setDepts(deptList);
+    setAllUsers(users);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    const token = localStorage.getItem('access_token');
-    const h = { Authorization: `Bearer ${token}` };
-
-    async function load() {
-      const deptRes = await fetch('/api/departments/', { headers: h });
-      const deptData = await deptRes.json();
-      const deptList: ApiDept[] = Array.isArray(deptData) ? deptData : (deptData.results ?? []);
-
-      const users: ApiUser[] = [];
-      let url: string | null = '/api/users/';
-      while (url) {
-        try {
-          const res = await fetch(url, { headers: h });
-          const data = await res.json();
-          users.push(...(Array.isArray(data) ? data : (data.results ?? [])));
-          url = data.next ?? null;
-        } catch { break; }
-      }
-
-      if (!cancelled) {
-        setDepts(deptList);
-        setAllUsers(users);
-        setLoading(false);
-      }
-    }
-
-    load().catch(() => { if (!cancelled) setLoading(false); });
+    setLoading(true);
+    loadAll()
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
   function changeRole(deptId: number, roleKey: 'head' | 'rep', newName: string) {
     setOverrides(ov => ({ ...ov, [deptId]: { ...ov[deptId], [roleKey]: newName } }));
+  }
+
+  async function handleAdd() {
+    if (!addName.trim()) { setAddError('กรุณากรอกชื่อแผนก'); return; }
+    setAddSaving(true); setAddError('');
+    const res = await fetch('/api/departments/', {
+      method: 'POST',
+      headers: authH(),
+      body: JSON.stringify({ name: addName.trim(), code: addName.trim().slice(0, 10).toUpperCase() }),
+    });
+    if (res.ok) {
+      setAddOpen(false); setAddName('');
+      await loadAll();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setAddError(d.detail || d.name?.[0] || 'เกิดข้อผิดพลาด');
+    }
+    setAddSaving(false);
+  }
+
+  async function handleEdit() {
+    if (!editDept || !editName.trim()) { setEditError('กรุณากรอกชื่อแผนก'); return; }
+    setEditSaving(true); setEditError('');
+    const res = await fetch(`/api/departments/${editDept.id}/`, {
+      method: 'PATCH',
+      headers: authH(),
+      body: JSON.stringify({ name: editName.trim() }),
+    });
+    if (res.ok) {
+      setEditDept(null);
+      await loadAll();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setEditError(d.detail || d.name?.[0] || 'เกิดข้อผิดพลาด');
+    }
+    setEditSaving(false);
+  }
+
+  async function handleDelete() {
+    if (!deleteDept) return;
+    setDeleteSaving(true); setDeleteError('');
+    const res = await fetch(`/api/departments/${deleteDept.id}/`, {
+      method: 'DELETE',
+      headers: authH(),
+    });
+    if (res.ok || res.status === 204) {
+      setDeleteDept(null);
+      await loadAll();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setDeleteError(d.detail || d[0] || 'เกิดข้อผิดพลาด');
+    }
+    setDeleteSaving(false);
   }
 
   if (loading) return (
@@ -1612,11 +1680,81 @@ export function AdminDepts() {
   return (
     <>
       <PageHeader title="จัดการแผนกและสิทธิ์" />
+
+      {/* ─── Add dept dialog ─── */}
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setAddName(''); setAddError(''); } }}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader><DialogTitle>เพิ่มแผนกใหม่</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <label className="text-[13px] font-medium">ชื่อแผนก</label>
+            <Input
+              autoFocus
+              value={addName}
+              onChange={e => setAddName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              placeholder="เช่น ฝ่ายบริหารทั่วไป"
+            />
+            {addError && <p className="text-[12px] text-danger">{addError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>ยกเลิก</Button>
+            <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={handleAdd} disabled={addSaving}>
+              {addSaving ? 'กำลังบันทึก...' : 'เพิ่มแผนก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Edit dept dialog ─── */}
+      <Dialog open={!!editDept} onOpenChange={o => { if (!o) { setEditDept(null); setEditError(''); } }}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader><DialogTitle>แก้ไขชื่อแผนก</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <label className="text-[13px] font-medium">ชื่อแผนก</label>
+            <Input
+              autoFocus
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleEdit()}
+            />
+            {editError && <p className="text-[12px] text-danger">{editError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDept(null)}>ยกเลิก</Button>
+            <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={handleEdit} disabled={editSaving}>
+              {editSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete dept dialog ─── */}
+      <Dialog open={!!deleteDept} onOpenChange={o => { if (!o) { setDeleteDept(null); setDeleteError(''); } }}>
+        <DialogContent className="max-w-[420px]">
+          <DialogHeader><DialogTitle>ยืนยันการลบแผนก</DialogTitle></DialogHeader>
+          <p className="text-[13px]">ต้องการลบแผนก <strong>"{deleteDept?.name}"</strong> ใช่หรือไม่?</p>
+          <p className="text-[12px] text-[var(--neutral-500)]">แผนกที่มีสมาชิกอยู่จะไม่สามารถลบได้</p>
+          {deleteError && <p className="text-[12px] text-danger">{deleteError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDept(null)}>ยกเลิก</Button>
+            <Button className="bg-danger hover:bg-danger/90 text-white" onClick={handleDelete} disabled={deleteSaving}>
+              {deleteSaving ? 'กำลังลบ...' : 'ลบแผนก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex justify-end mb-4">
+        <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={() => setAddOpen(true)}>
+          <Plus className="size-4 mr-1" /> เพิ่มแผนก
+        </Button>
+      </div>
+
       <div className="grid grid-cols-2 gap-5">
         {depts.map(d => {
-          const members = allUsers.filter(u => u.department === d.id);
-          const head = members.find(u => u.role === 'depthead' || u.extra_roles?.includes('depthead'));
-          const rep  = members.find(u => u.role === 'deptrep'  || u.extra_roles?.includes('deptrep'));
+          const members  = allUsers.filter(u => u.department === d.id);
+          const head     = members.find(u => u.role === 'depthead' || u.extra_roles?.includes('depthead'));
+          const rep      = members.find(u => u.role === 'deptrep'  || u.extra_roles?.includes('deptrep'));
           const headName = overrides[d.id]?.head ?? (head ? `${head.first_name} ${head.last_name}` : '—');
           const repName  = overrides[d.id]?.rep  ?? (rep  ? `${rep.first_name} ${rep.last_name}`   : '—');
 
@@ -1624,7 +1762,23 @@ export function AdminDepts() {
             <div key={d.id} className="bg-white rounded-xl border border-[var(--neutral-300)] shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
               <div className="bg-tu-red text-white px-5 py-3 flex items-center justify-between">
                 <h3 className="text-white">{d.name}</h3>
-                <span className="text-[12px]">{d.member_count} คน</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px]">{d.member_count} คน</span>
+                  <button
+                    className="p-1 rounded hover:bg-white/20 transition-colors"
+                    title="แก้ไขชื่อแผนก"
+                    onClick={() => { setEditDept(d); setEditName(d.name); setEditError(''); }}
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                  <button
+                    className="p-1 rounded hover:bg-white/20 transition-colors"
+                    title="ลบแผนก"
+                    onClick={() => { setDeleteDept(d); setDeleteError(''); }}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
               </div>
               <div className="p-5 space-y-4">
                 {([
