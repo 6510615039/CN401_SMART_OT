@@ -1061,10 +1061,35 @@ export function StaffProfile() {
         <SectionCard className="col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold">ข้อมูลติดต่อ</h4>
-            {!isEditing && (
+            {!isEditing ? (
               <Button variant="outline" size="sm" onClick={() => { setNotifyEmailEdit(notifyEmail); setIsEditing(true); }}>
                 แก้ไข
               </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setNotifyEmailEdit(notifyEmail); setIsEditing(false); }}>
+                  ยกเลิก
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-tu-red hover:bg-tu-red-dark text-white"
+                  onClick={() => {
+                    const token = localStorage.getItem('access_token');
+                    fetch('/api/auth/me/update/', {
+                      method: 'PATCH',
+                      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ notify_email: notifyEmailEdit }),
+                    }).then(() => {
+                      setNotifyEmail(notifyEmailEdit);
+                      setIsEditing(false);
+                      setSaved(true);
+                      setTimeout(() => setSaved(false), 3000);
+                    }).catch(() => {});
+                  }}
+                >
+                  บันทึก
+                </Button>
+              </div>
             )}
           </div>
           <div className="space-y-5">
@@ -1092,35 +1117,6 @@ export function StaffProfile() {
               )}
               <p className="text-[11px] text-[var(--neutral-400)] mt-0.5">ระบบจะส่งการแจ้งเตือนสถานะคำร้อง OT ไปที่อีเมลนี้</p>
             </div>
-
-            {isEditing && (
-              <div className="flex gap-2 justify-end pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => { setNotifyEmailEdit(notifyEmail); setIsEditing(false); }}
-                >
-                  ยกเลิก
-                </Button>
-                <Button
-                  className="bg-tu-red hover:bg-tu-red-dark text-white"
-                  onClick={() => {
-                    const token = localStorage.getItem('access_token');
-                    fetch('/api/auth/me/update/', {
-                      method: 'PATCH',
-                      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ notify_email: notifyEmailEdit }),
-                    }).then(() => {
-                      setNotifyEmail(notifyEmailEdit);
-                      setIsEditing(false);
-                      setSaved(true);
-                      setTimeout(() => setSaved(false), 3000);
-                    }).catch(() => {});
-                  }}
-                >
-                  บันทึก
-                </Button>
-              </div>
-            )}
           </div>
         </SectionCard>
       </div>
