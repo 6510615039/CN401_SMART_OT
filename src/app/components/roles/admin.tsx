@@ -1239,19 +1239,13 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
                   onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); }} />
               </div>
 
-              {/* Password */}
-              <div>
-                <label className="text-[13px] font-medium block mb-1">รหัสผ่านเริ่มต้น</label>
-                <Input value={password} onChange={e => setPassword(e.target.value)} placeholder="tustaff2025" />
-                <p className="text-[12px] text-[var(--neutral-500)] mt-1">พนักงานทุกคนจะได้รหัสผ่านนี้ (เปลี่ยนได้ภายหลัง)</p>
-              </div>
-
               {/* Info box */}
               <div className="bg-tu-yellow-soft border border-tu-yellow rounded-lg p-3 flex gap-2">
                 <AlertTriangle className="size-4 text-[var(--warning)] shrink-0 mt-0.5" />
                 <p className="text-[12px] text-[var(--neutral-700)]">
-                  ระบบจะสร้าง username จากชื่อ+ลำดับ เช่น <strong>สาริยา_4</strong><br />
-                  หากมีชื่อซ้ำอยู่แล้วในระบบ จะข้ามรายการนั้น (ไม่ทับข้อมูลเดิม)
+                  พนักงานล็อกอินด้วย <strong>TU Account</strong> (รหัสนักศึกษา/บุคลากร + รหัสผ่านมหาวิทยาลัย)<br />
+                  ระบบจะใช้ <strong>รหัสพนักงาน</strong> (employee_id) เป็น username<br />
+                  หาก employee_id ซ้ำอยู่แล้วในระบบ จะข้ามรายการนั้น (ไม่ทับข้อมูลเดิม)
                 </p>
               </div>
 
@@ -1281,7 +1275,7 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
               </div>
               <div className="bg-[var(--neutral-50)] rounded-lg p-3 border border-[var(--neutral-200)]">
                 <p className="text-[12px] text-[var(--neutral-600)]">
-                  รหัสผ่านเริ่มต้น: <strong className="font-mono">{result.default_password}</strong>
+                  พนักงานที่สร้างแล้วสามารถล็อกอินด้วย <strong>TU Account</strong> ได้ทันที
                 </p>
               </div>
               {result.users.length > 0 && (
