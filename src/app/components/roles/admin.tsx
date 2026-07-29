@@ -1005,7 +1005,7 @@ export function AdminUsers() {
         <div className="grid grid-cols-[1fr_200px_180px_auto] gap-3 mb-4">
           <div className="relative">
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--neutral-500)]" />
-            <Input className="pl-10" placeholder="ค้นหาชื่อ / username / อีเมล"
+            <Input className="pl-10" placeholder="ค้นหาชื่อ / username / อีเมล / รหัสพนักงาน"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <Select value={filterDept} onValueChange={setFilterDept}>
