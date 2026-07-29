@@ -1897,6 +1897,7 @@ export function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [rateConfirmOpen, setRateConfirmOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const token = () => localStorage.getItem('access_token');
   const h = { 'Authorization': `Bearer ${token()}` };
@@ -1938,6 +1939,7 @@ export function AdminSettings() {
         const updated = await res.json();
         setSettings(updated);
         setOriginalSettings(updated);
+        setIsEditing(false);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       } else {
@@ -1968,9 +1970,18 @@ export function AdminSettings() {
   return (
     <>
       <PageHeader title="ตั้งค่าระบบ" right={
-        <Button onClick={handleSaveClick} disabled={saving} className="bg-tu-red text-white">
-          {saving ? 'กำลังบันทึก...' : saved ? '✓ บันทึกแล้ว' : 'บันทึกการตั้งค่า'}
-        </Button>
+        isEditing ? (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setSettings(originalSettings); setIsEditing(false); }}>ยกเลิก</Button>
+            <Button onClick={handleSaveClick} disabled={saving} className="bg-tu-red text-white">
+              {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" onClick={() => setIsEditing(true)}>
+            <Pencil className="size-4 mr-1" />แก้ไข
+          </Button>
+        )
       } />
       <SectionCard>
         <Tabs defaultValue="rules">
@@ -1981,10 +1992,22 @@ export function AdminSettings() {
           </TabsList>
 
           <TabsContent value="rules" className="mt-6 grid grid-cols-2 gap-6 max-w-2xl">
-            <div><label>ชม. OT สูงสุดวันธรรมดา</label><Input className="mt-1" value={settings?.max_ot_hours_weekday ?? 4} onChange={e => set('max_ot_hours_weekday', e.target.value)} /></div>
-            <div><label>ชม. OT สูงสุดวันหยุด</label><Input className="mt-1" value={settings?.max_ot_hours_holiday ?? 7} onChange={e => set('max_ot_hours_holiday', e.target.value)} /></div>
-            <div><label>อัตราค่าจ้างวันธรรมดา (บาท/ชม.)</label><Input className="mt-1" type="number" value={settings?.ot_rate_weekday ?? OT_RATE_WEEKDAY} onChange={e => set('ot_rate_weekday', e.target.value)} /></div>
-            <div><label>อัตราค่าจ้างวันหยุด (บาท/ชม.)</label><Input className="mt-1" type="number" value={settings?.ot_rate_holiday ?? OT_RATE_HOLIDAY} onChange={e => set('ot_rate_holiday', e.target.value)} /></div>
+            <div>
+              <label className="text-[13px] text-[var(--neutral-500)]">ชม. OT สูงสุดวันธรรมดา</label>
+              {isEditing ? <Input className="mt-1" value={settings?.max_ot_hours_weekday ?? 4} onChange={e => set('max_ot_hours_weekday', e.target.value)} /> : <p className="mt-1 text-[15px] font-semibold">{settings?.max_ot_hours_weekday ?? 4}</p>}
+            </div>
+            <div>
+              <label className="text-[13px] text-[var(--neutral-500)]">ชม. OT สูงสุดวันหยุด</label>
+              {isEditing ? <Input className="mt-1" value={settings?.max_ot_hours_holiday ?? 7} onChange={e => set('max_ot_hours_holiday', e.target.value)} /> : <p className="mt-1 text-[15px] font-semibold">{settings?.max_ot_hours_holiday ?? 7}</p>}
+            </div>
+            <div>
+              <label className="text-[13px] text-[var(--neutral-500)]">อัตราค่าจ้างวันธรรมดา (บาท/ชม.)</label>
+              {isEditing ? <Input className="mt-1" type="number" value={settings?.ot_rate_weekday ?? OT_RATE_WEEKDAY} onChange={e => set('ot_rate_weekday', e.target.value)} /> : <p className="mt-1 text-[15px] font-semibold">{settings?.ot_rate_weekday ?? OT_RATE_WEEKDAY}</p>}
+            </div>
+            <div>
+              <label className="text-[13px] text-[var(--neutral-500)]">อัตราค่าจ้างวันหยุด (บาท/ชม.)</label>
+              {isEditing ? <Input className="mt-1" type="number" value={settings?.ot_rate_holiday ?? OT_RATE_HOLIDAY} onChange={e => set('ot_rate_holiday', e.target.value)} /> : <p className="mt-1 text-[15px] font-semibold">{settings?.ot_rate_holiday ?? OT_RATE_HOLIDAY}</p>}
+            </div>
           </TabsContent>
 
           <TabsContent value="noti" className="mt-6 space-y-4 max-w-md">
