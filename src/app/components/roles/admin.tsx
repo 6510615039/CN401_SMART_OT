@@ -1368,6 +1368,7 @@ function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
   const [open, setOpen] = useState(false);
   const [depts, setDepts] = useState<{ id: number; name: string }[]>([]);
   const [form, setForm] = useState({ employee_id: '', first_name: '', last_name: '', email: '', department: '', role: '' });
+  const [extraRolesAdd, setExtraRolesAdd] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -1396,18 +1397,26 @@ function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
       email: form.email,
       employee_id: form.employee_id,
       role: form.role,
+      extra_roles: extraRolesAdd,
       department: form.department || null,
     };
     try {
       const res = await fetch('/api/users/', { method: 'POST', headers: { 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json(); setError(JSON.stringify(e)); }
-      else { setOpen(false); setForm({ employee_id:'',first_name:'',last_name:'',email:'',department:'',role:'' }); onCreated?.(); }
+      else {
+        setOpen(false);
+        setForm({ employee_id:'',first_name:'',last_name:'',email:'',department:'',role:'' });
+        setExtraRolesAdd([]);
+        onCreated?.();
+      }
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   }
 
+  const NON_STAFF_ROLES_ADD = ROLE_OPTIONS.filter(r => r.role !== 'staff');
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) { setExtraRolesAdd([]); setError(''); } }}>
       <DialogTrigger asChild>
         <Button className="bg-tu-red hover:bg-tu-red-dark text-white"><Plus className="size-4 mr-1" />เพิ่มผู้ใช้</Button>
       </DialogTrigger>
@@ -1416,28 +1425,68 @@ function AddUserDialog({ onCreated }: { onCreated?: () => void }) {
           <DialogTitle className="text-white">เพิ่มผู้ใช้ใหม่</DialogTitle>
         </div>
         <div className="grid grid-cols-2 gap-4 p-6">
-          <div><label className="text-[13px] font-medium">รหัสพนักงาน <span className="text-danger">*</span></label><Input className="mt-1" value={form.employee_id} onChange={e => set('employee_id', e.target.value)} /></div>
-          <div><label className="text-[13px] font-medium">อีเมล TU</label><Input className="mt-1" value={form.email} onChange={e => set('email', e.target.value)} placeholder="xxx@tu.ac.th" /></div>
-          <div><label className="text-[13px] font-medium">ชื่อ <span className="text-danger">*</span></label><Input className="mt-1" value={form.first_name} onChange={e => set('first_name', e.target.value)} /></div>
-          <div><label className="text-[13px] font-medium">นามสกุล <span className="text-danger">*</span></label><Input className="mt-1" value={form.last_name} onChange={e => set('last_name', e.target.value)} /></div>
-          <div className="col-span-2"><label className="text-[13px] font-medium">แผนก</label>
+          <div>
+            <label className="text-[13px] font-medium">รหัสพนักงาน <span className="text-danger">*</span></label>
+            <Input className="mt-1 border border-[var(--neutral-300)]" value={form.employee_id} onChange={e => set('employee_id', e.target.value)} placeholder="xxxx" />
+          </div>
+          <div>
+            <label className="text-[13px] font-medium">อีเมล TU</label>
+            <Input className="mt-1 border border-[var(--neutral-300)]" value={form.email} onChange={e => set('email', e.target.value)} placeholder="xxx@tu.ac.th" />
+          </div>
+          <div>
+            <label className="text-[13px] font-medium">ชื่อ <span className="text-danger">*</span></label>
+            <Input className="mt-1 border border-[var(--neutral-300)]" value={form.first_name} onChange={e => set('first_name', e.target.value)} placeholder="ใจดี" />
+          </div>
+          <div>
+            <label className="text-[13px] font-medium">นามสกุล <span className="text-danger">*</span></label>
+            <Input className="mt-1 border border-[var(--neutral-300)]" value={form.last_name} onChange={e => set('last_name', e.target.value)} placeholder="ขยันงาน" />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[13px] font-medium">แผนก <span className="text-danger">*</span></label>
             <Select value={form.department} onValueChange={v => set('department', v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
+              <SelectTrigger className="mt-1 border border-[var(--neutral-300)]"><SelectValue placeholder="เลือกแผนก" /></SelectTrigger>
               <SelectContent>{depts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="col-span-2">
-            <label className="text-[13px] font-medium">Role</label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {ROLE_OPTIONS.map(r => (
-                <label key={r.role} className={`border rounded-md p-2 flex items-start gap-2 cursor-pointer transition-colors ${form.role === r.role ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)] hover:border-tu-red'}`}>
-                  <input type="radio" name="add-role" className="mt-1 accent-[var(--tu-red)]" checked={form.role === r.role} onChange={() => set('role', r.role)} />
-                  <div>
-                    <p className="font-semibold text-[13px]">{r.label}</p>
-                    <p className="text-[11px] text-[var(--neutral-500)]">{r.desc}</p>
-                  </div>
-                </label>
-              ))}
+            <label className="text-[13px] font-medium">Role <span className="text-danger">*</span></label>
+            <p className="text-[11px] text-[var(--neutral-500)] mb-2">เลือกได้มากกว่า 1 บทบาท</p>
+            <div className="grid grid-cols-2 gap-2">
+              {ROLE_OPTIONS.map(r => {
+                const isMain = form.role === r.role;
+                const isExtra = extraRolesAdd.includes(r.role);
+                const checked = isMain || isExtra;
+                return (
+                  <label key={r.role} className={`border rounded-md p-2 flex items-start gap-2 cursor-pointer transition-colors ${checked ? 'border-tu-red bg-tu-red-soft' : 'border-[var(--neutral-300)] hover:border-tu-red'}`}>
+                    <input
+                      type="checkbox"
+                      className="mt-1 accent-[var(--tu-red)]"
+                      checked={checked}
+                      onChange={() => {
+                        if (isMain) {
+                          // ถอด role หลัก → เลือก extra อื่นเป็น role หลักแทน
+                          const next = extraRolesAdd[0] ?? '';
+                          set('role', next);
+                          setExtraRolesAdd(prev => prev.slice(1));
+                        } else if (isExtra) {
+                          setExtraRolesAdd(prev => prev.filter(x => x !== r.role));
+                        } else {
+                          // ติ๊กใหม่
+                          if (!form.role) {
+                            set('role', r.role);
+                          } else {
+                            setExtraRolesAdd(prev => [...prev, r.role]);
+                          }
+                        }
+                      }}
+                    />
+                    <div>
+                      <p className="font-semibold text-[13px]">{r.label}</p>
+                      <p className="text-[11px] text-[var(--neutral-500)]">{r.desc}</p>
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </div>
           {error && <div className="col-span-2 text-[12px] text-danger bg-tu-red-soft rounded p-2">{error}</div>}
