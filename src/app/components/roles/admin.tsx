@@ -957,7 +957,7 @@ export function AdminUsers() {
   // Client-side filter + pagination
   const filtered = allUsers.filter(u => {
     const q = search.toLowerCase();
-    if (q && !`${u.first_name} ${u.last_name} ${u.username} ${u.email}`.toLowerCase().includes(q)) return false;
+    if (q && !`${u.first_name} ${u.last_name} ${u.username} ${u.email} ${u.employee_id ?? ''}`.toLowerCase().includes(q)) return false;
     if (activeOnly && !u.is_active) return false;
     return true;
   });
