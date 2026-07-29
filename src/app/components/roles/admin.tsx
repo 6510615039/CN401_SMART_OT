@@ -1259,13 +1259,12 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
                       </thead>
                       <tbody>
                         {[
-                          ['employee_id',        'xxxx',                          '✓'],
-                          ['ชื่อ (ไฟล์รหัส)',    'ใจดี ขยันงาน',                 '✓'],
-                          ['สังกัด',              'งานทะเบียนนักศึกษา 1',         '✓'],
-                          ['email_reg',           'xxx@reg.tu.ac.th',              '✓'],
-                          ['email_tu',            'xxx@tu.ac.th',                  '✓'],
-                          ['ชื่อ (ไฟล์อีเมล)',   'ใจดี ขยันงาน',                 '—'],
-                          ['หมายเหตุ',            '',                              '—'],
+                          ['employee_id',  'xxxx',                    '✓'],
+                          ['ชื่อ',         'ใจดี ขยันงาน',            '✓'],
+                          ['สังกัด',       'งานทะเบียนนักศึกษา 1',   '✓'],
+                          ['email_reg',    'xxx@reg.tu.ac.th',         '✓'],
+                          ['email_tu',     'xxx@tu.ac.th',             '✓'],
+                          ['หมายเหตุ',     '',                         '—'],
                         ].map(([col, ex, req], i) => (
                           <tr key={i} className={i % 2 === 0 ? 'bg-white/50' : ''}>
                             <td className="px-2 py-1 border border-tu-yellow/40 font-mono">{col}</td>
