@@ -1247,7 +1247,8 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
                   <p>ระบบจะใช้ <strong>รหัสพนักงาน</strong> (employee_id) เป็น username</p>
                   <p>หาก employee_id ซ้ำอยู่แล้วในระบบ จะข้ามรายการนั้น (ไม่ทับข้อมูลเดิม)</p>
                   <div className="mt-2 pt-2 border-t border-tu-yellow">
-                    <p className="font-semibold mb-1">ฟอร์แมตไฟล์ .xlsx (แถวแรกต้องเป็น header):</p>
+                    <p className="font-semibold mb-0.5">ฟอร์แมตไฟล์ .xlsx (แถวแรกต้องเป็น header):</p>
+                    <p className="text-[10px] text-[var(--neutral-500)] mb-1">"ไฟล์รหัส" และ "ไฟล์อีเมล" คือชื่อคอลัมน์จาก Excel ที่มหาวิทยาลัยส่งออกมา — ชื่อต้องตรงทุกตัวอักษร</p>
                     <table className="w-full text-[11px] border-collapse">
                       <thead>
                         <tr className="bg-tu-yellow/40">
@@ -1258,13 +1259,13 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
                       </thead>
                       <tbody>
                         {[
-                          ['employee_id',        '6510615039',              '✓'],
-                          ['ชื่อ (ไฟล์รหัส)',    'สาริยา นวมจิต',           '✓'],
-                          ['สังกัด',              'งานทะเบียนนักศึกษา 1',   '✓'],
-                          ['email_reg',           'sariya@reg.tu.ac.th',     '✓'],
-                          ['email_tu',            'sariya@tu.ac.th',         '✓'],
-                          ['ชื่อ (ไฟล์อีเมล)',   'สาริยา นวมจิต',           '—'],
-                          ['หมายเหตุ',            '',                        '—'],
+                          ['employee_id',        'xxxxxxxxxx',                    '✓'],
+                          ['ชื่อ (ไฟล์รหัส)',    'ใจดี ขยันงาน',                 '✓'],
+                          ['สังกัด',              'งานทะเบียนนักศึกษา 1',         '✓'],
+                          ['email_reg',           'xxx@reg.tu.ac.th',              '✓'],
+                          ['email_tu',            'xxx@tu.ac.th',                  '✓'],
+                          ['ชื่อ (ไฟล์อีเมล)',   'ใจดี ขยันงาน',                 '—'],
+                          ['หมายเหตุ',            '',                              '—'],
                         ].map(([col, ex, req], i) => (
                           <tr key={i} className={i % 2 === 0 ? 'bg-white/50' : ''}>
                             <td className="px-2 py-1 border border-tu-yellow/40 font-mono">{col}</td>
