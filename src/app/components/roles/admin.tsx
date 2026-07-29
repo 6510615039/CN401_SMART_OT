@@ -1242,11 +1242,40 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
               {/* Info box */}
               <div className="bg-tu-yellow-soft border border-tu-yellow rounded-lg p-3 flex gap-2">
                 <AlertTriangle className="size-4 text-[var(--warning)] shrink-0 mt-0.5" />
-                <p className="text-[12px] text-[var(--neutral-700)]">
-                  พนักงานล็อกอินด้วย <strong>TU Account</strong> (รหัสนักศึกษา/บุคลากร + รหัสผ่านมหาวิทยาลัย)<br />
-                  ระบบจะใช้ <strong>รหัสพนักงาน</strong> (employee_id) เป็น username<br />
-                  หาก employee_id ซ้ำอยู่แล้วในระบบ จะข้ามรายการนั้น (ไม่ทับข้อมูลเดิม)
-                </p>
+                <div className="text-[12px] text-[var(--neutral-700)] space-y-1">
+                  <p>พนักงานล็อกอินด้วย <strong>TU Account</strong> (รหัสนักศึกษา/บุคลากร + รหัสผ่านมหาวิทยาลัย)</p>
+                  <p>ระบบจะใช้ <strong>รหัสพนักงาน</strong> (employee_id) เป็น username</p>
+                  <p>หาก employee_id ซ้ำอยู่แล้วในระบบ จะข้ามรายการนั้น (ไม่ทับข้อมูลเดิม)</p>
+                  <div className="mt-2 pt-2 border-t border-tu-yellow">
+                    <p className="font-semibold mb-1">ฟอร์แมตไฟล์ .xlsx (แถวแรกต้องเป็น header):</p>
+                    <table className="w-full text-[11px] border-collapse">
+                      <thead>
+                        <tr className="bg-tu-yellow/40">
+                          <th className="text-left px-2 py-1 border border-tu-yellow/60 font-semibold">คอลัมน์ (ชื่อต้องตรงทั้งหมด)</th>
+                          <th className="text-left px-2 py-1 border border-tu-yellow/60 font-semibold">ตัวอย่าง</th>
+                          <th className="text-left px-2 py-1 border border-tu-yellow/60 font-semibold">จำเป็น</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          ['employee_id',        '6510615039',              '✓'],
+                          ['ชื่อ (ไฟล์รหัส)',    'สาริยา นวมจิต',           '✓'],
+                          ['สังกัด',              'งานทะเบียนนักศึกษา 1',   '✓'],
+                          ['email_reg',           'sariya@reg.tu.ac.th',     '✓'],
+                          ['email_tu',            'sariya@tu.ac.th',         '✓'],
+                          ['ชื่อ (ไฟล์อีเมล)',   'สาริยา นวมจิต',           '—'],
+                          ['หมายเหตุ',            '',                        '—'],
+                        ].map(([col, ex, req], i) => (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-white/50' : ''}>
+                            <td className="px-2 py-1 border border-tu-yellow/40 font-mono">{col}</td>
+                            <td className="px-2 py-1 border border-tu-yellow/40 text-[var(--neutral-500)]">{ex || '—'}</td>
+                            <td className="px-2 py-1 border border-tu-yellow/40 text-center">{req}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
 
               {error && (
