@@ -4,7 +4,7 @@ import { otRate, OT_RATE_WEEKDAY, OT_RATE_HOLIDAY } from '../../constants/otRate
 import * as XLSX from 'xlsx';
 import {
   LayoutDashboard, Inbox, History, Users, FileBarChart, ChevronRight,
-  CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock, Bell,
+  CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock, Bell, BookOpen,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
@@ -39,6 +39,7 @@ export const HEAD_NAV: NavItem[] = [
   { key: 'history',   label: 'ประวัติการอนุมัติ', icon: <History /> },
   { key: 'members',   label: 'สมาชิกในแผนก',    icon: <Users /> },
   { key: 'report',    label: 'รายงานแผนก',      icon: <FileBarChart /> },
+  { key: 'manual',   label: 'คู่มือการใช้งาน',  icon: <BookOpen /> },
 ];
 
 function HeadBreadcrumb({ page }: { page: string }) {

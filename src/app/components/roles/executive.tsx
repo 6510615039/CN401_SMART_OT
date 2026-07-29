@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
 import {
-  LayoutDashboard, TrendingUp, ArrowUp, ArrowDown, RefreshCw,
+  LayoutDashboard, TrendingUp, ArrowUp, ArrowDown, RefreshCw, BookOpen,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard } from '../shared';
@@ -13,7 +13,8 @@ import {
 
 export const EXEC_NAV: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard /> },
-  { key: 'trend',     label: 'แนวโน้ม',   icon: <TrendingUp /> },
+  { key: 'trend',     label: 'แนวโน้ม',        icon: <TrendingUp /> },
+  { key: 'manual',   label: 'คู่มือการใช้งาน', icon: <BookOpen /> },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

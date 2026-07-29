@@ -44,7 +44,7 @@ function MonthYearPicker({ value, onChange }: { value: string; onChange: (v: str
 }
 import {
   LayoutDashboard, Clock, FilePlus, ListChecks, UserCircle,
-  Calendar as CalendarIcon, AlertTriangle, CheckCircle2, ChevronRight, Lock,
+  Calendar as CalendarIcon, AlertTriangle, CheckCircle2, ChevronRight, Lock, BookOpen,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip } from '../shared';
@@ -64,6 +64,7 @@ export const STAFF_NAV: NavItem[] = [
   { key: 'submit',    label: 'ยื่นคำร้องขอเบิกค่า OT', icon: <FilePlus /> },
   { key: 'status',    label: 'สถานะคำร้อง',         icon: <ListChecks /> },
   { key: 'profile',   label: 'โปรไฟล์',             icon: <UserCircle /> },
+  { key: 'manual',   label: 'คู่มือการใช้งาน',      icon: <BookOpen /> },
 ];
 
 export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {

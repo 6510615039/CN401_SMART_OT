@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import {
   LayoutDashboard, FileSpreadsheet, History, Users, Download, CheckCircle2,
-  ChevronRight, Send, RefreshCw, Upload, Bell,
+  ChevronRight, Send, RefreshCw, Upload, Bell, BookOpen,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
@@ -20,6 +20,7 @@ export const REP_NAV: NavItem[] = [
   { key: 'export',    label: 'ส่งออก Excel',  icon: <FileSpreadsheet /> },
   { key: 'history',   label: 'ประวัติส่งออก', icon: <History /> },
   { key: 'members',   label: 'สมาชิกในแผนก',  icon: <Users /> },
+  { key: 'manual',   label: 'คู่มือการใช้งาน', icon: <BookOpen /> },
 ];
 
 const token = () => localStorage.getItem('access_token') || '';

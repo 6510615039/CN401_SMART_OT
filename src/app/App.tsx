@@ -36,6 +36,7 @@ import {
 import {
   EXEC_NAV, ExecDashboard, ExecTrend,
 } from './components/roles/executive';
+import { ManualPage } from './components/Manual';
 
 type Screen = 'login' | 'forgot' | 'loading' | 'app';
 
@@ -254,7 +255,8 @@ export default function App() {
   const breadcrumb = nav.find((n: any) => n.key === page)?.label || 'Dashboard';
 
   function renderScreen() {
-    // โปรไฟล์ใช้ได้ทุก role
+    // คู่มือและโปรไฟล์ใช้ได้ทุก role
+    if (page === 'manual')  return <ManualPage role={role} />;
     if (page === 'profile') return <StaffProfile />;
 
     if (role === 'admin') {

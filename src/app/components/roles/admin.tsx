@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Upload, Users, Building2, Settings, History, ListChecks,
   Plus, AlertTriangle, CheckCircle2, Search, Pencil, Trash2,
-  CloudUpload, UserPlus, CalendarDays, Download, X, Lock, Info, Clock, RefreshCw,
+  CloudUpload, UserPlus, CalendarDays, Download, X, Lock, Info, Clock, RefreshCw, BookOpen,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate, fmtDateTime } from '../shared';
@@ -30,6 +30,7 @@ export const ADMIN_NAV: NavItem[] = [
   { key: 'settings',    label: 'ตั้งค่าระบบ',           icon: <Settings /> },
   { key: 'history',     label: 'ประวัติการนำเข้า',     icon: <History /> },
   { key: 'audit',       label: 'Audit Log',           icon: <ListChecks /> },
+  { key: 'manual',     label: 'คู่มือการใช้งาน',      icon: <BookOpen /> },
 ];
 
 

@@ -3,7 +3,7 @@ import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault
 import { otRate } from '../../constants/otRate';
 import {
   LayoutDashboard, Wallet, History, FileBarChart, Send,
-  CheckCircle2, X, Eye, ChevronDown, ChevronUp, AlertTriangle, Download,
+  CheckCircle2, X, Eye, ChevronDown, ChevronUp, AlertTriangle, Download, BookOpen,
 } from 'lucide-react';
 import { NavItem } from '../AppShell';
 import { KpiCard, PageHeader, SectionCard, StatusChip, fmtDate } from '../shared';
@@ -24,6 +24,7 @@ export const CHECKER_NAV: NavItem[] = [
   { key: 'budget-set', label: 'ตั้งเพดานงบประมาณ', icon: <Send /> },
   { key: 'history',    label: 'ประวัติการตรวจสอบ',  icon: <History /> },
   { key: 'report',     label: 'รายงานภาพรวม',      icon: <FileBarChart /> },
+  { key: 'manual',    label: 'คู่มือการใช้งาน',    icon: <BookOpen /> },
 ];
 
 type OTReq = {
