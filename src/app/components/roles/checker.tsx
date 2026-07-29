@@ -785,8 +785,8 @@ export function CheckerBudget() {
           </TabsList>
           <TabsContent value="overview" className="mt-5">
             <div className="grid grid-cols-3 gap-4 mb-5">
-              <KpiCard label="งบรวมทั้งหมด"    value={totalBudget.toLocaleString()} hint="บาท" accent="blue" />
-              <KpiCard label="ใช้ไปแล้ว"       value={totalUsed.toLocaleString()}   hint="บาท" accent="red" />
+              <KpiCard label="งบรวมทั้งหมด"    value={`${totalBudget.toLocaleString()} บาท`} accent="blue" />
+              <KpiCard label="ใช้ไปแล้ว"       value={`${totalUsed.toLocaleString()} บาท`}   accent="red" />
               <KpiCard label="% ใช้งบ"          value={`${data?.total_pct || 0}%`}              accent="yellow" />
             </div>
             <p className="text-[11px] text-[var(--neutral-500)] mb-3">เปรียบเทียบยอด OT <strong>รายเดือน</strong> (บาท) · 6 เดือนย้อนหลัง</p>
@@ -967,9 +967,9 @@ export function CheckerReport() {
       ) : (
         <>
           <div className="grid grid-cols-4 gap-5 mb-5">
-            <KpiCard label="รวม OT ทั้งหมด" value={Math.round(totalAmt).toLocaleString()} hint="บาท" accent="red" />
+            <KpiCard label="รวม OT ทั้งหมด" value={`${Math.round(totalAmt).toLocaleString()} บาท`} accent="red" />
             <KpiCard label="จำนวนรายการ" value={String(filtered.length)} accent="blue" />
-            <KpiCard label="งบประมาณ" value={Math.round(totalBudget).toLocaleString()} hint="บาท" accent="yellow" />
+            <KpiCard label="งบประมาณ" value={`${Math.round(totalBudget).toLocaleString()} บาท`} accent="yellow" />
             <KpiCard label="% ใช้งบ" value={`${pct}%`} accent={pct > 90 ? 'red' : pct > 70 ? 'yellow' : 'green'} />
           </div>
           <div className="grid grid-cols-2 gap-5">
