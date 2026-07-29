@@ -65,6 +65,14 @@ export default function App() {
 
   // ─── Wrapper สำหรับ setPage เพื่อให้บันทึกลง localStorage อัตโนมัติทุกครั้ง ───
   const setPage = (newPage: string) => {
+    if (newPage === 'manual') {
+      const roleSlug: Record<Role, string> = {
+        staff: 'staff', admin: 'admin', depthead: 'depthead',
+        deptrep: 'deptrep', checker: 'checker', executive: 'executive',
+      };
+      window.open(`/manuals/manual-${roleSlug[role]}.pdf`, '_blank');
+      return;
+    }
     _setPage(newPage);
     localStorage.setItem('current_page', newPage);
   };
