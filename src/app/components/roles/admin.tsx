@@ -1261,7 +1261,7 @@ function ImportStaffDialog({ onImported }: { onImported?: () => void }) {
                         {[
                           ['employee_id',  'xxxx',                    '✓'],
                           ['ชื่อ',         'ใจดี ขยันงาน',            '✓'],
-                          ['สังกัด',       'งานทะเบียนนักศึกษา 1',   '✓'],
+                          ['แผนก',         'งานทะเบียนนักศึกษา 1',   '✓'],
                           ['email_reg',    'xxx@reg.tu.ac.th',         '✓'],
                           ['email_tu',     'xxx@tu.ac.th',             '✓'],
                           ['หมายเหตุ',     '',                         '—'],

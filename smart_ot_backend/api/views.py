@@ -981,7 +981,7 @@ def import_staff_roster(request):
         return Response({'error': 'ไฟล์ไม่มีข้อมูล'}, status=400)
 
     # ── ตรวจ format จาก header row ──────────────────────────────────────────
-    _NEW_REQUIRED = ['employee_id', 'ชื่อ (ไฟล์รหัส)', 'สังกัด', 'email_reg', 'email_tu']
+    _NEW_REQUIRED = ['employee_id', 'ชื่อ (ไฟล์รหัส)', 'แผนก', 'email_reg', 'email_tu']
     header_row = [_cell_str(c) for c in rows[0]]
     is_new_format = all(h in header_row for h in _NEW_REQUIRED)
 
@@ -989,7 +989,7 @@ def import_staff_roster(request):
 
     if is_new_format:
         # ── New format: employee_id mapping ──────────────────────────────────
-        _ALL_COLS = ['employee_id', 'ชื่อ (ไฟล์รหัส)', 'สังกัด', 'ชื่อ (ไฟล์อีเมล)', 'email_reg', 'email_tu', 'หมายเหตุ']
+        _ALL_COLS = ['employee_id', 'ชื่อ (ไฟล์รหัส)', 'แผนก', 'ชื่อ (ไฟล์อีเมล)', 'email_reg', 'email_tu', 'หมายเหตุ']
         col = {h: header_row.index(h) for h in _ALL_COLS if h in header_row}
         data_rows = rows[1:]
 
@@ -998,7 +998,7 @@ def import_staff_roster(request):
         for row in data_rows:
             if not any(row):
                 continue
-            dn = _cell_str(row[col['สังกัด']]) if 'สังกัด' in col and col['สังกัด'] < len(row) else ''
+            dn = _cell_str(row[col['แผนก']]) if 'แผนก' in col and col['แผนก'] < len(row) else ''
             if dn and dn not in seen_depts:
                 seen_depts.append(dn)
 
@@ -1026,7 +1026,7 @@ def import_staff_roster(request):
                 continue
 
             full_name = _cell_str(row[col['ชื่อ (ไฟล์รหัส)']]) if 'ชื่อ (ไฟล์รหัส)' in col else ''
-            dept_name = _cell_str(row[col['สังกัด']])           if 'สังกัด' in col else ''
+            dept_name = _cell_str(row[col['แผนก']])           if 'แผนก' in col else ''
             email_reg = _cell_str(row[col['email_reg']])        if 'email_reg' in col else ''
             email_tu  = _cell_str(row[col['email_tu']])         if 'email_tu' in col else ''
 
