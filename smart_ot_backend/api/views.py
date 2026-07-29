@@ -77,19 +77,65 @@ def _send_checker_notification(ot_list, note, sender):
         logging.getLogger(__name__).warning(f'send_checker_notification: {e}')
 
 
-def _send_email(user, subject: str, body: str):
-    """ส่งเมลให้ user คนเดียว (fail-silent, non-blocking) ใช้ notify_email ก่อน ถ้าไม่มีใช้ email"""
+def _resend_email(to_emails: list, subject: str, text: str):
+    """ส่งอีเมลผ่าน Resend API (fail-silent, non-blocking)"""
     import threading
-    def _do_send():
+    def _do():
         try:
-            from django.core.mail import send_mail
+            import urllib.request, urllib.error, json as _json
             from django.conf import settings as djsettings
-            email = getattr(user, 'notify_email', '') or getattr(user, 'email', '')
-            if email:
-                send_mail(subject, body, djsettings.DEFAULT_FROM_EMAIL, [email], fail_silently=True)
+            api_key = getattr(djsettings, 'RESEND_API_KEY', '')
+            if not api_key:
+                return
+            from_addr = getattr(djsettings, 'DEFAULT_FROM_EMAIL', 'SMART OT <onboarding@resend.dev>')
+            payload = _json.dumps({
+                'from': from_addr,
+                'to': to_emails,
+                'subject': subject,
+                'text': text,
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.resend.com/emails',
+                data=payload,
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                method='POST',
+            )
+            urllib.request.urlopen(req, timeout=10)
         except Exception:
             pass
-    threading.Thread(target=_do_send, daemon=True).start()
+    threading.Thread(target=_do, daemon=True).start()
+
+
+def _send_email(user, subject: str, body: str):
+    """ส่งเมลให้ user คนเดียว (fail-silent, non-blocking)"""
+    email = getattr(user, 'notify_email', '') or getattr(user, 'email', '')
+    if email:
+        _resend_email([email], subject, body)
+
+
+def _send_timelog_broadcast(month_label: str, imported_by_name: str):
+    """แจ้งพนักงานทุกคนว่าข้อมูลเวลาเข้า-ออกงานถูกนำเข้าแล้ว"""
+    import threading
+    def _do():
+        try:
+            staff_emails = list(
+                User.objects.filter(role='staff', is_active=True)
+                .exclude(email='').values_list('email', flat=True)
+            )
+            if not staff_emails:
+                return
+            subject = f'[SMART OT] ข้อมูลเวลาเข้า-ออกงาน {month_label} พร้อมแล้ว'
+            body = (
+                f'ข้อมูลเวลาเข้า-ออกงานประจำ{month_label} ถูกนำเข้าระบบแล้วโดย {imported_by_name}\n\n'
+                f'คุณสามารถเข้าสู่ระบบ SMART OT เพื่อตรวจสอบชั่วโมง OT และยื่นคำร้องขอเบิกได้เลย\n\n'
+                f'หากพบข้อมูลไม่ถูกต้อง กรุณาแจ้ง Admin'
+            )
+            # ส่งทีละ 50 คน (Resend รับ batch)
+            for i in range(0, len(staff_emails), 50):
+                _resend_email(staff_emails[i:i+50], subject, body)
+        except Exception:
+            pass
+    threading.Thread(target=_do, daemon=True).start()
 
 
 def _push_ws(user_id: int, notif_data: dict):
@@ -528,14 +574,37 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         )
         log_action(self.request.user, f'ยื่นคำร้อง OT วันที่ {ot.work_date}', 'OTRequest', ot.id, request=self.request)
 
-        # แจ้งหัวหน้าแผนก
+        # แจ้งหัวหน้าแผนก (กระดิ่งทุกครั้ง, email debounce 10 นาที)
         staff_name = self.request.user.get_full_name() or self.request.user.username
         deptheads = list(User.objects.filter(role='depthead', department=dept, is_active=True))
         if deptheads:
-            _notify_ot(
-                ot, 'ot_submitted', deptheads,
-                f'{staff_name} ยื่นคำร้อง OT วันที่ {ot.work_date} จำนวน {float(ot_hours):.0f} ชม. ({float(amount):,.0f} บาท) รอการอนุมัติ',
-            )
+            msg = f'{staff_name} ยื่นคำร้อง OT วันที่ {ot.work_date} จำนวน {float(ot_hours):.0f} ชม. ({float(amount):,.0f} บาท) รอการอนุมัติ'
+            # สร้าง notification + push WS (ไม่ส่ง email ทันที)
+            for head in deptheads:
+                from .models import Notification
+                notif = Notification.objects.create(
+                    recipient=head, message=msg, notif_type='ot_submitted', ot_request=ot,
+                )
+                _push_ws(head.id, {
+                    'id': notif.id, 'message': msg, 'notif_type': 'ot_submitted',
+                    'ot_request': ot.id, 'ot_request_date': str(ot.work_date),
+                    'is_read': False, 'created_at': notif.created_at.isoformat(),
+                })
+            # email debounce: ส่งอีเมลเดียวต่อ (staff, dept) ทุก 10 นาที
+            import time
+            from django.core.cache import cache
+            cache_key = f'ot_submit_email_{self.request.user.id}_{dept.id}'
+            if not cache.get(cache_key):
+                cache.set(cache_key, True, timeout=600)
+                head_emails = [h.email for h in deptheads if h.email]
+                if head_emails:
+                    subject = f'[SMART OT] {staff_name} ยื่นคำร้อง OT ใหม่'
+                    body = (
+                        f'{staff_name} ยื่นคำร้อง OT ในแผนก {dept.name}\n\n'
+                        f'มีคำร้องใหม่รอการอนุมัติ กรุณาเข้าสู่ระบบ SMART OT เพื่อดำเนินการ\n\n'
+                        f'(ระบบจะไม่ส่งอีเมลซ้ำภายใน 10 นาที แม้จะมีคำร้องเพิ่มเติม)'
+                    )
+                    _resend_email(head_emails, subject, body)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -1521,6 +1590,23 @@ def import_timelog(request):
         _CACHE.clear()
 
         log_action(request.user, f'นำเข้าไฟล์ {f.name} ({success}/{total} รายการ, ข้าม {skipped_users} รหัสไม่พบ)', request=request)
+
+        # แจ้งพนักงานทุกคนว่าข้อมูลเวลาเข้า-ออกงานพร้อมแล้ว
+        if success > 0:
+            try:
+                import re as _re
+                month_match = _re.search(r'(\d{4}[-_]\d{2})', f.name)
+                if month_match:
+                    y, m = month_match.group(1).replace('_', '-').split('-')
+                    thai_months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
+                    month_label = f'{thai_months[int(m)-1]} {int(y)+543}'
+                else:
+                    month_label = f.name
+            except Exception:
+                month_label = f.name
+            admin_name = request.user.get_full_name() or request.user.username
+            _send_timelog_broadcast(month_label, admin_name)
+
         resp = dict(ImportHistorySerializer(history).data)
         resp['rows'] = rows_out
         resp['skipped_users'] = skipped_users
