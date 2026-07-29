@@ -373,7 +373,7 @@ class UserViewSet(viewsets.ModelViewSet):
         q    = self.request.query_params.get('q')
         if role: qs = qs.filter(role=role)
         if dept: qs = qs.filter(department_id=dept)
-        if q:    qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q))
+        if q:    qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(employee_id__icontains=q))
         return qs
 
     def perform_create(self, serializer):
