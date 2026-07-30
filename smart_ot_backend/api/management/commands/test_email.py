@@ -14,7 +14,7 @@ class Command(BaseCommand):
         from django.core.mail import send_mail
         from django.conf import settings
         if not getattr(settings, 'EMAIL_HOST_USER', ''):
-            self.stderr.write('EMAIL_HOST_USER ไม่ได้ตั้งค่า — เพิ่ม EMAIL_HOST_USER และ EMAIL_HOST_PASSWORD ใน Railway Variables')
+            self.stderr.write('EMAIL_HOST_USER ไม่ได้ตั้งค่า — เพิ่ม EMAIL_HOST_USER และ EMAIL_HOST_PASSWORD ในไฟล์ .env')
             return
 
         try:
