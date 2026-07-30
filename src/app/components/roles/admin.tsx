@@ -945,7 +945,22 @@ export function AdminUsers() {
           break;
         }
       }
-      if (!cancelled) setAllUsers(all.sort((a, b) => (a.username || '').localeCompare(b.username || '', undefined, { numeric: true })));
+      if (!cancelled) setAllUsers(all.sort((a, b) => {
+        const deptOrder = (d: string | null) => {
+          if (!d) return 99;
+          if (d === 'ผู้บริหาร') return 0;
+          if (d.startsWith('งานทะเบียนนักศึกษา')) return 1;
+          if (d.startsWith('งานเทคโนโลยี')) return 2;
+          if (d.startsWith('งานยุทธศาสตร์')) return 3;
+          return 9;
+        };
+        const da = deptOrder(a.department_name ?? null);
+        const db = deptOrder(b.department_name ?? null);
+        if (da !== db) return da - db;
+        const deptCmp = (a.department_name || '').localeCompare(b.department_name || '', 'th');
+        if (deptCmp !== 0) return deptCmp;
+        return (a.employee_id || a.username || '').localeCompare(b.employee_id || b.username || '', undefined, { numeric: true });
+      }));
     }
 
     loadAll()
