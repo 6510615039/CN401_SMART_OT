@@ -78,29 +78,15 @@ def _send_checker_notification(ot_list, note, sender):
 
 
 def _resend_email(to_emails: list, subject: str, text: str):
-    """ส่งอีเมลผ่าน Resend API (fail-silent, non-blocking)"""
+    """ส่งอีเมลผ่าน SMTP (fail-silent, non-blocking)"""
     import threading
     def _do():
         try:
-            import urllib.request, urllib.error, json as _json
+            from django.core.mail import send_mail
             from django.conf import settings as djsettings
-            api_key = getattr(djsettings, 'RESEND_API_KEY', '')
-            if not api_key:
+            if not getattr(djsettings, 'EMAIL_HOST_USER', ''):
                 return
-            from_addr = getattr(djsettings, 'DEFAULT_FROM_EMAIL', 'SMART OT <onboarding@resend.dev>')
-            payload = _json.dumps({
-                'from': from_addr,
-                'to': to_emails,
-                'subject': subject,
-                'text': text,
-            }).encode()
-            req = urllib.request.Request(
-                'https://api.resend.com/emails',
-                data=payload,
-                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                method='POST',
-            )
-            urllib.request.urlopen(req, timeout=10)
+            send_mail(subject, text, djsettings.DEFAULT_FROM_EMAIL, to_emails, fail_silently=True)
         except Exception:
             pass
     threading.Thread(target=_do, daemon=True).start()
