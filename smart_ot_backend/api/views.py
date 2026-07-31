@@ -38,43 +38,50 @@ def get_effective_role(user, request):
 
 
 def _send_checker_notification(ot_list, note, sender):
-    """ส่งอีเมลสรุปคำร้อง OT ที่ส่งต่อให้ checker ทุกคน (fail-silent)"""
-    from django.core.mail import send_mail
-    from django.conf import settings as djsettings
+    """ส่งอีเมลสรุปคำร้อง OT ที่ส่งต่อให้ checker ทุกคน (fail-silent, non-blocking)"""
+    import threading
+
+    # snapshot ข้อมูลก่อน thread (objects อาจถูก GC หลัง request สิ้นสุด)
     try:
-        checkers = User.objects.filter(role='checker', is_active=True)
-        recipients = [
-            u.notify_email or u.email
-            for u in checkers
-            if (u.notify_email or u.email)
-        ]
+        checkers = list(User.objects.filter(role='checker', is_active=True))
+        recipients = [u.notify_email or u.email for u in checkers if (u.notify_email or u.email)]
         if not recipients:
             return
-        dept_name = ot_list[0].department.name if ot_list else ''
+        dept_name    = ot_list[0].department.name if ot_list else ''
+        sender_name  = sender.get_full_name()
         total_amount = sum(float(ot.amount) for ot in ot_list)
         total_hours  = sum(float(ot.ot_hours) for ot in ot_list)
-        subject = f'[SMART OT] คำร้อง OT {len(ot_list)} รายการ รอตรวจสอบ — {dept_name}'
         lines = [
             'เรียน ผู้ตรวจสอบ',
             '',
-            f'ตัวแทนแผนก {dept_name} ({sender.get_full_name()}) ส่งต่อคำร้อง OT จำนวน {len(ot_list)} รายการ:',
+            f'ตัวแทนแผนก {dept_name} ({sender_name}) ส่งต่อคำร้อง OT จำนวน {len(ot_list)} รายการ:',
             '',
         ]
         for ot in ot_list:
             lines.append(f'  • {ot.staff.get_full_name()} — {ot.work_date}  {float(ot.ot_hours):.1f} ชม. / {float(ot.amount):,.0f} บาท')
-        lines += [
-            '',
-            f'รวม: {total_hours:.1f} ชั่วโมง  —  {total_amount:,.0f} บาท',
-        ]
+        lines += ['', f'รวม: {total_hours:.1f} ชั่วโมง  —  {total_amount:,.0f} บาท']
         if note:
             lines += ['', f'หมายเหตุจากตัวแทนแผนก: {note}']
         lines += ['', 'กรุณาเข้าสู่ระบบ SMART OT เพื่อดำเนินการ']
-        send_mail(subject, '\n'.join(lines),
-                  djsettings.DEFAULT_FROM_EMAIL, recipients,
-                  fail_silently=True)
+        subject = f'[SMART OT] คำร้อง OT {len(ot_list)} รายการ รอตรวจสอบ — {dept_name}'
+        body    = '\n'.join(lines)
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning(f'send_checker_notification: {e}')
+        logging.getLogger(__name__).warning(f'send_checker_notification (prepare): {e}')
+        return
+
+    def _do():
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings as djsettings
+            if not getattr(djsettings, 'EMAIL_HOST_USER', ''):
+                return
+            send_mail(subject, body, djsettings.DEFAULT_FROM_EMAIL, recipients, fail_silently=True)
+        except Exception as ex:
+            import logging
+            logging.getLogger(__name__).warning(f'send_checker_notification (send): {ex}')
+
+    threading.Thread(target=_do, daemon=True).start()
 
 
 def _resend_email(to_emails: list, subject: str, text: str):
