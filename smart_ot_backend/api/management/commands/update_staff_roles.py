@@ -24,12 +24,24 @@ from api.models import User
 
 
 ROLE_MAP = {
-    'หัวหน้างาน':           ('depthead', ['staff']),
-    'ตัวแทน':               ('deptrep',  ['staff']),
-    'ตัวแทนฝ่าย':           ('deptrep',  ['staff']),
-    'ผู้ตรวจสอบ':           ('checker',  ['staff']),
-    'แอดมิน / ตัวแทนฝ่าย': ('admin',    ['staff', 'deptrep']),
-    'แอดมิน':               ('admin',    ['staff']),
+    'หัวหน้างาน':               ('depthead', ['staff']),
+    'ตัวแทน':                   ('deptrep',  ['staff']),
+    'ตัวแทนฝ่าย':               ('deptrep',  ['staff']),
+    'ตัวแทนฝ่าบ':               ('deptrep',  ['staff']),   # typo in source data
+    'หัวหน้างาน/ตัวแทนฝ่าย':   ('depthead', ['staff', 'deptrep']),
+    'ผู้ตรวจสอบ':               ('checker',  ['staff']),
+    'การเงินตรวจสอบ':           ('checker',  ['staff']),
+    'แอดมิน / ตัวแทนฝ่าย':     ('admin',    ['staff', 'deptrep']),
+    'ADMIN / ตัวแทนฝ่าย':       ('admin',    ['staff', 'deptrep']),
+    'แอดมิน':                   ('admin',    ['staff']),
+}
+
+# แผนกที่ user ทุกคนต้องได้รับ role=executive โดยอัตโนมัติ
+EXECUTIVE_DEPT = 'ผู้บริหาร'
+
+# override roles สำหรับรายบุคคล (employee_id: (role, [extra_roles]))
+EMPLOYEE_OVERRIDES = {
+    '0004': ('executive', ['staff', 'depthead', 'deptrep']),  # สาริยา: หัวหน้างาน/ตัวแทนฝ่าย/ผู้บริหาร
 }
 
 
@@ -79,8 +91,22 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
+            dept_raw = str(row[2] if len(row) > 2 and row[2] is not None else '').strip()
             role_raw = str(row[3] if len(row) > 3 and row[3] is not None else '').strip()
             role, extra_roles = ROLE_MAP.get(role_raw, ('staff', []))
+
+            if emp_id in EMPLOYEE_OVERRIDES:
+                role, extra_roles = EMPLOYEE_OVERRIDES[emp_id]
+
+            # คนในแผนกผู้บริหาร → role=executive เสมอ โดยเก็บ extra roles จาก column ไว้ด้วย
+            if dept_raw == EXECUTIVE_DEPT:
+                extra = list(extra_roles)
+                if 'staff' not in extra:
+                    extra = ['staff'] + extra
+                if role != 'staff' and role != 'executive' and role not in extra:
+                    extra.append(role)
+                role = 'executive'
+                extra_roles = extra
 
             user = User.objects.filter(employee_id=emp_id).first()
             if not user:
