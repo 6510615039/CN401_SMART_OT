@@ -123,6 +123,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   const holidayCells: {r: number; c: number}[] = [];
   const leftAlignCells: {r: number; c: number}[] = [];
   const boldCells: {r: number; c: number}[] = [];
+  const timeRowSet = new Set<number>(); // indices ของ "time rows" (มี seq/name/hours)
   let curRow = 6; // data เริ่มจากแถว 6 (0-indexed) พร้อมกับ "ยอดยกมา"
   let isFirstDataRow = true;
 
@@ -163,6 +164,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
         timeRow.push('', '', '', '', '', '');
       }
       rows.push(timeRow);
+      timeRowSet.add(curRow + 1); // time row อยู่ถัดจาก date row
       curRow += 2;
     });
   });
@@ -178,7 +180,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
   rows.push([]);
   rows.push(['', 'ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-2)]);
-  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลงชื่อ', '', '', '', '', '', 'ผู้จ่ายเงิน', '', '']);
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลายมือชื่อ', '', 'ลงชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
   const signerName = signer || 'นางสาวสาริยา  นวมจิต';
   rows.push(['', `(${signerName})`, '', '', '', '', '', '', '', '', '(นางสาวทองยุ่น  มธุรส)', '', '', '', '', '']);
   rows.push(['ตำแหน่ง', 'รักษาการในตำแหน่งเลขานุการสำนักงานทะเบียนนักศึกษา', '', '', '', '', '', '', '', '         ตำแหน่ง', 'นักวิชาการเงินและบัญชีชำนาญการ', '', '', '', '', '']);
@@ -206,8 +208,6 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:sumRowIdx+4,c:10},e:{r:sumRowIdx+4,c:12}},     // K-M: "(นางสาวทองยุ่น มธุรส)"
     {s:{r:sumRowIdx+5,c:10},e:{r:sumRowIdx+5,c:12}},     // K-M: "นักวิชาการเงินและบัญชีชำนาญการ"
     {s:{r:sumRowIdx+4,c:1},e:{r:sumRowIdx+4,c:2}},       // B-C: "(นางสาวสาริยา นวมจิต)"
-    {s:{r:sumRowIdx+3,c:1},e:{r:sumRowIdx+3,c:2}},       // B-C: ลงชื่อ row (ช่องเซ็น ซ้าย)
-    {s:{r:sumRowIdx+3,c:10},e:{r:sumRowIdx+3,c:12}},     // K-M: ลงชื่อ row (ช่องเซ็น ขวา)
   ];
 
   // center + wrap text + THSarabunPSK font ทุก cell
@@ -224,13 +224,40 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     const font = { name: FONT, sz: fontSize, bold };
     for (let c = range.s.c; c <= range.e.c; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
-      const isDataArea = r >= 2 && r <= sumRowIdx;
-      const border = isDataArea ? {
-        top:    { style: 'thin' },
-        bottom: { style: 'thin' },
-        left:   { style: 'thin' },
-        right:  { style: 'thin' },
-      } : undefined;
+      let border: any = undefined;
+
+      const thin = { style: 'thin' };
+      if (r >= 2 && r <= 5) {
+        // header rows: full thin border
+        border = { top: thin, bottom: thin, left: thin, right: thin };
+      } else if (r === 6) {
+        // ยอดยกมา row: full border (อยู่ใน data area)
+        border = { top: thin, bottom: thin, left: thin, right: thin };
+      } else if (r >= 7 && r < sumRowIdx - 1) {
+        // data rows (date rows + time rows) ไม่รวม empty row และ sumRow
+        if (c === 0 || c === 1) {
+          // col A, B: border ตาม template — ไม่ทำทุกขอบ
+          if (r === 7) {
+            // date row แรกสุด: top + left + right
+            border = { top: thin, left: thin, right: thin };
+          } else if (timeRowSet.has(r)) {
+            // time row: bottom + left + right
+            border = { bottom: thin, left: thin, right: thin };
+          } else {
+            // date rows อื่น: left + right เท่านั้น
+            border = { left: thin, right: thin };
+          }
+        } else {
+          // col อื่น: full thin border
+          border = { top: thin, bottom: thin, left: thin, right: thin };
+        }
+      } else if (r === sumRowIdx - 1 || r === sumRowIdx) {
+        // empty row + sumRow: border เฉพาะ K, L, M (col 10-12)
+        if (c >= 10 && c <= 12) {
+          border = { top: thin, bottom: thin, left: thin, right: thin };
+        }
+      }
+
       const s = { font, alignment: centerAlign, ...(border ? { border } : {}) };
       if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...s };
       else ws[addr] = { v: '', t: 's', s };
@@ -265,17 +292,20 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     else ws[addr] = { v: '', t: 's', s };
   });
 
-  // เส้นประใต้ช่องเซ็นชื่อ (ลงชื่อ row + name row)
-  const dottedBottom = { bottom: { style: 'dotted' } };
-  [
-    [sumRowIdx + 3, 1], [sumRowIdx + 3, 2],               // B-C ลงชื่อ row
-    [sumRowIdx + 3, 10], [sumRowIdx + 3, 11], [sumRowIdx + 3, 12], // K-L-M ลงชื่อ row
-    [sumRowIdx + 4, 1], [sumRowIdx + 4, 2],               // B-C name row
-    [sumRowIdx + 4, 10], [sumRowIdx + 4, 11], [sumRowIdx + 4, 12], // K-L-M name row
-  ].forEach(([r, c]) => {
+  // เส้น hair ใต้ช่องเซ็นชื่อ (ตรงกับ template ที่ใช้ hair border)
+  const hairBottom = { bottom: { style: 'hair' } };
+  const hairTop    = { top:    { style: 'hair' } };
+  // ลงชื่อ row (sumRowIdx+3): B, C, K, L, M ใส่ bottom=hair (เป็นเส้นลายเซ็น)
+  [[sumRowIdx+3,1],[sumRowIdx+3,2],[sumRowIdx+3,10],[sumRowIdx+3,11],[sumRowIdx+3,12]].forEach(([r,c])=>{
     const addr = XLSX.utils.encode_cell({ r, c });
     if (!ws[addr]) ws[addr] = { v: '', t: 's', s: { font: { name: FONT }, alignment: centerAlign } };
-    ws[addr].s = { ...ws[addr].s, border: dottedBottom };
+    ws[addr].s = { ...ws[addr].s, border: hairBottom };
+  });
+  // name row (sumRowIdx+4): B, C, K, L, M ใส่ top=hair (ขอบบนของเซลล์ชื่อ = เส้นเดียวกัน)
+  [[sumRowIdx+4,1],[sumRowIdx+4,2],[sumRowIdx+4,10],[sumRowIdx+4,11],[sumRowIdx+4,12]].forEach(([r,c])=>{
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (!ws[addr]) ws[addr] = { v: '', t: 's', s: { font: { name: FONT }, alignment: centerAlign } };
+    ws[addr].s = { ...ws[addr].s, border: hairTop };
   });
 
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
