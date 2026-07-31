@@ -2046,7 +2046,6 @@ export function AdminSettings() {
           <TabsList>
             <TabsTrigger value="rules">เกณฑ์ OT</TabsTrigger>
             <TabsTrigger value="noti">การแจ้งเตือน</TabsTrigger>
-            <TabsTrigger value="tuapi">TU API</TabsTrigger>
           </TabsList>
 
           <TabsContent value="rules" className="mt-6 grid grid-cols-2 gap-6 max-w-2xl">
@@ -2074,43 +2073,6 @@ export function AdminSettings() {
             <label className="flex items-center justify-between"><span>แจ้งเตือนเมื่อตีกลับ</span><Switch checked={!!settings?.notify_on_reject} onCheckedChange={v => set('notify_on_reject', v)} /></label>
           </TabsContent>
 
-          <TabsContent value="tuapi" className="mt-6 space-y-6 max-w-xl">
-            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-[13px] text-blue-800">
-              เปิดใช้งาน TU API เพื่อให้พนักงานสามารถ Login ด้วย username และรหัสผ่าน TU จริงได้
-            </div>
-
-            <label className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold">เปิดใช้งาน TU API Login</p>
-                <p className="text-[12px] text-[var(--neutral-500)] mt-0.5">พนักงานล็อกอินด้วยรหัส TU จริงได้ทันที</p>
-              </div>
-              <Switch checked={!!settings?.tu_api_enabled} onCheckedChange={async (v) => {
-                set('tu_api_enabled', v);
-                await fetch('/api/settings/tu-api-toggle/', {
-                  method: 'POST',
-                  headers: { ...h, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ enabled: v }),
-                });
-              }} />
-            </label>
-
-            <div>
-              <label className="text-[13px] font-medium">TU API URL</label>
-              <Input className="mt-1" value={settings?.tu_api_url ?? ''} onChange={e => set('tu_api_url', e.target.value)} placeholder="https://restapi.tu.ac.th" />
-            </div>
-
-            <div>
-              <label className="text-[13px] font-medium">TU API Key</label>
-              <Input className="mt-1" type="password" value={settings?.tu_api_key ?? ''} onChange={e => set('tu_api_key', e.target.value)} placeholder="TUb859..." />
-              <p className="text-[11px] text-[var(--neutral-400)] mt-1">ถ้า API Key ถูกตั้งใน Railway environment แล้ว ไม่ต้องกรอกที่นี่</p>
-            </div>
-
-            {testResult && (
-              <div className={`p-3 rounded-lg text-[13px] ${testResult.startsWith('✅') ? 'bg-green-50 border border-success text-green-800' : 'bg-red-50 border border-tu-red text-red-800'}`}>
-                {testResult}
-              </div>
-            )}
-          </TabsContent>
 
         </Tabs>
       </SectionCard>
