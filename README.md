@@ -371,16 +371,49 @@ python manage.py test_email your@email.com
 
 ---
 
+## การติดตั้งบน Server จริง (Production Deployment)
+
+### ขั้นตอน
+
+```bash
+# 1. Clone source code
+git clone https://github.com/6510615039/CN401_SMART_OT.git
+cd CN401_SMART_OT
+
+# 2. ตั้งค่า environment
+cp smart_ot_backend/.env.example smart_ot_backend/.env
+# แก้ค่าใน .env ให้ตรงกับ server (database, TU_API_KEY, email ฯลฯ)
+
+# 3. Setup ระบบและสร้างบัญชีผู้ใช้ทั้งหมด (รันครั้งเดียว)
+cd smart_ot_backend
+bash setup_prod.sh
+```
+
+script `setup_prod.sh` จะทำทุกอย่างอัตโนมัติ:
+- สร้างตาราง database (migrate)
+- ตั้งค่าเกณฑ์ OT และวันหยุดประจำปี
+- **สร้างบัญชีพนักงาน 53 คน** จากไฟล์รายชื่อใน `raw_data/` พร้อมสิทธิ์ที่ถูกต้อง
+- สร้างบัญชี IT superuser
+
+### บัญชีที่ได้หลัง setup
+
+| บัญชี | username | password เริ่มต้น |
+|---|---|---|
+| IT superuser | `admin_su` | `SmartOT2569!` |
+| พนักงานทุกคน | รหัสพนักงาน เช่น `0001`, `0013` | รหัสพนักงาน |
+
+> พนักงาน login ด้วย TU username + password จริง (TU Active Directory) ระบบจะผูก account อัตโนมัติตอน login ครั้งแรก
+
+---
+
 ## การใช้งานครั้งแรก (First-time Setup)
 
 หลัง Deploy เสร็จ ให้ทำตามขั้นตอนนี้:
 
-1. **Admin login** ที่ `/admin/` ด้วย superuser ที่สร้างไว้
-2. **นำเข้าข้อมูลพนักงาน** ผ่าน Admin Panel → Import Staff (Excel)
-3. **สร้างแผนก (Department)** และกำหนดสังกัดให้แต่ละพนักงาน
-4. **กำหนดบทบาท** (Role) ให้แต่ละพนักงาน
-5. **นำเข้า Timelog** (บันทึกเวลาเข้า-ออก) ผ่าน Admin Panel ทุกต้นเดือน
-6. **กำหนดวันหยุด** ผ่าน Admin Panel → Holidays (หรือใช้ `seed_holidays`)
+1. **Admin login** ที่ `/admin/` ด้วย superuser (`admin_su`)
+2. **นำเข้า Timelog** (บันทึกเวลาเข้า-ออก) ผ่าน Admin Panel ทุกต้นเดือน
+3. **กำหนดวันหยุดเพิ่มเติม** ผ่าน Admin Panel → Holidays (sync อัตโนมัติหรือเพิ่มเอง)
+4. **ปรับสิทธิ์พนักงาน** หากมีการเปลี่ยนตำแหน่ง ผ่าน Admin Panel → Users
 
 ---
 
