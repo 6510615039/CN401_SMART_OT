@@ -120,8 +120,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
   rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ', ...pad(C-1)]);
   rows.push([`  ${deptName}  ประจำเดือน ${month}`, ...pad(C-1)]);
-  rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','','','','รวมเวลา','','จำนวนเงิน','','','หมายเหตุ']);
-  rows.push(['','','','','','','','','','','ปฏิบัติงาน','','','ว.ด.ป.\nที่รับเงิน','ลายมือชื่อ\nผู้รับเงิน','']);
+  rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','','','','รวมเวลา\nปฏิบัติงาน','','จำนวนเงิน','','','หมายเหตุ']);
+  rows.push(['','','','','','','','','','','','','','ว.ด.ป.\nที่รับเงิน','ลายมือชื่อ\nผู้รับเงิน','']);
   rows.push(['','','','','','','','','','','วันปกติ','วันหยุด','','','','']);
   rows.push(['','','','','','','','','','','(ชั่วโมง)','(ชั่วโมง)','','','','']);
   // ไม่มีแถว "ยอดยกมา" แยก — จะใส่ใน K ของ dateRow แรกแทน
@@ -172,12 +172,18 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
       const timeRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
       if (ci === 0) leftAlignCells.push({ r: curRow + 1, c: 1 }); // ชื่อพนักงาน col B (time row)
       for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
-      // K=weekday hrs, L=weekend hrs (per batch); M=total amount & P=total amount (last batch only)
+      // คำนวณจำนวนเงินของ batch นี้ (แต่ละชั่วโมงคูณอัตรา)
+      const chunkAmount = Math.round(chunk.reduce((s, d) => {
+        const hrs = parseOTHours(d.time);
+        const rate = d.isWeekend ? otRate('holiday') : otRate('weekday');
+        return s + Math.floor(hrs) * rate;
+      }, 0));
+      // K=weekday hrs, L=weekend hrs (per batch); M=จำนวนเงินของ batch นี้; P=ยอดรวมของ employee (last batch only)
       timeRow.push(
         chunkWD || '', chunkWE || '',
-        isLast ? emp.amount.toLocaleString() : '',
+        chunkAmount ? chunkAmount.toLocaleString() : '',
         '', '',
-        isLast ? emp.amount.toLocaleString() : '',
+        isLast && chunks.length > 1 ? emp.amount.toLocaleString() : '',
       );
       rows.push(timeRow);
       timeRowSet.add(curRow + 1);
@@ -213,10 +219,9 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:2,c:0},e:{r:5,c:0}},    // A: ลำดับที่ (merge 4 แถว)
     {s:{r:2,c:1},e:{r:5,c:1}},    // B: ชื่อ-สกุล (merge 4 แถว)
     {s:{r:2,c:2},e:{r:5,c:9}},    // C-J: "วันปฏิบัติงาน..." (merge 4 แถว เหมือน template)
-    {s:{r:2,c:10},e:{r:2,c:11}},  // K-L แถว 3: "รวมเวลา"
-    {s:{r:3,c:10},e:{r:3,c:11}},  // K-L แถว 4: "ปฏิบัติงาน"
-    {s:{r:3,c:13},e:{r:4,c:13}},  // N แถว 4-5: "ว.ด.ป./ที่รับเงิน"
-    {s:{r:3,c:14},e:{r:4,c:14}},  // O แถว 4-5: "ลายมือชื่อ/ผู้รับเงิน"
+    {s:{r:2,c:10},e:{r:3,c:11}},  // K-L แถว 3-4: "รวมเวลาปฏิบัติงาน" (merge 2 แถว)
+    {s:{r:2,c:13},e:{r:3,c:13}},  // N แถว 3-4: "ว.ด.ป./ที่รับเงิน"
+    {s:{r:2,c:14},e:{r:3,c:14}},  // O แถว 3-4: "ลายมือชื่อ/ผู้รับเงิน"
     // แถว 5,6: K="วันปกติ" L="วันหยุด" — ไม่ merge เพื่อให้แสดงแยกกัน
     {s:{r:2,c:12},e:{r:5,c:12}},  // M: จำนวนเงิน (merge 4 แถว)
     // N,O: ไม่ merge ตลอด 4 แถว เพื่อให้ "ว.ด.ป." / "ที่รับเงิน" แสดงได้
@@ -247,8 +252,12 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
       const thin = { style: 'thin' };
       if (r >= 2 && r <= 5) {
-        // header rows: full thin border
-        border = { top: thin, bottom: thin, left: thin, right: thin };
+        // header rows: full thin border ยกเว้น N(13) O(14) ที่ไม่มี top/bottom (เส้นปิดหัว-ท้าย)
+        if (c === 13 || c === 14) {
+          border = { left: thin, right: thin };
+        } else {
+          border = { top: thin, bottom: thin, left: thin, right: thin };
+        }
       } else if (r >= 6 && r < sumRowIdx - 1) {
         // data rows (r=6 คือ date row แรก, r=7+ สลับ date/time rows)
         if (c === 0 || c === 1) {
@@ -267,8 +276,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
           // col อื่น: full thin border
           border = { top: thin, bottom: thin, left: thin, right: thin };
         }
-      } else if (r === sumRowIdx - 1 || r === sumRowIdx) {
-        // empty row + sumRow: border เฉพาะ K, L, M (col 10-12)
+      } else if (r === sumRowIdx) {
+        // sumRow เท่านั้น: border เฉพาะ K, L, M (col 10-12) — ไม่ทำ border ให้ empty row ก่อน sumRow
         if (c >= 10 && c <= 12) {
           border = { top: thin, bottom: thin, left: thin, right: thin };
         }
