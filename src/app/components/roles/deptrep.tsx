@@ -178,7 +178,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
   rows.push([]);
   rows.push(['', 'ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-2)]);
-  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลายมือชื่อ', '', 'ลงชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลงชื่อ', '', '', '', '', '', 'ผู้จ่ายเงิน', '', '']);
   const signerName = signer || 'นางสาวสาริยา  นวมจิต';
   rows.push(['', `(${signerName})`, '', '', '', '', '', '', '', '', '(นางสาวทองยุ่น  มธุรส)', '', '', '', '', '']);
   rows.push(['ตำแหน่ง', 'รักษาการในตำแหน่งเลขานุการสำนักงานทะเบียนนักศึกษา', '', '', '', '', '', '', '', '         ตำแหน่ง', 'นักวิชาการเงินและบัญชีชำนาญการ', '', '', '', '', '']);
@@ -206,6 +206,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:sumRowIdx+4,c:10},e:{r:sumRowIdx+4,c:12}},     // K-M: "(นางสาวทองยุ่น มธุรส)"
     {s:{r:sumRowIdx+5,c:10},e:{r:sumRowIdx+5,c:12}},     // K-M: "นักวิชาการเงินและบัญชีชำนาญการ"
     {s:{r:sumRowIdx+4,c:1},e:{r:sumRowIdx+4,c:2}},       // B-C: "(นางสาวสาริยา นวมจิต)"
+    {s:{r:sumRowIdx+3,c:1},e:{r:sumRowIdx+3,c:2}},       // B-C: ลงชื่อ row (ช่องเซ็น ซ้าย)
+    {s:{r:sumRowIdx+3,c:10},e:{r:sumRowIdx+3,c:12}},     // K-M: ลงชื่อ row (ช่องเซ็น ขวา)
   ];
 
   // center + wrap text + THSarabunPSK font ทุก cell
@@ -222,7 +224,14 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     const font = { name: FONT, sz: fontSize, bold };
     for (let c = range.s.c; c <= range.e.c; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
-      const s = { font, alignment: centerAlign };
+      const isDataArea = r >= 2 && r <= sumRowIdx;
+      const border = isDataArea ? {
+        top:    { style: 'thin' },
+        bottom: { style: 'thin' },
+        left:   { style: 'thin' },
+        right:  { style: 'thin' },
+      } : undefined;
+      const s = { font, alignment: centerAlign, ...(border ? { border } : {}) };
       if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...s };
       else ws[addr] = { v: '', t: 's', s };
     }
@@ -254,6 +263,19 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     const s = { font, alignment: centerAlign };
     if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...s };
     else ws[addr] = { v: '', t: 's', s };
+  });
+
+  // เส้นประใต้ช่องเซ็นชื่อ (ลงชื่อ row + name row)
+  const dottedBottom = { bottom: { style: 'dotted' } };
+  [
+    [sumRowIdx + 3, 1], [sumRowIdx + 3, 2],               // B-C ลงชื่อ row
+    [sumRowIdx + 3, 10], [sumRowIdx + 3, 11], [sumRowIdx + 3, 12], // K-L-M ลงชื่อ row
+    [sumRowIdx + 4, 1], [sumRowIdx + 4, 2],               // B-C name row
+    [sumRowIdx + 4, 10], [sumRowIdx + 4, 11], [sumRowIdx + 4, 12], // K-L-M name row
+  ].forEach(([r, c]) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (!ws[addr]) ws[addr] = { v: '', t: 's', s: { font: { name: FONT }, alignment: centerAlign } };
+    ws[addr].s = { ...ws[addr].s, border: dottedBottom };
   });
 
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
