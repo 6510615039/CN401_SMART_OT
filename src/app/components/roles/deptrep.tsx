@@ -251,9 +251,16 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
       const thin = { style: 'thin' };
       if (r >= 2 && r <= 5) {
-        // header rows: full thin border ยกเว้น N(13) O(14) ที่ไม่มี top/bottom (เส้นปิดหัว-ท้าย)
-        if (false) {  // N/O ตอนนี้มี content แยกทุกแถว ให้ full border เหมือนกัน
-          border = { left: thin, right: thin };
+        // K(10),L(11) rows 3-4: กล่องเดียวกัน — แถว 3 ไม่มี bottom, แถว 4 ไม่มี top
+        if ((c === 10 || c === 11) && r === 2) {
+          border = { top: thin, left: thin, right: thin };
+        } else if ((c === 10 || c === 11) && r === 3) {
+          border = { bottom: thin, left: thin, right: thin };
+        // N(13),O(14) rows 3-6: กล่องเดียวกัน — เฉพาะ top แถวแรก, bottom แถวสุดท้าย
+        } else if (c === 13 || c === 14) {
+          if (r === 2)      border = { top: thin, left: thin, right: thin };
+          else if (r === 5) border = { bottom: thin, left: thin, right: thin };
+          else              border = { left: thin, right: thin };
         } else {
           border = { top: thin, bottom: thin, left: thin, right: thin };
         }
@@ -275,11 +282,15 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
           // col อื่น: full thin border
           border = { top: thin, bottom: thin, left: thin, right: thin };
         }
+      } else if (r === sumRowIdx - 1) {
+        // empty row ก่อน sumRow: K,L,N ให้ top+left+right (เพื่อเป็นกล่องเดียวกับ sumRow ด้านล่าง)
+        if (c === 10 || c === 11) border = { top: thin, left: thin, right: thin };
+        else if (c === 13)        border = { top: thin, left: thin, right: thin };
       } else if (r === sumRowIdx) {
-        // sumRow เท่านั้น: border เฉพาะ K, L, M (col 10-12) — ไม่ทำ border ให้ empty row ก่อน sumRow
-        if (c >= 10 && c <= 12) {
-          border = { top: thin, bottom: thin, left: thin, right: thin };
-        }
+        // sumRow: K,L ไม่มี top (ต่อเนื่องจาก empty row), M มี full border, N ไม่มี top
+        if (c === 10 || c === 11) border = { bottom: thin, left: thin, right: thin };
+        else if (c === 12)        border = { top: thin, bottom: thin, left: thin, right: thin };
+        else if (c === 13)        border = { bottom: thin, left: thin, right: thin };
       }
 
       const s = { font, alignment: centerAlign, ...(border ? { border } : {}) };
