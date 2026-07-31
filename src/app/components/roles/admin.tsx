@@ -378,22 +378,25 @@ export function AdminImport() {
                 </thead>
                 <tbody className="divide-y divide-[var(--neutral-200)]">
                   {[
-                    { label: 'รหัสพนักงาน', required: true,  keys: 'id · รหัส · รหัสพนักงาน · emp id · no' },
-                    { label: 'ชื่อ-นามสกุล', required: false, keys: 'name · ชื่อ · ชื่อ-สกุล · ชื่อพนักงาน' },
-                    { label: 'วันที่',        required: true,  keys: 'date · วันที่ · วัน/เดือน/ปี' },
-                    { label: 'เวลาเข้างาน',  required: true,  keys: 'in · check in · เข้า · เวลาเข้า · time in' },
-                    { label: 'เวลาออกงาน',  required: true,  keys: 'out · check out · ออก · เวลาออก · time out' },
-                    { label: 'กะการทำงาน',  required: false, keys: 'กะ · shift · time period · กะการทำงาน' },
-                    { label: 'หมายเหตุ',     required: false, keys: 'หมายเหตุ · note · remark · status' },
+                    { label: 'รหัสพนักงาน', required: 'yes'  as const, keys: 'id · รหัส · รหัสพนักงาน · emp id · no', note: '' },
+                    { label: 'ชื่อ-นามสกุล', required: 'yes' as const, keys: 'name · ชื่อ · ชื่อ-สกุล · ชื่อพนักงาน', note: '' },
+                    { label: 'วันที่',        required: 'yes' as const, keys: 'date · วันที่ · วัน/เดือน/ปี', note: '' },
+                    { label: 'เวลาเข้างาน',  required: 'yes' as const, keys: 'in · check in · เข้า · เวลาเข้า · time in', note: '' },
+                    { label: 'เวลาออกงาน',  required: 'yes' as const, keys: 'out · check out · ออก · เวลาออก · time out', note: '' },
+                    { label: 'กะการทำงาน',  required: 'yes' as const, keys: 'กะ · shift · time period · กะการทำงาน', note: '' },
+                    { label: 'หมายเหตุ',     required: 'no'  as const, keys: 'หมายเหตุ · note · remark · status', note: '' },
                   ].map(row => (
                     <tr key={row.label} className="hover:bg-[var(--neutral-50)]">
                       <td className="px-3 py-2 font-medium text-[var(--neutral-800)]">{row.label}</td>
-                      <td className="px-3 py-2">
-                        {row.required
-                          ? <span className="text-tu-red font-semibold">จำเป็น</span>
-                          : <span className="text-[var(--neutral-400)]">ไม่บังคับ</span>}
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {row.required === 'yes' && <span className="text-tu-red font-semibold">จำเป็น</span>}
+                        {row.required === 'rec' && <span className="text-orange-500 font-semibold">แนะนำ</span>}
+                        {row.required === 'no'  && <span className="text-[var(--neutral-400)]">ไม่บังคับ</span>}
                       </td>
-                      <td className="px-3 py-2 text-[var(--neutral-500)] font-mono">{row.keys}</td>
+                      <td className="px-3 py-2 text-[var(--neutral-500)] font-mono">
+                        <div>{row.keys}</div>
+                        {row.note && <div className="mt-1 text-[11px] text-orange-500 not-italic font-sans">{row.note}</div>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
