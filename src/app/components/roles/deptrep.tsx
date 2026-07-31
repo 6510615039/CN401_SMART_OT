@@ -180,7 +180,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 
   rows.push([]);
   rows.push(['', 'ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C-2)]);
-  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', 'ลายมือชื่อ', '', 'ลงชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', '', '', 'ลายมือชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
   const signerName = signer || 'นางสาวสาริยา  นวมจิต';
   rows.push(['', `(${signerName})`, '', '', '', '', '', '', '', '', '(นางสาวทองยุ่น  มธุรส)', '', '', '', '', '']);
   rows.push(['ตำแหน่ง', 'รักษาการในตำแหน่งเลขานุการสำนักงานทะเบียนนักศึกษา', '', '', '', '', '', '', '', '         ตำแหน่ง', 'นักวิชาการเงินและบัญชีชำนาญการ', '', '', '', '', '']);
@@ -230,21 +230,18 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
       if (r >= 2 && r <= 5) {
         // header rows: full thin border
         border = { top: thin, bottom: thin, left: thin, right: thin };
-      } else if (r === 6) {
-        // ยอดยกมา row: full border (อยู่ใน data area)
-        border = { top: thin, bottom: thin, left: thin, right: thin };
-      } else if (r >= 7 && r < sumRowIdx - 1) {
-        // data rows (date rows + time rows) ไม่รวม empty row และ sumRow
+      } else if (r >= 6 && r < sumRowIdx - 1) {
+        // data rows (r=6 คือ date row แรก, r=7+ สลับ date/time rows)
         if (c === 0 || c === 1) {
           // col A, B: border ตาม template — ไม่ทำทุกขอบ
-          if (r === 7) {
-            // date row แรกสุด: top + left + right
+          if (r === 6) {
+            // date row แรกสุด: top + left + right (ไม่มี bottom)
             border = { top: thin, left: thin, right: thin };
           } else if (timeRowSet.has(r)) {
-            // time row: bottom + left + right
+            // time row: bottom + left + right (ไม่มี top)
             border = { bottom: thin, left: thin, right: thin };
           } else {
-            // date rows อื่น: left + right เท่านั้น
+            // date rows ถัดๆ ไป: left + right เท่านั้น
             border = { left: thin, right: thin };
           }
         } else {
@@ -269,7 +266,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     const addr = XLSX.utils.encode_cell({ r, c });
     const font = { name: FONT, sz: 14, color: { rgb: 'FF0000' } };
     const s = { font, alignment: centerAlign };
-    if (ws[addr]) ws[addr].s = s;
+    // ใช้ spread เพื่อรักษา border ที่ set ไว้แล้ว
+    if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...s };
     else ws[addr] = { v: '', t: 's', s };
   });
 
