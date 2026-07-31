@@ -183,7 +183,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
         chunkWD || '', chunkWE || '',
         chunkAmount ? chunkAmount.toLocaleString() : '',
         '', '',
-        isLast && chunks.length > 1 ? emp.amount.toLocaleString() : '',
+        isLast ? emp.amount.toLocaleString() : '',
       );
       rows.push(timeRow);
       timeRowSet.add(curRow + 1);
@@ -283,14 +283,15 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
           border = { top: thin, bottom: thin, left: thin, right: thin };
         }
       } else if (r === sumRowIdx - 1) {
-        // empty row ก่อน sumRow: K,L,N ให้ top+left+right (เพื่อเป็นกล่องเดียวกับ sumRow ด้านล่าง)
-        if (c === 10 || c === 11) border = { top: thin, left: thin, right: thin };
-        else if (c === 13)        border = { top: thin, left: thin, right: thin };
+        // empty row ก่อน sumRow: K ซ้าย, L ขวา (ไม่มีเส้นกลาง), M top+left+right, N ไม่มี border
+        if (c === 10)      border = { top: thin, left: thin };           // K: no right (ไม่มีเส้นคั่น K|L)
+        else if (c === 11) border = { top: thin, right: thin };          // L: no left
+        else if (c === 12) border = { top: thin, left: thin, right: thin }; // M: top+sides
       } else if (r === sumRowIdx) {
-        // sumRow: K,L ไม่มี top (ต่อเนื่องจาก empty row), M มี full border, N ไม่มี top
-        if (c === 10 || c === 11) border = { bottom: thin, left: thin, right: thin };
-        else if (c === 12)        border = { top: thin, bottom: thin, left: thin, right: thin };
-        else if (c === 13)        border = { bottom: thin, left: thin, right: thin };
+        // sumRow: K,L ไม่มี top, M ไม่มี top (ต่อจาก empty row), N ไม่มี border
+        if (c === 10)      border = { bottom: thin, left: thin };        // K: no right, no top
+        else if (c === 11) border = { bottom: thin, right: thin };       // L: no left, no top
+        else if (c === 12) border = { bottom: thin, left: thin, right: thin }; // M: no top
       }
 
       const s = { font, alignment: centerAlign, ...(border ? { border } : {}) };
