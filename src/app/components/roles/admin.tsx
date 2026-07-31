@@ -360,6 +360,46 @@ export function AdminImport() {
               เมื่อนำเข้าไฟล์แล้ว <strong>ระบบจะไม่อนุญาตให้นำเข้าซ้ำ</strong> — หากต้องการแก้ไขข้อมูล ให้แก้ไขในตารางแทน
             </p>
           </div>
+
+          {/* ── รูปแบบคอลัมน์ที่รองรับ ── */}
+          <div className="mt-4 border border-[var(--neutral-300)] rounded-lg overflow-hidden">
+            <div className="bg-[var(--neutral-100)] px-4 py-2 border-b border-[var(--neutral-300)]">
+              <p className="text-[13px] font-semibold text-[var(--neutral-700)]">รูปแบบคอลัมน์ที่รองรับ</p>
+              <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">ระบบตรวจจับคอลัมน์อัตโนมัติ — ชื่อคอลัมน์ไม่จำเป็นต้องตรงทุกตัวอักษร</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="bg-[var(--neutral-50)] border-b border-[var(--neutral-200)]">
+                    <th className="text-left px-3 py-2 font-semibold text-[var(--neutral-600)] w-1/4">ข้อมูล</th>
+                    <th className="text-left px-3 py-2 font-semibold text-[var(--neutral-600)] w-1/4">จำเป็น</th>
+                    <th className="text-left px-3 py-2 font-semibold text-[var(--neutral-600)]">ชื่อคอลัมน์ที่รองรับ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--neutral-200)]">
+                  {[
+                    { label: 'รหัสพนักงาน', required: true,  keys: 'id · รหัส · รหัสพนักงาน · emp id · no' },
+                    { label: 'ชื่อ-นามสกุล', required: false, keys: 'name · ชื่อ · ชื่อ-สกุล · ชื่อพนักงาน' },
+                    { label: 'วันที่',        required: true,  keys: 'date · วันที่ · วัน/เดือน/ปี' },
+                    { label: 'เวลาเข้างาน',  required: true,  keys: 'in · check in · เข้า · เวลาเข้า · time in' },
+                    { label: 'เวลาออกงาน',  required: true,  keys: 'out · check out · ออก · เวลาออก · time out' },
+                    { label: 'กะการทำงาน',  required: false, keys: 'กะ · shift · time period · กะการทำงาน' },
+                    { label: 'หมายเหตุ',     required: false, keys: 'หมายเหตุ · note · remark · status' },
+                  ].map(row => (
+                    <tr key={row.label} className="hover:bg-[var(--neutral-50)]">
+                      <td className="px-3 py-2 font-medium text-[var(--neutral-800)]">{row.label}</td>
+                      <td className="px-3 py-2">
+                        {row.required
+                          ? <span className="text-tu-red font-semibold">จำเป็น</span>
+                          : <span className="text-[var(--neutral-400)]">ไม่บังคับ</span>}
+                      </td>
+                      <td className="px-3 py-2 text-[var(--neutral-500)] font-mono">{row.keys}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </SectionCard>
       )}
     </>
