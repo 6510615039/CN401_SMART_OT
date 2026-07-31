@@ -102,6 +102,15 @@ function thaiAmountText(n: number): string {
   return chunk(n)+'บาทถ้วน';
 }
 
+// ── Excel generation helpers ────────────────────────────────────────────────
+function parseOTHours(timeStr: string): number {
+  const m = timeStr.match(/(\d+)\.(\d+)-(\d+)\.(\d+)/);
+  if (!m) return 0;
+  const startMins = parseInt(m[1]) * 60 + parseInt(m[2]);
+  const endMins   = parseInt(m[3]) * 60 + parseInt(m[4]);
+  return Math.max(0, (endMins - startMins) / 60);
+}
+
 // ── Excel generation (ตามแบบฟอร์มจริง — 16 คอลัมน์ A-P) ──────────────────
 function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำนักงานทะเบียนนักศึกษา', signer = '') {
   const wb = XLSX.utils.book_new();
@@ -112,8 +121,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ', ...pad(C-1)]);
   rows.push([`  ${deptName}  ประจำเดือน ${month}`, ...pad(C-1)]);
   rows.push(['ลำดับที่','ชื่อ-สกุล','วันปฏิบัติงานนอกเวลาราชการ','','','','','','','','รวมเวลา','','จำนวนเงิน','','','หมายเหตุ']);
-  rows.push(['','','','','','','','','','','ปฏิบัติงาน','','','ว.ด.ป.','ลายมือชื่อ','']);
-  rows.push(['','','','','','','','','','','วันปกติ','วันหยุด','','ที่รับเงิน','ผู้รับเงิน','']);
+  rows.push(['','','','','','','','','','','ปฏิบัติงาน','','','ว.ด.ป.\nที่รับเงิน','ลายมือชื่อ\nผู้รับเงิน','']);
+  rows.push(['','','','','','','','','','','วันปกติ','วันหยุด','','','','']);
   rows.push(['','','','','','','','','','','(ชั่วโมง)','(ชั่วโมง)','','','','']);
   // ไม่มีแถว "ยอดยกมา" แยก — จะใส่ใน K ของ dateRow แรกแทน
 
@@ -123,7 +132,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   const holidayCells: {r: number; c: number}[] = [];
   const leftAlignCells: {r: number; c: number}[] = [];
   const boldCells: {r: number; c: number}[] = [];
-  const timeRowSet = new Set<number>(); // indices ของ "time rows" (มี seq/name/hours)
+  const timeRowSet     = new Set<number>(); // indices ของ "time rows" ทุก batch
+  const lastTimeRowSet = new Set<number>(); // indices ของ time row สุดท้ายของแต่ละ employee
   let curRow = 6; // data เริ่มจากแถว 6 (0-indexed) พร้อมกับ "ยอดยกมา"
   let isFirstDataRow = true;
 
@@ -154,17 +164,24 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
       rows.push(dateRow);
       isFirstDataRow = false;
 
-      // time row: A=seq, B=ชื่อ (เฉพาะ chunk แรก), hours และ amount ใน last chunk
+      // คำนวณชั่วโมงเฉพาะ batch นี้ (แยก weekday / holiday)
+      const chunkWD = Math.round(chunk.filter(d => !d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0) * 10) / 10;
+      const chunkWE = Math.round(chunk.filter(d =>  d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0) * 10) / 10;
+
+      // time row: A=seq, B=ชื่อ (เฉพาะ chunk แรก), K/L แสดงชั่วโมงของ batch นี้
       const timeRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
       if (ci === 0) leftAlignCells.push({ r: curRow + 1, c: 1 }); // ชื่อพนักงาน col B (time row)
       for (let i = 0; i < DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
-      if (isLast) {
-        timeRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', emp.amount.toLocaleString());
-      } else {
-        timeRow.push('', '', '', '', '', '');
-      }
+      // K=weekday hrs, L=weekend hrs (per batch); M=total amount & P=total amount (last batch only)
+      timeRow.push(
+        chunkWD || '', chunkWE || '',
+        isLast ? emp.amount.toLocaleString() : '',
+        '', '',
+        isLast ? emp.amount.toLocaleString() : '',
+      );
       rows.push(timeRow);
-      timeRowSet.add(curRow + 1); // time row อยู่ถัดจาก date row
+      timeRowSet.add(curRow + 1);
+      if (isLast) lastTimeRowSet.add(curRow + 1); // last batch time row ของ employee นี้
       curRow += 2;
     });
   });
@@ -198,6 +215,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     {s:{r:2,c:2},e:{r:5,c:9}},    // C-J: "วันปฏิบัติงาน..." (merge 4 แถว เหมือน template)
     {s:{r:2,c:10},e:{r:2,c:11}},  // K-L แถว 3: "รวมเวลา"
     {s:{r:3,c:10},e:{r:3,c:11}},  // K-L แถว 4: "ปฏิบัติงาน"
+    {s:{r:3,c:13},e:{r:4,c:13}},  // N แถว 4-5: "ว.ด.ป./ที่รับเงิน"
+    {s:{r:3,c:14},e:{r:4,c:14}},  // O แถว 4-5: "ลายมือชื่อ/ผู้รับเงิน"
     // แถว 5,6: K="วันปกติ" L="วันหยุด" — ไม่ merge เพื่อให้แสดงแยกกัน
     {s:{r:2,c:12},e:{r:5,c:12}},  // M: จำนวนเงิน (merge 4 แถว)
     // N,O: ไม่ merge ตลอด 4 แถว เพื่อให้ "ว.ด.ป." / "ที่รับเงิน" แสดงได้
@@ -237,11 +256,11 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
           if (r === 6) {
             // date row แรกสุด: top + left + right (ไม่มี bottom)
             border = { top: thin, left: thin, right: thin };
-          } else if (timeRowSet.has(r)) {
-            // time row: bottom + left + right (ไม่มี top)
+          } else if (lastTimeRowSet.has(r)) {
+            // time row สุดท้ายของ employee: bottom + left + right
             border = { bottom: thin, left: thin, right: thin };
           } else {
-            // date rows ถัดๆ ไป: left + right เท่านั้น
+            // time rows กลาง (multi-batch) และ date rows อื่น: left + right เท่านั้น
             border = { left: thin, right: thin };
           }
         } else {
