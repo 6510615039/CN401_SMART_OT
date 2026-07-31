@@ -23,7 +23,7 @@ export function fmtDateTime(isoStr: string | undefined | null): string {
 export type Role = 'admin' | 'staff' | 'depthead' | 'deptrep' | 'checker' | 'executive';
 
 export const ROLE_INFO: Record<Role, { label: string; name: string; dept: string; empId: string }> = {
-  admin:     { label: 'แอดมิน',        name: 'พี่ขวัญ ใจดี',     dept: 'ฝ่ายเทคโนโลยีสารสนเทศ', empId: 'AD-001' },
+  admin:     { label: 'ผู้ดูแลระบบ',    name: 'พี่ขวัญ ใจดี',     dept: 'ฝ่ายเทคโนโลยีสารสนเทศ', empId: 'AD-001' },
   staff:     { label: 'พนักงาน',       name: 'สมชาย สุขใจ',     dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-1024' },
   depthead:  { label: 'หัวหน้างาน',    name: 'อรอนงค์ ใจกล้า',  dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-2001' },
   deptrep:   { label: 'ตัวแทนฝ่าย',   name: 'ปนัดดา แสนดี',    dept: 'งานทะเบียนนักศึกษา',    empId: 'EMP-2014' },

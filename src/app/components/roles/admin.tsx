@@ -689,7 +689,7 @@ const ROLE_OPTIONS = [
   { role: 'deptrep',   label: 'ตัวแทนฝ่าย',   desc: 'ตัวแทนฝ่าย (1/แผนก)', color: 'bg-tu-yellow text-black'   },
   { role: 'checker',   label: 'ผู้ตรวจสอบ',   desc: 'ผู้ตรวจสอบกลาง',      color: 'bg-purple-600 text-white'  },
   { role: 'executive', label: 'ผู้บริหาร',    desc: 'ผู้บริหาร',            color: 'bg-success text-white'     },
-  { role: 'admin',     label: 'Admin',         desc: 'ผู้ดูแลระบบทั้งหมด',  color: 'bg-tu-red text-white'      },
+  { role: 'admin',     label: 'ผู้ดูแลระบบ',   desc: 'ผู้ดูแลระบบทั้งหมด',  color: 'bg-tu-red text-white'      },
 ];
 
 
@@ -717,7 +717,7 @@ const ROLE_COLOR_MAP: Record<string, string> = {
   executive: 'bg-success text-white',
 };
 const ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin', staff: 'พนักงาน', depthead: 'หัวหน้างาน',
+  admin: 'ผู้ดูแลระบบ', staff: 'พนักงาน', depthead: 'หัวหน้างาน',
   deptrep: 'ตัวแทนฝ่าย', checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร',
 };
 
@@ -2286,7 +2286,7 @@ const AUDIT_ROLE_OPTIONS = [
   { value: 'deptrep',  label: 'ตัวแทนฝ่าย' },
   { value: 'checker',  label: 'ผู้ตรวจสอบ' },
   { value: 'executive',label: 'ผู้บริหาร' },
-  { value: 'admin',    label: 'แอดมิน' },
+  { value: 'admin',    label: 'ผู้ดูแลระบบ' },
 ];
 
 export function AdminAudit() {

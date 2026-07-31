@@ -1051,9 +1051,20 @@ export function StaffProfile() {
                 <span className="text-[var(--neutral-500)]">แผนก</span>
                 <span className="font-semibold">{dept}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-start">
                 <span className="text-[var(--neutral-500)]">บทบาท</span>
-                <span className="font-semibold capitalize">{userInfo?.role || '—'}</span>
+                <span className="font-semibold text-right">
+                  {(() => {
+                    const ROLE_TH: Record<string, string> = {
+                      staff: 'พนักงาน', depthead: 'หัวหน้างาน', deptrep: 'ตัวแทนฝ่าย',
+                      checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร', admin: 'ผู้ดูแลระบบ',
+                    };
+                    const roles: string[] = Array.isArray(userInfo?.available_roles) && userInfo.available_roles.length > 0
+                      ? userInfo.available_roles
+                      : [userInfo?.role || 'staff'];
+                    return roles.map((r: string) => ROLE_TH[r] || r).join(', ');
+                  })()}
+                </span>
               </div>
             </div>
           </div>

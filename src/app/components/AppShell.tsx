@@ -65,7 +65,7 @@ const ROLE_LABELS: Record<Role, string> = {
   deptrep:   'ตัวแทนฝ่าย',
   checker:   'ผู้ตรวจสอบ',
   executive: 'ผู้บริหาร',
-  admin:     'แอดมิน',
+  admin:     'ผู้ดูแลระบบ',
 };
 
 export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead, onProfile }: Props) {

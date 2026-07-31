@@ -132,7 +132,7 @@ const MANUALS: Record<Role, { intro: string; chapters: Chapter[] }> = {
   },
 
   admin: {
-    intro: 'คู่มือสำหรับ แอดมิน — อธิบายการจัดการระบบ SMART OT ครบทุกฟังก์ชัน',
+    intro: 'คู่มือสำหรับ ผู้ดูแลระบบ — อธิบายการจัดการระบบ SMART OT ครบทุกฟังก์ชัน',
     chapters: [
       {
         heading: 'เข้าสู่ระบบ',
@@ -567,7 +567,7 @@ export function ManualPage({ role }: { role: Role }) {
 
   const roleLabel: Record<Role, string> = {
     staff: 'พนักงาน',
-    admin: 'แอดมิน',
+    admin: 'ผู้ดูแลระบบ',
     depthead: 'หัวหน้างาน',
     deptrep: 'ตัวแทนฝ่าย',
     checker: 'ผู้ตรวจสอบ',
