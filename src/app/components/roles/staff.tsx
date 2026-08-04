@@ -236,6 +236,115 @@ function MiniCalendar({ month, otDays, totalOT }: { month: string; otDays: numbe
   );
 }
 
+function TimelogCalendar({ month, rows }: { month: string; rows: any[] }) {
+  const [thaiY, m] = month.split('-').map(Number);
+  const gregY = thaiY - 543;
+  const daysInMonth = new Date(gregY, m, 0).getDate();
+  const startDow = new Date(gregY, m - 1, 1).getDay();
+
+  const byDate: Record<string, any> = {};
+  rows.forEach(r => { if (r.date) byDate[r.date] = r; });
+
+  const cells = Array.from({ length: 42 }, (_, i) => i - startDow + 1);
+
+  function gregDate(day: number) {
+    return `${gregY}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+
+  return (
+    <div className="select-none">
+      {/* DOW header — same style as MiniCalendar */}
+      <div className="grid grid-cols-7 gap-1 text-[11px] text-center mb-2">
+        {['อา','จ','อ','พ','พฤ','ศ','ส'].map((d, i) => (
+          <div key={d} className={`font-semibold py-1 ${i===0?'text-red-400':i===6?'text-blue-400':'text-[var(--neutral-500)]'}`}>{d}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {cells.slice(0, 35).map((day, idx) => {
+          const valid = day >= 1 && day <= daysInMonth;
+          if (!valid) return <div key={idx} className="rounded-lg min-h-[80px]" />;
+
+          const dateStr = gregDate(day);
+          const r = byDate[dateStr];
+          const dow = idx % 7;
+          const isWeekend = dow === 0 || dow === 6;
+          const isHoliday = r?.dayType === 'holiday';
+          const hasOT    = r && parseFloat(r.ot) > 0;
+          const isLate   = r?.attendanceStatus === 'สาย';
+          const hasIn    = !!r?.in?.trim();
+
+          const bg =
+            hasOT      ? 'bg-tu-yellow border-tu-yellow' :
+            isHoliday  ? 'bg-[var(--neutral-100)] border-[var(--neutral-200)]' :
+            isWeekend  ? 'bg-[var(--neutral-100)] border-[var(--neutral-200)]' :
+                         'bg-white border-[var(--neutral-300)]';
+
+          const ring = isLate ? 'ring-2 ring-red-400 ring-inset' : '';
+
+          return (
+            <div key={idx} className={`rounded-lg border min-h-[80px] p-2 flex flex-col gap-1 ${bg} ${ring}`}>
+              {/* date circle — same pill style as MiniCalendar */}
+              <span className={`text-[12px] font-bold leading-none
+                ${hasOT ? 'text-black' : dow===0 ? 'text-red-500' : dow===6 ? 'text-blue-500' : 'text-[var(--neutral-800)]'}`}>
+                {day}
+              </span>
+
+              {/* holiday label */}
+              {isHoliday && !hasIn && (
+                <span className="text-[10px] text-[var(--neutral-500)] leading-tight truncate">
+                  {r?.holidayName || 'วันหยุด'}
+                </span>
+              )}
+
+              {/* check-in / check-out */}
+              {hasIn && (
+                <div className="flex flex-col gap-0.5 mt-0.5">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-[var(--neutral-400)] w-3">▶</span>
+                    <span className="text-[11px] font-mono text-[var(--neutral-700)]">{r.in.slice(0,5)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-[var(--neutral-400)] w-3">◀</span>
+                    <span className="text-[11px] font-mono text-[var(--neutral-500)]">{r.out?.slice(0,5) || '-'}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* OT badge */}
+              {hasOT && (
+                <span className="mt-auto text-[10px] font-bold text-tu-red leading-none">
+                  OT {r.ot} ชม.
+                </span>
+              )}
+
+              {/* late badge */}
+              {isLate && (
+                <span className="text-[10px] font-semibold text-red-500 leading-none">สาย</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend — same style as MiniCalendar */}
+      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--neutral-200)]">
+        {[
+          { bg:'bg-tu-yellow border-tu-yellow', label:'มี OT' },
+          { bg:'bg-[var(--neutral-100)] border-[var(--neutral-300)]', label:'วันหยุด / เสาร์-อาทิตย์' },
+          { bg:'bg-white border-[var(--neutral-300)] ring-2 ring-red-400 ring-inset', label:'มาสาย' },
+          { bg:'bg-white border-[var(--neutral-300)]', label:'วันทำงานปกติ' },
+        ].map(({ bg, label }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className={`size-3 rounded border ${bg}`} />
+            <span className="text-[11px] text-[var(--neutral-600)]">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function StaffTimeLog() {
   const [view, setView] = useState<'table' | 'cal'>('table');
   const [month, setMonth] = useState(currentThaiMonth);
@@ -323,9 +432,7 @@ export function StaffTimeLog() {
             </table>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-40 text-[var(--neutral-500)]">
-            <p>มุมมองปฏิทิน — กำลังพัฒนา</p>
-          </div>
+          <TimelogCalendar month={month} rows={rows} />
         )}
       </SectionCard>
     </>
