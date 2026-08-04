@@ -128,12 +128,12 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
     const token = localStorage.getItem('access_token');
     const h = { 'Authorization': `Bearer ${token}` };
     const now2 = new Date();
-    const curMonthStr = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
-    fetch(`/api/ot-deadline/?month=${curMonthStr}`, { headers: h })
+    const curThaiMonthStr = `${now2.getFullYear() + 543}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
+    fetch(`/api/ot-deadline/?month=${curThaiMonthStr}`, { headers: h })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         const list = Array.isArray(d) ? d : (d?.results || []);
-        setDashDeadline(list.find((x: any) => x.month === curMonthStr) || null);
+        setDashDeadline(list.find((x: any) => x.thai_month === curThaiMonthStr) || null);
       }).catch(() => {});
 
     Promise.all([
@@ -617,14 +617,13 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const token = () => localStorage.getItem('access_token');
 
   useEffect(() => {
-    // โหลด deadline ของเดือนปัจจุบัน
-    const gregYear = parseInt(thaiYear) - 543;
-    const monthStr = `${gregYear}-${String(selMonth).padStart(2, '0')}`;
-    fetch(`/api/ot-deadline/?month=${monthStr}`, { headers: { 'Authorization': `Bearer ${token()}` } })
+    // โหลด deadline — ใช้ thai_month (พ.ศ.) ตรงกับที่ backend เก็บ
+    const thaiMonthStr = `${thaiYear}-${String(selMonth).padStart(2, '0')}`;
+    fetch(`/api/ot-deadline/?month=${thaiMonthStr}`, { headers: { 'Authorization': `Bearer ${token()}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         const list = Array.isArray(d) ? d : (d?.results || []);
-        setDeadline(list.find((x: any) => x.month === monthStr) || null);
+        setDeadline(list.find((x: any) => x.thai_month === thaiMonthStr) || null);
       })
       .catch(() => setDeadline(null));
   }, [selMonth, thaiYear]);
