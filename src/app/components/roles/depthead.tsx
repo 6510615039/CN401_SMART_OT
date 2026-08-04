@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { smartDefaultDate, smartDefaultThaiYear } from '../../utils/smartDefault';
 import { otRate, OT_RATE_WEEKDAY, OT_RATE_HOLIDAY } from '../../constants/otRate';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import {
   LayoutDashboard, Inbox, History, Users, FileBarChart, ChevronRight,
   CheckCircle2, X, AlertTriangle, Download, Send, PlusCircle, Clock, Bell, BookOpen,
@@ -22,7 +22,7 @@ import {
 } from 'recharts';
 
 function downloadXlsx(wb: XLSX.WorkBook, filename: string) {
-  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -31,6 +31,14 @@ function downloadXlsx(wb: XLSX.WorkBook, filename: string) {
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
+}
+
+function parseOTHoursHead(timeStr: string): number {
+  const m = timeStr.match(/(\d+)\.(\d+)-(\d+)\.(\d+)/);
+  if (!m) return 0;
+  const startMins = parseInt(m[1]) * 60 + parseInt(m[2]);
+  const endMins   = parseInt(m[3]) * 60 + parseInt(m[4]);
+  return Math.max(0, (endMins - startMins) / 60);
 }
 
 export const HEAD_NAV: NavItem[] = [
@@ -665,21 +673,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
 
   const all = filtered.length > 0 && sel.length === filtered.length;
   const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
-
-  // คำนวณ cumulative: เรียงตาม work_date แล้วหา ณ แต่ละแถวว่าถ้าอนุมัติจะเกินงบหรือยัง
-  // ถ้ายังไม่ตั้งงบ (budget = 0 หรือ null) → ไม่ block เลย
-  const rowBudgetMap = (() => {
-    if (!budgetStatus || !budgetStatus.budget || budgetStatus.remaining === null) return new Map<number, boolean>();
-    let cum = 0;
-    const m = new Map<number, boolean>();
-    const sorted = [...filtered].sort((a, b) => a.work_date.localeCompare(b.work_date));
-    for (const r of sorted) {
-      const amt = Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type));
-      cum += amt;
-      m.set(r.id, cum > (budgetStatus.remaining ?? 0));
-    }
-    return m;
-  })();
+  const willExceedBudget = !!(budgetStatus && budgetStatus.budget && budgetStatus.remaining !== null && budgetStatus.used + totalAmount > budgetStatus.budget);
 
   async function doApprove(id: number): Promise<string | null> {
     const res = await fetch(`/api/ot-requests/${id}/approve/`, {
@@ -886,13 +880,6 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                     <td className="px-3 py-2 font-mono font-semibold">{(Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type))).toLocaleString()}</td>
                     <td className="px-3 py-2 text-[var(--neutral-500)]">{fmtDateTime(r.created_at)}</td>
                     <td className="px-3 py-2 flex gap-1">
-                      {rowBudgetMap.get(r.id) ? (
-                        <div title={`งบคงเหลือไม่พอสำหรับคำร้องนี้`}>
-                          <Button size="sm" disabled className="h-7 opacity-50 cursor-not-allowed">
-                            <X className="size-3 mr-1 text-danger" />งบเต็ม
-                          </Button>
-                        </div>
-                      ) : (
                         <Button size="sm" className="bg-success text-white h-7" onClick={async () => {
                           const err = await doApprove(r.id);
                           if (err) setActionMsg({ kind: 'danger', text: err });
@@ -900,7 +887,6 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
                           setTimeout(() => setActionMsg(null), 5000);
                           loadRequests();
                         }}>อนุมัติ</Button>
-                      )}
                       <Button size="sm" variant="outline" onClick={() => onDetail(r.id)} className="border-tu-red text-tu-red h-7">ดู</Button>
                     </td>
                   </tr>
@@ -941,7 +927,12 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setSel([])}>ยกเลิก</Button>
-            <Button className="bg-success hover:bg-success/90 text-white" onClick={handleApprove}>
+            <Button
+              className="bg-success hover:bg-success/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleApprove}
+              disabled={willExceedBudget}
+              title={willExceedBudget ? 'ยอดรวมที่เลือกเกินงบประมาณคงเหลือ' : undefined}
+            >
               <CheckCircle2 className="size-4 mr-1" />อนุมัติทั้งหมดที่เลือก ({sel.length})
             </Button>
             <Button className="bg-danger hover:bg-danger/90 text-white" onClick={() => setRejectOpen(true)}>
@@ -1119,8 +1110,8 @@ const STATUS_HIST: Record<string, { kind: 'success' | 'danger' | 'warning' | 'ne
 
 export function HeadHistory() {
   const _sd = smartDefaultDate();
-  const [thaiYear, setThaiYear] = useState(String(_sd.year + 543));
-  const [selMonth, setSelMonth] = useState(_sd.month);
+  const [thaiYear, setThaiYear] = useState(() => localStorage.getItem('head_history_thai_year') || String(_sd.year + 543));
+  const [selMonth, setSelMonth] = useState(() => Number(localStorage.getItem('head_history_month') || _sd.month));
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -1158,12 +1149,12 @@ export function HeadHistory() {
             <Input
               type="number"
               value={thaiYear}
-              onChange={e => setThaiYear(e.target.value)}
+              onChange={e => { localStorage.setItem('head_history_thai_year', e.target.value); setThaiYear(e.target.value); }}
               className="w-[90px] text-center"
               min={2560}
               max={2599}
             />
-            <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+            <Select value={String(selMonth)} onValueChange={v => { localStorage.setItem('head_history_month', v); setSelMonth(Number(v)); }}>
               <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
@@ -1449,37 +1440,43 @@ function thaiNumber(n: number): string {
   return result + 'บาทถ้วน';
 }
 
-// ── Excel generation (ตามแบบฟอร์มจริง — 16 คอลัมน์ A-P เหมือนหน้าตัวแทนฝ่าย) ──
-const HEAD_DATES_PER_ROW = 8;
-
 function headThaiDate(s: string) {
   const d = new Date(s);
   return `${d.getDate()} ${THAI_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-function generateHeadXlsx(requests: any[], deptName: string, signatoryName: string, carryover = 0) {
-  const now = new Date();
-  const month = `${THAI_MONTHS_FULL[now.getMonth()]} ${now.getFullYear() + 543}`;
-
-  const byStaff: Record<string, { name: string; reqs: any[] }> = {};
-  for (const r of requests) {
-    const key = r.staff || r.staff_name;
-    if (!byStaff[key]) byStaff[key] = { name: r.staff_name || String(key), reqs: [] };
-    byStaff[key].reqs.push(r);
-  }
-  Object.values(byStaff).forEach(s => s.reqs.sort((a, b) => a.work_date.localeCompare(b.work_date)));
-
-  const employees = Object.values(byStaff).map((s, idx) => {
-    const days = s.reqs.map(r => ({
-      date: headThaiDate(r.work_date),
-      time: `${(r.start_time || '').slice(0, 5)}-${(r.end_time || '').slice(0, 5)} น.`,
-      isWeekend: r.day_type === 'holiday',
-    }));
-    const weekdayHrs = s.reqs.filter(r => r.day_type !== 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
-    const weekendHrs = s.reqs.filter(r => r.day_type === 'holiday').reduce((sum, r) => sum + parseFloat(r.ot_hours || 0), 0);
-    const amount = s.reqs.reduce((sum, r) => sum + Math.floor(parseFloat(r.ot_hours || 0)) * (otRate(r.day_type)), 0);
-    return { seq: idx + 1, name: s.name, days, weekdayHrs: Math.round(weekdayHrs * 10) / 10, weekendHrs: Math.round(weekendHrs * 10) / 10, amount: Math.round(amount) };
+function generateHeadXlsx(requests: any[], deptName: string, signatoryName: string, carryover = 0, monthLabel?: string, payerName = '') {
+  // ── แปลง requests → employees (เหมือน deptrep) ──────────────────────────
+  const DATESPR = 8;
+  const grouped: Record<string, { name: string; reqs: any[] }> = {};
+  requests.forEach(r => {
+    const name = r.staff_name || 'ไม่ระบุ';
+    if (!grouped[name]) grouped[name] = { name, reqs: [] };
+    grouped[name].reqs.push(r);
   });
+  const employees = Object.values(grouped).map((g, i) => {
+    const sorted = [...g.reqs].sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''));
+    const days = sorted.map(r => {
+      const startRaw = r.start_time ? r.start_time.slice(0, 5) : (r.day_type === 'weekday' ? '16:30' : '08:00');
+      const endRaw   = r.end_time   ? r.end_time.slice(0, 5)   : startRaw;
+      return {
+        date: headThaiDate(r.work_date),
+        time: `${startRaw.replace(':', '.')}-${endRaw.replace(':', '.')} น.`,
+        isWeekend: r.day_type === 'holiday',
+      };
+    });
+    const weekdayHrs = g.reqs.filter(r => r.day_type !== 'holiday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
+    const weekendHrs = g.reqs.filter(r => r.day_type === 'holiday').reduce((s, r) => s + parseFloat(r.ot_hours || 0), 0);
+    const amount = g.reqs.reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * otRate(r.day_type), 0);
+    return { seq: i + 1, name: g.name, days, weekdayHrs: Math.round(weekdayHrs * 10) / 10, weekendHrs: Math.round(weekendHrs * 10) / 10, amount: Math.round(amount) };
+  });
+
+  // ── คำนวณ month label จาก requests ถ้าไม่ได้ส่งมา ──────────────────────
+  const month = monthLabel || (() => {
+    const wd = requests[0]?.work_date;
+    if (wd) { const d = new Date(wd); return `${THAI_MONTHS_FULL[d.getMonth()]} ${d.getFullYear() + 543}`; }
+    const now = new Date(); return `${THAI_MONTHS_FULL[now.getMonth()]} ${now.getFullYear() + 543}`;
+  })();
 
   const grandTotal = employees.reduce((s, e) => s + e.amount, 0) + carryover;
   const wb = XLSX.utils.book_new();
@@ -1487,46 +1484,83 @@ function generateHeadXlsx(requests: any[], deptName: string, signatoryName: stri
   const C = 16;
   const pad = (n: number) => Array(n).fill('');
 
+  // ── Header rows (เหมือน deptrep ทุกอย่าง) ──────────────────────────────
   rows.push(['หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ', ...pad(C - 1)]);
   rows.push([`  ${deptName}  ประจำเดือน ${month}`, ...pad(C - 1)]);
   rows.push(['ลำดับที่', 'ชื่อ-สกุล', 'วันปฏิบัติงานนอกเวลาราชการ', '', '', '', '', '', '', '', 'รวมเวลา', '', 'จำนวนเงิน', '', '', 'หมายเหตุ']);
   rows.push(['', '', '', '', '', '', '', '', '', '', 'ปฏิบัติงาน', '', '', 'ว.ด.ป.', 'ลายมือชื่อ', '']);
   rows.push(['', '', '', '', '', '', '', '', '', '', 'วันปกติ', 'วันหยุด', '', 'ที่รับเงิน', 'ผู้รับเงิน', '']);
   rows.push(['', '', '', '', '', '', '', '', '', '', '(ชั่วโมง)', '(ชั่วโมง)', '', '', '', '']);
-  if (carryover > 0) {
-    rows.push(['', 'ยอดยกมาจากเดือนที่แล้ว', '', '', '', '', '', '', '', '', '', '', carryover.toLocaleString(), '', '', '']);
-  }
+
+  // ── Data rows (เหมือน deptrep: date row + time row) ────────────────────
+  const holidayCells: { r: number; c: number }[] = [];
+  const leftAlignCells: { r: number; c: number }[] = [];
+  const boldCells: { r: number; c: number }[] = [];
+  const timeRowSet     = new Set<number>();
+  const lastTimeRowSet = new Set<number>();
+  let curRow = 6;
+  let isFirstDataRow = true;
 
   employees.forEach(emp => {
     const chunks: typeof emp.days[] = [];
-    for (let i = 0; i < emp.days.length; i += HEAD_DATES_PER_ROW) chunks.push(emp.days.slice(i, i + HEAD_DATES_PER_ROW));
+    for (let i = 0; i < emp.days.length; i += DATESPR) chunks.push(emp.days.slice(i, i + DATESPR));
     if (chunks.length === 0) chunks.push([]);
 
     chunks.forEach((chunk, ci) => {
       const isLast = ci === chunks.length - 1;
-      const dateRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
-      for (let i = 0; i < HEAD_DATES_PER_ROW; i++) dateRow.push(chunk[i]?.date ?? '');
-      if (isLast) dateRow.push(emp.weekdayHrs || '', emp.weekendHrs || '', emp.amount.toLocaleString(), '', '', '');
-      else        dateRow.push('', '', '', '', '', '');
-      rows.push(dateRow);
 
-      const timeRow: any[] = ['', ''];
-      for (let i = 0; i < HEAD_DATES_PER_ROW; i++) timeRow.push(chunk[i]?.time ?? '');
-      timeRow.push('', '', '', '', '', '');
+      // date row: A, B ว่าง — ใส่ "ยอดยกมา" (ถ้ามี) ใน K ของ first data row
+      const dateRow: any[] = ['', ''];
+      for (let i = 0; i < DATESPR; i++) {
+        dateRow.push(chunk[i]?.date ?? '');
+        if (chunk[i]?.isWeekend) {
+          holidayCells.push({ r: curRow, c: 2 + i });
+          holidayCells.push({ r: curRow + 1, c: 2 + i });
+        }
+      }
+      if (isFirstDataRow) {
+        const carryoverLabel = carryover > 0 ? `ยอดยกมา ${carryover.toLocaleString()} บ.` : 'ยอดยกมา';
+        dateRow.push(carryoverLabel, '', '', '', '', '');
+        boldCells.push({ r: curRow, c: 10 });
+      } else {
+        dateRow.push('', '', '', '', '', '');
+      }
+      rows.push(dateRow);
+      isFirstDataRow = false;
+
+      // time row: A=seq, B=ชื่อ (chunk แรก); K=ชม.วันธรรมดา, L=ชม.วันหยุด, M=ยอดบาท batch; P=รวมของ employee (last batch)
+      const chunkWD = Math.floor(chunk.filter(d => !d.isWeekend).reduce((s, d) => s + parseOTHoursHead(d.time), 0));
+      const chunkWE = Math.floor(chunk.filter(d =>  d.isWeekend).reduce((s, d) => s + parseOTHoursHead(d.time), 0));
+      const chunkAmt = Math.round(chunk.reduce((s, d) => {
+        const hrs = parseOTHoursHead(d.time);
+        return s + Math.floor(hrs) * (d.isWeekend ? otRate('holiday') : otRate('weekday'));
+      }, 0));
+      const timeRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
+      if (ci === 0) leftAlignCells.push({ r: curRow + 1, c: 1 });
+      for (let i = 0; i < DATESPR; i++) timeRow.push(chunk[i]?.time ?? '');
+      timeRow.push(chunkWD || '', chunkWE || '', chunkAmt ? chunkAmt.toLocaleString() : '', '', '', isLast ? emp.amount.toLocaleString() : '');
       rows.push(timeRow);
+      timeRowSet.add(curRow + 1);
+      if (isLast) lastTimeRowSet.add(curRow + 1);
+      curRow += 2;
     });
   });
 
-  const sumRow: any[] = ['', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiNumber(grandTotal)}-`];
-  for (let i = 0; i < HEAD_DATES_PER_ROW; i++) sumRow.push('');
+  // ── Sum row ──────────────────────────────────────────────────────────────
+  rows.push([]);
+  const sumRowIdx = curRow + 1;
+  leftAlignCells.push({ r: sumRowIdx, c: 2 });
+  const sumRow: any[] = ['', '', `  รวมเงินจ่ายทั้งสิ้น  (ตัวอักษร)  -${thaiNumber(grandTotal)}-`];
+  for (let i = 0; i < DATESPR - 1; i++) sumRow.push('');
   sumRow.push('รวมเป็นเงิน', '', grandTotal.toLocaleString(), '', '', '');
   rows.push(sumRow);
 
+  // ── Footer (เหมือน deptrep ทุกอย่าง) ────────────────────────────────────
   rows.push([]);
-  rows.push(['ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C - 1)]);
-  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', '', '', '', '', '', '', '', '', '']);
-  rows.push(['', `(${signatoryName})`, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-  rows.push(['ตำแหน่ง', `หัวหน้า${deptName}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+  rows.push(['', 'ขอรับรองว่า  ผู้มีรายชื่อข้างต้นปฏิบัติงานนอกเวลาราชการจริง', ...pad(C - 2)]);
+  rows.push(['ลงชื่อ', '', '', 'ผู้รับรองการปฏิบัติงาน', '', '', '', '', '', 'ลายมือชื่อ', '', '', '', 'ผู้จ่ายเงิน', '', '']);
+  rows.push(['', `(${signatoryName})`, '', '', '', '', '', '', '', '', payerName ? `(${payerName})` : '', '', '', '', '', '']);
+  rows.push(['ตำแหน่ง', `หัวหน้า${deptName}`, '', '', '', '', '', '', '', '         ตำแหน่ง', '', '', '', '', '', '']);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [
@@ -1538,18 +1572,99 @@ function generateHeadXlsx(requests: any[], deptName: string, signatoryName: stri
     { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
     { s: { r: 2, c: 0 }, e: { r: 5, c: 0 } },
     { s: { r: 2, c: 1 }, e: { r: 5, c: 1 } },
-    { s: { r: 2, c: 2 }, e: { r: 2, c: 9 } },
+    { s: { r: 2, c: 2 }, e: { r: 5, c: 9 } },
     { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } },
     { s: { r: 3, c: 10 }, e: { r: 3, c: 11 } },
-    { s: { r: 4, c: 10 }, e: { r: 4, c: 11 } },
-    { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
     { s: { r: 2, c: 12 }, e: { r: 5, c: 12 } },
-    { s: { r: 2, c: 13 }, e: { r: 5, c: 13 } },
-    { s: { r: 2, c: 14 }, e: { r: 5, c: 14 } },
     { s: { r: 2, c: 15 }, e: { r: 5, c: 15 } },
+    { s: { r: 6, c: 10 }, e: { r: 6, c: 11 } },
+    { s: { r: sumRowIdx, c: 2 }, e: { r: sumRowIdx, c: 9 } },
+    { s: { r: sumRowIdx, c: 10 }, e: { r: sumRowIdx, c: 11 } },
+    { s: { r: sumRowIdx + 4, c: 1 }, e: { r: sumRowIdx + 4, c: 2 } },
+    { s: { r: sumRowIdx + 4, c: 10 }, e: { r: sumRowIdx + 4, c: 12 } },
+    { s: { r: sumRowIdx + 5, c: 10 }, e: { r: sumRowIdx + 5, c: 12 } },
   ];
+
+  // ── Cell styling (เหมือน deptrep ทุกอย่าง) ─────────────────────────────
+  const FONT = 'TH Sarabun New';
+  const centerAlign = { horizontal: 'center', vertical: 'center', wrapText: true };
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const isTitle  = r <= 1;
+    const isColHdr = r >= 2 && r <= 5;
+    const isSumRow = r === sumRowIdx;
+    const fontSize = isTitle ? 16 : isColHdr ? 13 : 14;
+    const bold     = isTitle || isColHdr || isSumRow;
+    const font = { name: FONT, sz: fontSize, bold };
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      let border: any = undefined;
+      const thin = { style: 'thin' };
+      if (r >= 2 && r <= 5) {
+        if ((c === 10 || c === 11) && r === 2) border = { top: thin, left: thin, right: thin };
+        else if ((c === 10 || c === 11) && r === 3) border = { bottom: thin, left: thin, right: thin };
+        else if (c === 13 || c === 14) {
+          if (r === 2)      border = { top: thin, left: thin, right: thin };
+          else if (r === 5) border = { bottom: thin, left: thin, right: thin };
+          else              border = { left: thin, right: thin };
+        } else {
+          border = { top: thin, bottom: thin, left: thin, right: thin };
+        }
+      } else if (r >= 6 && r < sumRowIdx - 1) {
+        if (c === 0 || c === 1) {
+          if (r === 6)                   border = { top: thin, left: thin, right: thin };
+          else if (lastTimeRowSet.has(r)) border = { bottom: thin, left: thin, right: thin };
+          else                           border = { left: thin, right: thin };
+        } else {
+          border = { top: thin, bottom: thin, left: thin, right: thin };
+        }
+      } else if (r === sumRowIdx - 1) {
+        if (c === 10)      border = { top: thin, left: thin };
+        else if (c === 11) border = { top: thin, right: thin };
+        else if (c === 12) border = { top: thin, left: thin, right: thin };
+      } else if (r === sumRowIdx) {
+        if (c === 10)      border = { bottom: thin, left: thin };
+        else if (c === 11) border = { bottom: thin, right: thin };
+        else if (c === 12) border = { bottom: thin, left: thin, right: thin };
+      }
+      const s = { font, alignment: centerAlign, ...(border ? { border } : {}) };
+      if (ws[addr]) ws[addr].s = { ...ws[addr].s, ...s };
+      else ws[addr] = { v: '', t: 's', s };
+    }
+  }
+  holidayCells.forEach(({ r, c }) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (ws[addr]) ws[addr].s = { ...ws[addr].s, font: { name: FONT, sz: 14, color: { rgb: 'FF0000' } }, alignment: centerAlign };
+    else ws[addr] = { v: '', t: 's', s: { font: { name: FONT, sz: 14, color: { rgb: 'FF0000' } }, alignment: centerAlign } };
+  });
+  const leftAlign = { horizontal: 'left', vertical: 'center', wrapText: true };
+  leftAlignCells.forEach(({ r, c }) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    const font = { name: FONT, sz: 14, bold: r === sumRowIdx };
+    if (ws[addr]) ws[addr].s = { ...ws[addr].s, font, alignment: leftAlign };
+    else ws[addr] = { v: '', t: 's', s: { font, alignment: leftAlign } };
+  });
+  boldCells.forEach(({ r, c }) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (ws[addr]) ws[addr].s = { ...ws[addr].s, font: { name: FONT, sz: 14, bold: true }, alignment: centerAlign };
+    else ws[addr] = { v: '', t: 's', s: { font: { name: FONT, sz: 14, bold: true }, alignment: centerAlign } };
+  });
+  // เส้นลายเซ็น
+  const hairBottom = { bottom: { style: 'hair' } };
+  const hairTop    = { top:    { style: 'hair' } };
+  [[sumRowIdx+3,1],[sumRowIdx+3,2],[sumRowIdx+3,10],[sumRowIdx+3,11],[sumRowIdx+3,12]].forEach(([r,c])=>{
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (!ws[addr]) ws[addr] = { v: '', t: 's', s: { font: { name: FONT }, alignment: centerAlign } };
+    ws[addr].s = { ...ws[addr].s, border: hairBottom };
+  });
+  [[sumRowIdx+4,1],[sumRowIdx+4,2],[sumRowIdx+4,10],[sumRowIdx+4,11],[sumRowIdx+4,12]].forEach(([r,c])=>{
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (!ws[addr]) ws[addr] = { v: '', t: 's', s: { font: { name: FONT }, alignment: centerAlign } };
+    ws[addr].s = { ...ws[addr].s, border: hairTop };
+  });
+
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
-  downloadXlsx(wb, `OT-${deptName}-${month}.xlsx`);
+  downloadXlsx(wb, `หลักฐานเบิกจ่าย OT-${deptName}-${month}.xlsx`);
 }
 
 const HEAD_REPORT_PERIODS = [
@@ -1572,13 +1687,14 @@ export function HeadReport() {
   const [showExportDlg, setShowExportDlg] = useState(false);
   const [carryover, setCarryover]         = useState(0);
   const [signatoryName, setSignatoryName] = useState('');
+  const [payerName, setPayerName]         = useState('');
   // Period filter state
-  const [period, setPeriod]       = useState('month');
-  const [thaiYear, setThaiYear]   = useState(String(curThaiYear));
-  const [thaiMonth, setThaiMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
+  const [period, setPeriod]       = useState(() => localStorage.getItem('head_report_period') || 'month');
+  const [thaiYear, setThaiYear]   = useState(() => localStorage.getItem('head_report_thai_year') || String(curThaiYear));
+  const [thaiMonth, setThaiMonth] = useState(() => localStorage.getItem('head_report_month') || String(now.getMonth() + 1).padStart(2, '0'));
   const _m = now.getMonth() + 1;
   const curQuarter = _m >= 10 ? '1' : _m <= 3 ? '2' : _m <= 6 ? '3' : '4';
-  const [quarter, setQuarter]     = useState(curQuarter);
+  const [quarter, setQuarter]     = useState(() => localStorage.getItem('head_report_quarter') || curQuarter);
 
   const token = () => localStorage.getItem('access_token');
   const h = { 'Authorization': `Bearer ${token()}` };
@@ -1627,6 +1743,14 @@ export function HeadReport() {
 
   const filtered = requests.filter(r => inRange(r.work_date));
 
+  // label เดือน/ช่วงเวลาสำหรับ Excel export
+  const exportMonthLabel = (() => {
+    if (period === 'month') return `${HEAD_REPORT_MONTHS[parseInt(thaiMonth) - 1]} ${thaiYear}`;
+    if (period === 'quarter') return `ไตรมาส ${quarter} ปีงบ ${thaiYear}`;
+    if (period === 'half') return `ครึ่งปีที่ ${quarter} ปีงบ ${thaiYear}`;
+    return `ปีงบประมาณ ${thaiYear}`;
+  })();
+
   const byStaff: Record<string, { name: string; hours: number; amount: number }> = {};
   for (const r of filtered) {
     const k = r.staff_name || String(r.staff);
@@ -1653,26 +1777,26 @@ export function HeadReport() {
         right={
           <div className="flex flex-wrap items-center gap-2">
             {/* Period filter */}
-            <Select value={period} onValueChange={setPeriod}>
+            <Select value={period} onValueChange={v => { localStorage.setItem('head_report_period', v); setPeriod(v); }}>
               <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
               <SelectContent>{HEAD_REPORT_PERIODS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
             </Select>
             <Input
               type="number"
               value={thaiYear}
-              onChange={e => setThaiYear(e.target.value)}
+              onChange={e => { localStorage.setItem('head_report_thai_year', e.target.value); setThaiYear(e.target.value); }}
               className="w-[90px] text-center"
               min={2560}
               max={2599}
             />
             {period === 'month' && (
-              <Select value={thaiMonth} onValueChange={setThaiMonth}>
+              <Select value={thaiMonth} onValueChange={v => { localStorage.setItem('head_report_month', v); setThaiMonth(v); }}>
                 <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
                 <SelectContent>{HEAD_REPORT_MONTHS.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
               </Select>
             )}
             {(period === 'quarter' || period === 'half') && (
-              <Select value={quarter} onValueChange={setQuarter}>
+              <Select value={quarter} onValueChange={v => { localStorage.setItem('head_report_quarter', v); setQuarter(v); }}>
                 <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {period === 'quarter'
@@ -1748,17 +1872,22 @@ export function HeadReport() {
           <DialogHeader><DialogTitle>ตั้งค่าก่อน Export Excel</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <label className="text-[13px] font-medium block mb-1">ยอดยกมาจากเดือนที่แล้ว (บาท)</label>
-              <Input type="number" min={0} value={carryover || ''} onChange={e => setCarryover(parseFloat(e.target.value) || 0)} placeholder="0 (ถ้าไม่มีให้เว้นว่าง)" />
+              <label className="text-[13px] font-medium block mb-1">ยอดค้างจ่าย OT จากเดือนก่อน (บาท)</label>
+              <p className="text-[11px] text-[var(--neutral-500)] mb-1">กรณีมีเงิน OT ค้างจ่ายจากเดือนก่อนที่ยังไม่ได้รับ ให้กรอกเพื่อรวมในรายงาน ถ้าไม่มีให้เว้นว่าง</p>
+              <Input type="number" min={0} value={carryover || ''} onChange={e => setCarryover(parseFloat(e.target.value) || 0)} placeholder="0" />
             </div>
             <div>
               <label className="text-[13px] font-medium block mb-1">ชื่อผู้รับรองการปฏิบัติงาน</label>
               <Input value={signatoryName} onChange={e => setSignatoryName(e.target.value)} placeholder="ชื่อ-สกุล หัวหน้า" />
             </div>
+            <div>
+              <label className="text-[13px] font-medium block mb-1">ชื่อผู้จ่ายเงิน <span className="text-[var(--neutral-400)] font-normal">(ถ้ามี)</span></label>
+              <Input value={payerName} onChange={e => setPayerName(e.target.value)} placeholder="ชื่อ-สกุล ผู้จ่ายเงิน" />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowExportDlg(false)}>ยกเลิก</Button>
-            <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={() => { generateHeadXlsx(filtered, deptName, signatoryName || headName, carryover); setShowExportDlg(false); }}>
+            <Button className="bg-tu-red hover:bg-tu-red-dark text-white" onClick={() => { generateHeadXlsx(filtered, deptName, signatoryName || headName, carryover, exportMonthLabel, payerName); setShowExportDlg(false); }}>
               <Download className="size-4 mr-1" />Export
             </Button>
           </DialogFooter>

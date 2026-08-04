@@ -180,10 +180,10 @@ export function ExecDashboard() {
   const _curMon = _sd.month;
   const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
 
-  const [period,      setPeriod]      = useState<PeriodKey>('month');
-  const [thaiYear,    setThaiYear]    = useState(String(_curThaiYear));
-  const [selMonth,    setSelMonth]    = useState(String(_curMon).padStart(2, '0'));
-  const [selQuarter,  setSelQuarter]  = useState(_curQ);
+  const [period,      setPeriod]      = useState<PeriodKey>(() => (localStorage.getItem('exec_dashboard_period') as PeriodKey) || 'month');
+  const [thaiYear,    setThaiYear]    = useState(() => localStorage.getItem('exec_dashboard_thai_year') || String(_curThaiYear));
+  const [selMonth,    setSelMonth]    = useState(() => localStorage.getItem('exec_dashboard_month') || String(_curMon).padStart(2, '0'));
+  const [selQuarter,  setSelQuarter]  = useState(() => localStorage.getItem('exec_dashboard_quarter') || _curQ);
 
   const [reqs,     setReqs]     = useState<OTReq[]>([]);
   const [prevReqs, setPrevReqs] = useState<OTReq[]>([]);
@@ -252,7 +252,7 @@ export function ExecDashboard() {
       <PageHeader title="Executive Dashboard" right={
         <div className="flex items-center gap-3 flex-wrap justify-end">
           {/* Period selector */}
-          <Select value={period} onValueChange={v => { setPeriod(v as PeriodKey); if (v === 'half') setSelQuarter('1'); }}>
+          <Select value={period} onValueChange={v => { localStorage.setItem('exec_dashboard_period', v); setPeriod(v as PeriodKey); if (v === 'half') setSelQuarter('1'); }}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>{DASH_PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -260,13 +260,13 @@ export function ExecDashboard() {
           {/* Year */}
           <input
             type="number" value={thaiYear} min={2560} max={2599}
-            onChange={e => setThaiYear(e.target.value)}
+            onChange={e => { localStorage.setItem('exec_dashboard_thai_year', e.target.value); setThaiYear(e.target.value); }}
             className="w-[88px] h-9 text-center rounded-md border border-input bg-background px-3 text-sm"
           />
 
           {/* Month (month mode) */}
           {period === 'month' && (
-            <Select value={selMonth} onValueChange={setSelMonth}>
+            <Select value={selMonth} onValueChange={v => { localStorage.setItem('exec_dashboard_month', v); setSelMonth(v); }}>
               <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
               <SelectContent>{THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
             </Select>
@@ -274,7 +274,7 @@ export function ExecDashboard() {
 
           {/* Quarter (quarter mode) */}
           {period === 'quarter' && (
-            <Select value={selQuarter} onValueChange={setSelQuarter}>
+            <Select value={selQuarter} onValueChange={v => { localStorage.setItem('exec_dashboard_quarter', v); setSelQuarter(v); }}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>{['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)}</SelectContent>
             </Select>
@@ -282,7 +282,7 @@ export function ExecDashboard() {
 
           {/* Half (half mode) */}
           {period === 'half' && (
-            <Select value={selQuarter} onValueChange={setSelQuarter}>
+            <Select value={selQuarter} onValueChange={v => { localStorage.setItem('exec_dashboard_quarter', v); setSelQuarter(v); }}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="1">ครึ่งแรก (ต.ค.–มี.ค.)</SelectItem>
@@ -481,10 +481,10 @@ export function ExecTrend() {
   const _curMon = _sd2.month;
   const _curQ   = _curMon >= 10 ? '1' : _curMon <= 3 ? '2' : _curMon <= 6 ? '3' : '4';
 
-  const [period,     setPeriod]     = useState<PeriodKey>('year');
-  const [thaiYear,   setThaiYear]   = useState(String(_curThaiYear));
-  const [selMonth,   setSelMonth]   = useState(String(_curMon).padStart(2, '0'));
-  const [selQuarter, setSelQuarter] = useState(_curQ);
+  const [period,     setPeriod]     = useState<PeriodKey>(() => (localStorage.getItem('exec_trend_period') as PeriodKey) || 'year');
+  const [thaiYear,   setThaiYear]   = useState(() => localStorage.getItem('exec_trend_thai_year') || String(_curThaiYear));
+  const [selMonth,   setSelMonth]   = useState(() => localStorage.getItem('exec_trend_month') || String(_curMon).padStart(2, '0'));
+  const [selQuarter, setSelQuarter] = useState(() => localStorage.getItem('exec_trend_quarter') || _curQ);
 
   const [trendData, setTrendData] = useState<any[]>([]);
   const [deptNames, setDeptNames] = useState<string[]>([]);
@@ -558,33 +558,33 @@ export function ExecTrend() {
     <>
       <PageHeader title="วิเคราะห์แนวโน้ม OT" right={
         <div className="flex items-center gap-3 flex-wrap justify-end">
-          <Select value={period} onValueChange={v => { setPeriod(v as PeriodKey); if (v === 'half') setSelQuarter('1'); }}>
+          <Select value={period} onValueChange={v => { localStorage.setItem('exec_trend_period', v); setPeriod(v as PeriodKey); if (v === 'half') setSelQuarter('1'); }}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>{DASH_PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
 
           <input
             type="number" value={thaiYear} min={2560} max={2599}
-            onChange={e => setThaiYear(e.target.value)}
+            onChange={e => { localStorage.setItem('exec_trend_thai_year', e.target.value); setThaiYear(e.target.value); }}
             className="w-[88px] h-9 text-center rounded-md border border-input bg-background px-3 text-sm"
           />
 
           {period === 'month' && (
-            <Select value={selMonth} onValueChange={setSelMonth}>
+            <Select value={selMonth} onValueChange={v => { localStorage.setItem('exec_trend_month', v); setSelMonth(v); }}>
               <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
               <SelectContent>{THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i} value={String(i+1).padStart(2,'0')}>{m}</SelectItem>)}</SelectContent>
             </Select>
           )}
 
           {period === 'quarter' && (
-            <Select value={selQuarter} onValueChange={setSelQuarter}>
+            <Select value={selQuarter} onValueChange={v => { localStorage.setItem('exec_trend_quarter', v); setSelQuarter(v); }}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>{['1','2','3','4'].map(q => <SelectItem key={q} value={q}>ไตรมาส {q}</SelectItem>)}</SelectContent>
             </Select>
           )}
 
           {period === 'half' && (
-            <Select value={selQuarter} onValueChange={setSelQuarter}>
+            <Select value={selQuarter} onValueChange={v => { localStorage.setItem('exec_trend_quarter', v); setSelQuarter(v); }}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="1">ครึ่งแรก (ต.ค.–มี.ค.)</SelectItem>

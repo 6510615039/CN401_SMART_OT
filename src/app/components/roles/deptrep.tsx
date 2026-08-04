@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { smartDefaultDate } from '../../utils/smartDefault';
 import { otRate } from '../../constants/otRate';
 import * as XLSX from 'xlsx-js-style';
@@ -165,8 +165,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
       isFirstDataRow = false;
 
       // คำนวณชั่วโมงเฉพาะ batch นี้ (แยก weekday / holiday)
-      const chunkWD = Math.round(chunk.filter(d => !d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0) * 10) / 10;
-      const chunkWE = Math.round(chunk.filter(d =>  d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0) * 10) / 10;
+      const chunkWD = Math.floor(chunk.filter(d => !d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0));
+      const chunkWE = Math.floor(chunk.filter(d =>  d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0));
 
       // time row: A=seq, B=ชื่อ (เฉพาะ chunk แรก), K/L แสดงชั่วโมงของ batch นี้
       const timeRow: any[] = [ci === 0 ? emp.seq : '', ci === 0 ? emp.name : ''];
@@ -361,57 +361,96 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
 // ── Excel Preview ────────────────────────────────────────────────────────────
 function ExcelPreview({ employees, month, deptName }: { employees: OTEmployee[]; month: string; deptName: string }) {
   const total = employees.reduce((s, e) => s + e.amount, 0);
-  const th = 'border border-gray-400 px-1 py-0.5 text-center bg-gray-100 text-[11px] font-semibold';
-  const td = 'border border-gray-400 px-1 py-0.5 text-[11px]';
+  const th  = 'border border-gray-400 px-1 py-0.5 text-center bg-gray-100 text-[11px] font-semibold';
+  const td  = 'border border-gray-400 px-1 py-0.5 text-[11px]';
   const tdC = td + ' text-center';
+
+  // build flat list of {dateRow, timeRow} per chunk — mirrors generateXlsx exactly
+  type ChunkRow = {
+    empSeq: number; empName: string; isFirstChunk: boolean; isLastChunk: boolean;
+    dates: (string|undefined)[]; times: (string|undefined)[]; isWeekends: boolean[];
+    chunkWD: number; chunkWE: number; chunkAmt: number; empTotal: number;
+    isFirstDataRow: boolean;
+  };
+  const chunkRows: ChunkRow[] = [];
+  employees.forEach(emp => {
+    const chunks: OTDay[][] = [];
+    for (let i = 0; i < emp.days.length; i += DATES_PER_ROW) chunks.push(emp.days.slice(i, i + DATES_PER_ROW));
+    if (chunks.length === 0) chunks.push([]);
+    chunks.forEach((chunk, ci) => {
+      const chunkWD  = Math.floor(chunk.filter(d => !d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0));
+      const chunkWE  = Math.floor(chunk.filter(d =>  d.isWeekend).reduce((s, d) => s + parseOTHours(d.time), 0));
+      const chunkAmt = Math.round(chunk.reduce((s, d) => s + Math.floor(parseOTHours(d.time)) * (d.isWeekend ? otRate('holiday') : otRate('weekday')), 0));
+      chunkRows.push({
+        empSeq: emp.seq, empName: emp.name,
+        isFirstChunk: ci === 0, isLastChunk: ci === chunks.length - 1,
+        dates:     Array.from({length: DATES_PER_ROW}, (_, i) => chunk[i]?.date),
+        times:     Array.from({length: DATES_PER_ROW}, (_, i) => chunk[i]?.time),
+        isWeekends:Array.from({length: DATES_PER_ROW}, (_, i) => !!chunk[i]?.isWeekend),
+        chunkWD, chunkWE, chunkAmt, empTotal: emp.amount,
+        isFirstDataRow: chunkRows.length === 0,
+      });
+    });
+  });
+
   return (
-    <div className="overflow-auto rounded-lg border border-[var(--neutral-300)] bg-white shadow-inner">
-      <div style={{ minWidth: 1100, fontFamily: 'Sarabun, sans-serif', fontSize: 12 }} className="p-4">
+    <div className="overflow-auto rounded-lg border border-[var(--neutral-300)] bg-white shadow-inner" style={{maxHeight: '60vh'}}>
+      <div style={{ minWidth: 1200, fontFamily: 'Sarabun, sans-serif', fontSize: 12 }} className="p-4">
         <div className="text-center font-semibold mb-0.5" style={{ fontSize: 13 }}>หลักฐานการเบิกจ่ายเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ</div>
         <div className="text-center mb-3" style={{ fontSize: 12 }}>{deptName}&nbsp;&nbsp;ประจำเดือน {month}</div>
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className={th} rowSpan={2} style={{width:36}}>ลำดับที่</th>
-              <th className={th} rowSpan={2} style={{width:180}}>ชื่อ-สกุล</th>
+              <th className={th} rowSpan={2} style={{width:32}}>ลำดับที่</th>
+              <th className={th} rowSpan={2} style={{width:160}}>ชื่อ-สกุล</th>
               <th className={th} colSpan={DATES_PER_ROW}>วันปฏิบัติงานนอกเวลาราชการ</th>
-              <th className={th} colSpan={2}>รวมเวลา<br/>ปฏิบัติงาน</th>
-              <th className={th} rowSpan={2} style={{width:70}}>จำนวนเงิน</th>
-              <th className={th} rowSpan={2} style={{width:60}}>ว.ด.ป.<br/>ที่รับเงิน</th>
-              <th className={th} rowSpan={2} style={{width:90}}>ลายมือชื่อ<br/>ผู้รับเงิน</th>
-              <th className={th} rowSpan={2} style={{width:70}}>หมายเหตุ</th>
+              <th className={th} style={{width:48}}>วันปกติ<br/>(ชม.)</th>
+              <th className={th} style={{width:48}}>วันหยุด<br/>(ชม.)</th>
+              <th className={th} rowSpan={2} style={{width:68}}>จำนวนเงิน</th>
+              <th className={th} rowSpan={2} style={{width:56}}>ว.ด.ป.<br/>ที่รับเงิน</th>
+              <th className={th} rowSpan={2} style={{width:80}}>ลายมือชื่อ<br/>ผู้รับเงิน</th>
+              <th className={th} rowSpan={2} style={{width:60}}>หมายเหตุ</th>
             </tr>
             <tr>
-              {Array.from({length:DATES_PER_ROW},(_,i)=><th key={i} className={th} style={{width:90}}>วันที่ {i+1}</th>)}
-              <th className={th} style={{width:55}}>วันปกติ<br/>(ชั่วโมง)</th>
-              <th className={th} style={{width:55}}>วันหยุด<br/>(ชั่วโมง)</th>
+              {Array.from({length:DATES_PER_ROW},(_,i)=><th key={i} className={th} style={{width:86}}>วันที่ {i+1}</th>)}
+              <th className={th}>รวม<br/>ปกติ</th>
+              <th className={th}>รวม<br/>หยุด</th>
             </tr>
           </thead>
           <tbody>
-            {employees.map(emp => (
-              <>
-                <tr key={`d-${emp.seq}`}>
-                  <td className={tdC} rowSpan={2}>{emp.seq}</td>
-                  <td className={td} rowSpan={2}>{emp.name}</td>
-                  {Array.from({length:DATES_PER_ROW},(_,i)=>(
-                    <td key={i} className={tdC} style={{color:emp.days[i]?.isWeekend?'#B8001F':undefined}}>{emp.days[i]?.date??''}</td>
+            {chunkRows.map((cr, idx) => (
+              <Fragment key={idx}>
+                {/* date row — A,B ว่าง; K = "ยอดยกมา" เฉพาะ first data row */}
+                <tr>
+                  <td className={tdC}></td>
+                  <td className={tdC}></td>
+                  {cr.dates.map((d, i) => (
+                    <td key={i} className={tdC} style={{color: cr.isWeekends[i] ? '#B8001F' : undefined}}>{d ?? ''}</td>
                   ))}
-                  <td className={tdC} rowSpan={2}>{emp.weekdayHrs||''}</td>
-                  <td className={tdC} rowSpan={2}>{emp.weekendHrs||''}</td>
-                  <td className={tdC} rowSpan={2}>{emp.amount.toLocaleString()}</td>
-                  <td className={tdC} rowSpan={2}></td><td className={tdC} rowSpan={2}></td><td className={tdC} rowSpan={2}>{emp.note}</td>
+                  <td className={tdC + ' font-semibold text-[10px]'} colSpan={2}>{cr.isFirstDataRow ? 'ยอดยกมา' : ''}</td>
+                  <td className={tdC}></td><td className={tdC}></td><td className={tdC}></td><td className={tdC}></td>
                 </tr>
-                <tr key={`t-${emp.seq}`}>
-                  {Array.from({length:DATES_PER_ROW},(_,i)=>(
-                    <td key={i} className={tdC} style={{color:emp.days[i]?.isWeekend?'#B8001F':undefined}}>{emp.days[i]?.time??''}</td>
+                {/* time row — A=seq (first chunk), B=name (first chunk); K=chunkWD, L=chunkWE, M=chunkAmt, P=empTotal (last chunk) */}
+                <tr>
+                  <td className={tdC}>{cr.isFirstChunk ? cr.empSeq : ''}</td>
+                  <td className={td}>{cr.isFirstChunk ? cr.empName : ''}</td>
+                  {cr.times.map((t, i) => (
+                    <td key={i} className={tdC} style={{color: cr.isWeekends[i] ? '#B8001F' : undefined}}>{t ?? ''}</td>
                   ))}
+                  <td className={tdC}>{cr.chunkWD || ''}</td>
+                  <td className={tdC}>{cr.chunkWE || ''}</td>
+                  <td className={tdC}>{cr.chunkAmt ? cr.chunkAmt.toLocaleString() : ''}</td>
+                  <td className={tdC}></td>
+                  <td className={tdC}></td>
+                  <td className={tdC}>{cr.isLastChunk ? cr.empTotal.toLocaleString() : ''}</td>
                 </tr>
-              </>
+              </Fragment>
             ))}
+            <tr><td colSpan={DATES_PER_ROW + 10}></td></tr>
             <tr>
-              <td className={td} colSpan={DATES_PER_ROW+2+1}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร) &nbsp;-{thaiAmountText(total)}-</td>
+              <td className={td} colSpan={DATES_PER_ROW + 2}>&nbsp;&nbsp;&nbsp;รวมเงินจ่ายทั้งสิ้น (ตัวอักษร) &nbsp;-{thaiAmountText(total)}-</td>
               <td className={th} colSpan={2}>รวมเป็นเงิน</td>
-              <td className={tdC+' font-semibold'}>{total.toLocaleString()}</td>
+              <td className={tdC + ' font-semibold'}>{total.toLocaleString()}</td>
               <td className={td}></td><td className={td}></td><td className={td}></td>
             </tr>
           </tbody>
@@ -438,10 +477,14 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
       fetch(`/api/ot-requests/?status_in=rep_forwarded,checker_approved,checker_rejected,completed&month=${monthParam}`, { headers: h }).then(r => r.json()),
       fetch('/api/notifications/', { headers: h }).then(r => r.json()),
     ]).then(([p, f, notifs]) => {
-      setPending(Array.isArray(p) ? p : (p.results || []));
+      const pendingList = Array.isArray(p) ? p : (p.results || []);
+      setPending(pendingList);
       setHistory(Array.isArray(f) ? f : (f.results || []));
       const notifList: any[] = Array.isArray(notifs) ? notifs : (notifs.results || []);
-      setHeadNotified(notifList.some((n: any) => n.notif_type === 'ot_rep_action_needed'));
+      const pendingMonthSet = new Set(pendingList.map((r: any) => (r.work_date || '').substring(0, 7)).filter(Boolean));
+      setHeadNotified(notifList.some((n: any) =>
+        n.notif_type === 'ot_rep_action_needed' && pendingMonthSet.has(n.month)
+      ));
     }).finally(() => setLoading(false));
   }, []);
 
@@ -477,7 +520,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
           ) : (
             <div className="flex items-center gap-2 my-2">
               <Bell className="size-6 text-[var(--neutral-400)] shrink-0" />
-              <p className="text-[15px] font-medium text-[var(--neutral-500)] leading-tight">รอหัวหน้างานกดแจ้ง</p>
+              <p className="text-[15px] font-medium text-[var(--neutral-500)] leading-tight">รอหัวหน้างานแจ้งว่าพร้อมส่งออก</p>
             </div>
           )}
           <Button size="sm" onClick={goExport} disabled={pending.length === 0}
@@ -504,7 +547,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
               <h2>{pendingMonths.size} เดือน พร้อมส่งออก</h2>
               {headNotified
                 ? <StatusChip kind="success">หัวหน้าแจ้งแล้ว ✓</StatusChip>
-                : <StatusChip kind="warning">รอหัวหน้าแจ้ง</StatusChip>}
+                : <StatusChip kind="warning">รอหัวหน้างานแจ้งว่าพร้อมส่งออก</StatusChip>}
             </div>
             <p className="text-[var(--neutral-500)]">รวมยอด {totalAmt.toLocaleString()} บาท • ผ่านการอนุมัติจากหัวหน้างานแล้วทั้งหมด</p>
           </div>
@@ -550,9 +593,15 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
     if (stored) { sessionStorage.removeItem('notif_nav_month'); return stored; }
     return null;
   })();
-  const [selThaiYear, setSelThaiYear] = useState(_initMonth ? String(parseInt(_initMonth.split('-')[0]) + 543) : String(_sd0.year + 543));
-  const [selMonth,    setSelMonth]    = useState(_initMonth ? String(parseInt(_initMonth.split('-')[1])) : String(_sd0.month));
-  const [autoDetecting, setAutoDetecting] = useState(!_initMonth);
+  const [selThaiYear, setSelThaiYear] = useState(() => {
+    if (_initMonth) return String(parseInt(_initMonth.split('-')[0]) + 543);
+    return localStorage.getItem('deptrep_export_thai_year') || String(_sd0.year + 543);
+  });
+  const [selMonth, setSelMonth] = useState(() => {
+    if (_initMonth) return String(parseInt(_initMonth.split('-')[1]));
+    return localStorage.getItem('deptrep_export_month') || String(_sd0.month);
+  });
+  const [autoDetecting, setAutoDetecting] = useState(!_initMonth && !localStorage.getItem('deptrep_export_month'));
   // month param ที่ส่ง API (Gregorian YYYY-MM)
   const gregYear = parseInt(selThaiYear) - 543;
   const month = `${gregYear}-${selMonth.padStart(2, '0')}`;
@@ -597,8 +646,12 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
     ).then(results => {
       const found = results.find(r => r.count > 0);
       if (found) {
-        setSelThaiYear(String(found.c.year + 543));
-        setSelMonth(String(found.c.mon));
+        const ty = String(found.c.year + 543);
+        const mo = String(found.c.mon);
+        localStorage.setItem('deptrep_export_thai_year', ty);
+        localStorage.setItem('deptrep_export_month', mo);
+        setSelThaiYear(ty);
+        setSelMonth(mo);
       }
       setAutoDetecting(false);
     });
@@ -665,7 +718,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
         <div className="flex items-end gap-3 mb-5">
           <div>
             <label className="text-[12px] text-[var(--neutral-500)] mb-1 block">เดือน</label>
-            <Select value={selMonth} onValueChange={v => { setSelMonth(v); }} disabled={autoDetecting}>
+            <Select value={selMonth} onValueChange={v => { localStorage.setItem('deptrep_export_month', v); setSelMonth(v); }} disabled={autoDetecting}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder={autoDetecting ? 'กำลังค้นหา...' : undefined} />
               </SelectTrigger>
@@ -678,7 +731,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <label className="text-[12px] text-[var(--neutral-500)] mb-1 block">ปี (พ.ศ.)</label>
-            <Select value={selThaiYear} onValueChange={v => { setSelThaiYear(v); }} disabled={autoDetecting}>
+            <Select value={selThaiYear} onValueChange={v => { localStorage.setItem('deptrep_export_thai_year', v); setSelThaiYear(v); }} disabled={autoDetecting}>
               <SelectTrigger className="w-[110px]">
                 <SelectValue />
               </SelectTrigger>
@@ -695,7 +748,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
           </Button>
           {headNotified
             ? <StatusChip kind="success">✅ หัวหน้าแจ้งพร้อมส่งออกแล้ว</StatusChip>
-            : <StatusChip kind="neutral">⏳ รอหัวหน้างานแจ้ง</StatusChip>}
+            : <StatusChip kind="neutral">⏳ รอหัวหน้างานแจ้งว่าพร้อมส่งออก</StatusChip>}
         </div>
 
         {(loading || autoDetecting) ? (

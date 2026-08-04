@@ -118,13 +118,19 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
     if (stored) {
       sessionStorage.removeItem('notif_nav_month');
       const d = new Date(stored + '-01');
-      return { year: d.getFullYear() + 543, month: d.getMonth() + 1 };
+      return { year: d.getFullYear() + 543, month: d.getMonth() + 1, fromNotif: true };
     }
     const sd = smartDefaultDate();
-    return { year: sd.year + 543, month: sd.month };
+    return { year: sd.year + 543, month: sd.month, fromNotif: false };
   })();
-  const [thaiYear, setThaiYear] = useState(String(_initDate.year));
-  const [selMonth, setSelMonth] = useState(_initDate.month);
+  const [thaiYear, setThaiYear] = useState(() => {
+    if (_initDate.fromNotif) return String(_initDate.year);
+    return localStorage.getItem('checker_dashboard_thai_year') || String(_initDate.year);
+  });
+  const [selMonth, setSelMonth] = useState(() => {
+    if (_initDate.fromNotif) return _initDate.month;
+    return Number(localStorage.getItem('checker_dashboard_month') || _initDate.month);
+  });
 
   // รองรับทั้ง mount ครั้งแรก และกรณีอยู่หน้านี้อยู่แล้วแล้วกด notification
   useEffect(() => {
@@ -134,8 +140,12 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
         sessionStorage.removeItem('notif_nav_month');
         const d = new Date(stored + '-01');
         if (!isNaN(d.getTime())) {
-          setThaiYear(String(d.getFullYear() + 543));
-          setSelMonth(d.getMonth() + 1);
+          const ty = String(d.getFullYear() + 543);
+          const mo = d.getMonth() + 1;
+          localStorage.setItem('checker_dashboard_thai_year', ty);
+          localStorage.setItem('checker_dashboard_month', String(mo));
+          setThaiYear(ty);
+          setSelMonth(mo);
         }
       }
     };
@@ -247,12 +257,12 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
           <Input
             type="number"
             value={thaiYear}
-            onChange={e => setThaiYear(e.target.value)}
+            onChange={e => { localStorage.setItem('checker_dashboard_thai_year', e.target.value); setThaiYear(e.target.value); }}
             className="w-[90px] text-center"
             min={2560}
             max={2599}
           />
-          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+          <Select value={String(selMonth)} onValueChange={v => { localStorage.setItem('checker_dashboard_month', v); setSelMonth(Number(v)); }}>
             <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
           </Select>
@@ -604,8 +614,8 @@ export function CheckerOTDetail({ onBack, name, dept }: { onBack: () => void; na
 
 export function CheckerHistory() {
   const _now = new Date();
-  const [thaiYear, setThaiYear] = useState(String(_now.getFullYear() + 543));
-  const [selMonth, setSelMonth] = useState<number | 'all'>('all');
+  const [thaiYear, setThaiYear] = useState(() => localStorage.getItem('checker_history_thai_year') || String(_now.getFullYear() + 543));
+  const [selMonth, setSelMonth] = useState<number | 'all'>(() => { const s = localStorage.getItem('checker_history_month'); return s ? (s === 'all' ? 'all' : Number(s)) : 'all'; });
   const [requests, setRequests] = useState<OTReq[]>([]);
   const [loading, setLoading] = useState(true);
   const token = () => localStorage.getItem('access_token');
@@ -653,9 +663,9 @@ export function CheckerHistory() {
     <>
       <PageHeader title="ประวัติการตรวจสอบ" subtitle={`${batches.length} ชุดเอกสาร`} right={
         <div className="flex items-center gap-2">
-          <Input type="number" value={thaiYear} onChange={e => setThaiYear(e.target.value)}
+          <Input type="number" value={thaiYear} onChange={e => { localStorage.setItem('checker_history_thai_year', e.target.value); setThaiYear(e.target.value); }}
             className="w-[90px] text-center" min={2560} max={2599} />
-          <Select value={String(selMonth)} onValueChange={v => setSelMonth(v === 'all' ? 'all' : Number(v))}>
+          <Select value={String(selMonth)} onValueChange={v => { localStorage.setItem('checker_history_month', v); setSelMonth(v === 'all' ? 'all' : Number(v)); }}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">แสดงทั้งหมด</SelectItem>
@@ -725,8 +735,8 @@ export function CheckerBudget() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const _sdBudget = smartDefaultDate();
-  const [thaiYear, setThaiYear] = useState(String(_sdBudget.year + 543));
-  const [selMonth, setSelMonth] = useState(_sdBudget.month);
+  const [thaiYear, setThaiYear] = useState(() => localStorage.getItem('checker_budget_thai_year') || String(_sdBudget.year + 543));
+  const [selMonth, setSelMonth] = useState(() => Number(localStorage.getItem('checker_budget_month') || _sdBudget.month));
 
   useEffect(() => {
     setLoading(true);
@@ -759,12 +769,12 @@ export function CheckerBudget() {
           <Input
             type="number"
             value={thaiYear}
-            onChange={e => setThaiYear(e.target.value)}
+            onChange={e => { localStorage.setItem('checker_budget_thai_year', e.target.value); setThaiYear(e.target.value); }}
             className="w-[90px] text-center"
             min={2560}
             max={2599}
           />
-          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+          <Select value={String(selMonth)} onValueChange={v => { localStorage.setItem('checker_budget_month', v); setSelMonth(Number(v)); }}>
             <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
           </Select>
@@ -1015,8 +1025,8 @@ export function CheckerSetBudget() {
   const h = () => ({ 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' });
   const _sdCB = smartDefaultDate();
 
-  const [thaiYear, setThaiYear] = useState(String(_sdCB.year + 543));
-  const [selMonth, setSelMonth] = useState(_sdCB.month);
+  const [thaiYear, setThaiYear] = useState(() => localStorage.getItem('checker_setbudget_thai_year') || String(_sdCB.year + 543));
+  const [selMonth, setSelMonth] = useState(() => Number(localStorage.getItem('checker_setbudget_month') || _sdCB.month));
   const [depts, setDepts]       = useState<any[]>([]);
   const [budgets, setBudgets]   = useState<Record<number, string>>({});
   const [usedMap, setUsedMap]   = useState<Record<number, number>>({});
@@ -1075,12 +1085,12 @@ export function CheckerSetBudget() {
           <Input
             type="number"
             value={thaiYear}
-            onChange={e => setThaiYear(e.target.value)}
+            onChange={e => { localStorage.setItem('checker_setbudget_thai_year', e.target.value); setThaiYear(e.target.value); }}
             className="w-[90px] text-center"
             min={2560}
             max={2599}
           />
-          <Select value={String(selMonth)} onValueChange={v => setSelMonth(Number(v))}>
+          <Select value={String(selMonth)} onValueChange={v => { localStorage.setItem('checker_setbudget_month', v); setSelMonth(Number(v)); }}>
             <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>{THAI_MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
           </Select>
