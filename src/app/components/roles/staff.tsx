@@ -70,7 +70,7 @@ export const STAFF_NAV: NavItem[] = [
 export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
   const [summary, setSummary] = useState<any>(null);
   const [activeMonth, setActiveMonth] = useState('');
-  const [filterMonth, setFilterMonth] = useState(currentThaiMonth);
+  const [filterMonth, setFilterMonth] = useState(() => localStorage.getItem('staff_dashboard_month') || currentThaiMonth());
   const [otRequests, setOtRequests] = useState<any[]>([]);
   const [otDays, setOtDays] = useState<number[]>([]);
   const [userName, setUserName] = useState('');
@@ -138,7 +138,7 @@ export function StaffDashboard({ onGoEdit }: { onGoEdit: () => void }) {
       <PageHeader
         title={userName ? `สวัสดี คุณ${userName}` : 'สวัสดี'}
         subtitle="ระบบ SMART OT"
-        right={<MonthYearPicker value={filterMonth} onChange={setFilterMonth} />}
+        right={<MonthYearPicker value={filterMonth} onChange={m => { localStorage.setItem('staff_dashboard_month', m); setFilterMonth(m); }} />}
       />
       <div className="grid grid-cols-4 gap-5 mb-6">
         <KpiCard label="ชั่วโมง OT เดือนนี้" value={<span className="text-tu-red">{otHours}</span>} hint="ชั่วโมง" accent="red" />
@@ -347,7 +347,7 @@ function TimelogCalendar({ month, rows }: { month: string; rows: any[] }) {
 
 export function StaffTimeLog() {
   const [view, setView] = useState<'table' | 'cal'>('table');
-  const [month, setMonth] = useState(currentThaiMonth);
+  const [month, setMonth] = useState(() => localStorage.getItem('staff_timelog_month') || currentThaiMonth());
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -369,7 +369,7 @@ export function StaffTimeLog() {
     <>
       <PageHeader title="เวลาเข้า-ออกของฉัน" right={
         <>
-          <MonthYearPicker value={month} onChange={setMonth} />
+          <MonthYearPicker value={month} onChange={m => { localStorage.setItem('staff_timelog_month', m); setMonth(m); }} />
           <div className="flex border border-[var(--neutral-300)] rounded-lg overflow-hidden">
             <button onClick={() => setView('table')} className={`px-3 py-1.5 text-[13px] ${view === 'table' ? 'bg-tu-red text-white' : ''}`}>ตาราง</button>
             <button onClick={() => setView('cal')} className={`px-3 py-1.5 text-[13px] ${view === 'cal' ? 'bg-tu-red text-white' : ''}`}>ปฏิทิน</button>
@@ -453,7 +453,7 @@ function deadlineDateDisplay(iso: string) {
 }
 
 export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
-  const [month, setMonth] = useState(() => initialMonth || currentThaiMonth());
+  const [month, setMonth] = useState(() => initialMonth || localStorage.getItem('staff_submit_month') || currentThaiMonth());
   const [rows, setRows] = useState<any[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [hours, setHours] = useState<Record<string, string>>({});
@@ -640,7 +640,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
   return (
     <>
       <PageHeader title="ยื่นคำร้องขอเบิกค่า OT" right={
-        <MonthYearPicker value={month} onChange={setMonth} />
+        <MonthYearPicker value={month} onChange={m => { localStorage.setItem('staff_submit_month', m); setMonth(m); }} />
       } />
       {/* Deadline banner */}
       {deadline?.is_passed ? (
