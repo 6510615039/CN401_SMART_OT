@@ -740,12 +740,11 @@ class OTRequestViewSet(viewsets.ModelViewSet):
             reason_text = f' — เหตุผล: {note}' if note else ''
             _notify_ot(ot, 'ot_checker_rejected', [ot.staff],
                 f'ผู้ตรวจสอบ ({actor_name}) ตีกลับคำร้อง OT วันที่ {ot.work_date} ของคุณ{reason_text}')
-            deptheads_r = list(User.objects.filter(role='depthead', department=ot.department, is_active=True))
+            deptheads_r = list(User.objects.filter(role='depthead', department=ot.department, is_active=True).exclude(pk=ot.staff.pk))
             if deptheads_r:
                 _notify_ot(ot, 'ot_checker_rejected_dept', deptheads_r,
                     f'คำร้อง OT ของ {staff_name_r} วันที่ {ot.work_date} ถูกผู้ตรวจสอบตีกลับ{reason_text}')
-            # แจ้ง deptrep ในแผนกเดียวกัน
-            deptreps_r = list(User.objects.filter(role='deptrep', department=ot.department, is_active=True))
+            deptreps_r = list(User.objects.filter(role='deptrep', department=ot.department, is_active=True).exclude(pk=ot.staff.pk))
             if deptreps_r:
                 _notify_ot(ot, 'ot_checker_rejected_dept', deptreps_r,
                     f'ผู้ตรวจสอบ ({actor_name}) ตีกลับคำร้อง OT ของ {staff_name_r} วันที่ {ot.work_date}{reason_text}')
@@ -2199,13 +2198,11 @@ def bulk_approve_view(request):
                         f'ประจำ{period} จำนวน {count} รายการ รวม {total_amt:,.0f} บาท')
         msg_deptrep  = msg_depthead
 
-        deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True))
-        deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True))
-
         # แจ้งพนักงานแต่ละคน (ยังคงรายบุคคลเพราะเป็นเรื่องเงินของตัวเอง)
         staff_map = defaultdict(list)
         for ot in dept_ots:
             staff_map[ot.staff_id].append(ot)
+        staff_ids_in_dept = set(staff_map.keys())
         for staff_id, staff_ots in staff_map.items():
             staff = staff_ots[0].staff
             s_count = len(staff_ots)
@@ -2213,6 +2210,8 @@ def bulk_approve_view(request):
             _notify_ot(staff_ots[0], 'ot_checker_approved', [staff],
                 f'ผู้ตรวจสอบ ({checker_name}) อนุมัติ OT ของคุณ {s_count} รายการ รวม {s_amt:,.0f} บาท ({period})')
 
+        deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True).exclude(pk__in=staff_ids_in_dept))
+        deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True).exclude(pk__in=staff_ids_in_dept))
         if deptheads:
             _notify_ot(dept_ots[0], 'ot_checker_approved_dept', deptheads, msg_depthead)
         if deptreps:
@@ -2288,8 +2287,9 @@ def bulk_reject_view(request):
         dept_name = dept_ots[0].department.name
         msg = (f'ผู้ตรวจสอบ ({checker_name}) ตีกลับ OT แผนก {dept_name} '
                f'ประจำ{period} จำนวน {count} รายการ{reason_text}')
-        deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True))
-        deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True))
+        staff_ids_in_dept = {ot.staff_id for ot in dept_ots}
+        deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True).exclude(pk__in=staff_ids_in_dept))
+        deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True).exclude(pk__in=staff_ids_in_dept))
         if deptheads:
             _notify_ot(dept_ots[0], 'ot_checker_rejected_dept', deptheads, msg)
         if deptreps:
