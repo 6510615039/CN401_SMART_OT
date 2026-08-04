@@ -667,8 +667,9 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
   const totalAmount = filtered.filter(r => sel.includes(r.id)).reduce((s, r) => s + Math.floor(parseFloat(r.ot_hours || '0')) * (otRate(r.day_type)), 0);
 
   // คำนวณ cumulative: เรียงตาม work_date แล้วหา ณ แต่ละแถวว่าถ้าอนุมัติจะเกินงบหรือยัง
+  // ถ้ายังไม่ตั้งงบ (budget = 0 หรือ null) → ไม่ block เลย
   const rowBudgetMap = (() => {
-    if (!budgetStatus || budgetStatus.remaining === null) return new Map<number, boolean>();
+    if (!budgetStatus || !budgetStatus.budget || budgetStatus.remaining === null) return new Map<number, boolean>();
     let cum = 0;
     const m = new Map<number, boolean>();
     const sorted = [...filtered].sort((a, b) => a.work_date.localeCompare(b.work_date));
