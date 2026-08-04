@@ -432,7 +432,7 @@ export function RepDashboard({ onGo }: { onGo: () => void }) {
   useEffect(() => {
     const h = { Authorization: `Bearer ${token()}` };
     const now = new Date();
-    const monthParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthParam = `${now.getFullYear() + 543}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     Promise.all([
       fetch('/api/ot-requests/?status=head_approved', { headers: h }).then(r => r.json()),
       fetch(`/api/ot-requests/?status_in=rep_forwarded,checker_approved,checker_rejected,completed&month=${monthParam}`, { headers: h }).then(r => r.json()),
@@ -585,7 +585,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
     const now = new Date();
     const candidates = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      return { ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, year: d.getFullYear(), mon: d.getMonth() + 1 };
+      return { ym: `${d.getFullYear() + 543}-${String(d.getMonth() + 1).padStart(2, '0')}`, year: d.getFullYear(), mon: d.getMonth() + 1 };
     });
     Promise.all(
       candidates.map(c =>

@@ -203,7 +203,7 @@ export function ExecDashboard() {
       const fetchMonths = async (mList: {year: number; month: number}[]) => {
         const all: OTReq[] = [];
         await Promise.all(mList.map(async ({ year, month }) => {
-          const ym = `${year}-${String(month).padStart(2, '0')}`;
+          const ym = `${year + 543}-${String(month).padStart(2, '0')}`;
           const data = await fetchOTForMonth(ym);
           all.push(...data);
         }));
@@ -502,7 +502,7 @@ export function ExecTrend() {
       const deptSet = new Set<string>();
 
       await Promise.all(mList.map(async ({ year, month }) => {
-        const ym = `${year}-${String(month).padStart(2, '0')}`;
+        const ym = `${year + 543}-${String(month).padStart(2, '0')}`;
         const reqs = await fetchOTForMonth(ym);
         allData[ym] = {};
         for (const r of reqs) {
