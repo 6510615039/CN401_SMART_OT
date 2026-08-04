@@ -758,6 +758,8 @@ class OTRequestViewSet(viewsets.ModelViewSet):
         ot = self.get_object()
         if ot.status not in ('head_rejected', 'checker_rejected'):
             return Response({'error': 'คำร้องนี้ไม่ได้ถูกตีกลับ'}, status=400)
+        if ot.status == 'checker_rejected':
+            return Response({'error': 'คำร้องนี้ถูกผู้ตรวจสอบตีกลับ — ตัวแทนฝ่ายจะดำเนินการส่งใหม่ให้'}, status=400)
         if ot.staff != request.user:
             return Response({'error': 'ไม่มีสิทธิ์แก้ไขคำร้องนี้'}, status=403)
 

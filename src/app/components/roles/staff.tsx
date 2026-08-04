@@ -535,12 +535,12 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
     return h * rate;
   }
 
-  // รวมวันที่เลือก: ยังไม่ยื่น หรือ ถูกตีกลับ (สามารถยื่นซ้ำได้)
+  // รวมวันที่เลือก: ยังไม่ยื่น หรือ ถูกหัวหน้าตีกลับเท่านั้น (checker_rejected → deptrep จัดการ)
   const selRows = rows.filter(r => {
     if (!selected.includes(r.date)) return false;
     const ex = existingReqs[r.date];
     if (!ex) return true;
-    return ex.status === 'head_rejected' || ex.status === 'checker_rejected';
+    return ex.status === 'head_rejected';
   });
   // คำนวณรวมโดย cap ที่ maxH เสมอ (ไม่คิดเกิน cap)
   const total = selRows.reduce((s, r) => {
@@ -550,11 +550,10 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
     return s + calcAmount(r.dayType || 'weekday', h);
   }, 0);
 
-  // วันที่เลือกได้ (ไม่ locked, ไม่ deadline passed)
+  // วันที่เลือกได้: ยังไม่ยื่น หรือ ถูกหัวหน้าตีกลับเท่านั้น
   const selectableRows = rows.filter(r => {
     const existing = existingReqs[r.date];
-    const isRejected = existing?.status === 'head_rejected' || existing?.status === 'checker_rejected';
-    return !existing || isRejected;
+    return !existing || existing.status === 'head_rejected';
   });
   const allSelected = selectableRows.length > 0 && selectableRows.every(r => selected.includes(r.date));
 
@@ -574,7 +573,7 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
           ? `[ปรับชั่วโมง: ระบบคำนวณ ${origH} ชม. → แก้เป็น ${h} ชม.] `
           : '';
         const existingReq = existingReqs[r.date];
-        const isRejectedReq = existingReq?.status === 'head_rejected' || existingReq?.status === 'checker_rejected';
+        const isRejectedReq = existingReq?.status === 'head_rejected';
         const payload = {
           work_date: r.date,
           start_time: isHol ? (r.in || '08:00') : '16:30',
@@ -700,8 +699,9 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
               <tbody>
                 {rows.map(r => {
                   const existing = existingReqs[r.date];
-                  const isRejected = existing?.status === 'head_rejected' || existing?.status === 'checker_rejected';
-                  const isLocked = !!existing && !isRejected; // locked if submitted (not rejected)
+                  const isRejected = existing?.status === 'head_rejected'; // checker_rejected → deptrep จัดการ ไม่ให้ staff ส่งซ้ำ
+                  const isCheckerRejected = existing?.status === 'checker_rejected';
+                  const isLocked = !!existing && !isRejected;
                   const isSel = selected.includes(r.date);
                   const isHoliday = r.dayType === 'holiday';  // ครอบคลุมทั้ง วันหยุดราชการ + เสาร์-อาทิตย์
                   const h = Math.floor(parseFloat(hours[r.date] || r.ot));  // ปัดลงเหลือชั่วโมงเต็ม
@@ -711,16 +711,17 @@ export function StaffSubmit({ initialMonth }: { initialMonth?: string } = {}) {
                   const REQ_STATUS_LABEL: Record<string,string> = {
                     submitted:'รออนุมัติ', head_approved:'หัวหน้าอนุมัติ',
                     rep_forwarded:'ส่งต่อแล้ว', checker_approved:'อนุมัติแล้ว',
-                    checker_rejected:'ถูกปฏิเสธ', head_rejected:'ถูกตีกลับ', completed:'เสร็จสิ้น',
+                    checker_rejected:'รอตัวแทนส่งใหม่', head_rejected:'ถูกตีกลับ', completed:'เสร็จสิ้น',
                   };
                   const REQ_STATUS_KIND: Record<string,string> = {
                     submitted:'warning', head_approved:'orange', rep_forwarded:'info',
-                    checker_approved:'success', checker_rejected:'danger', head_rejected:'danger', completed:'success',
+                    checker_approved:'success', checker_rejected:'warning', head_rejected:'danger', completed:'success',
                   };
 
                   return (
                     <tr key={r.date} className={`border-t border-[var(--neutral-300)] transition-colors ${
                       isLocked ? 'bg-[var(--neutral-50)] opacity-70' :
+                      isCheckerRejected ? 'bg-orange-50' :
                       isRejected ? 'bg-tu-red-soft' :
                       isSel ? 'bg-tu-yellow-soft' : ''
                     }`}>
@@ -848,14 +849,14 @@ export function StaffStatus({ onEdit, onDetail }: { onEdit?: (id: number, date: 
   const STATUS_LABEL: Record<string,string> = {
     draft:'ร่าง', submitted:'รออนุมัติ', head_approved:'หัวหน้าอนุมัติ',
     head_rejected:'หัวหน้าตีกลับ', rep_forwarded:'ตัวแทนส่งต่อแล้ว',
-    checker_approved:'ผู้ตรวจสอบอนุมัติ', checker_rejected:'ผู้ตรวจสอบตีกลับ', completed:'เสร็จสิ้น',
+    checker_approved:'ผู้ตรวจสอบอนุมัติ', checker_rejected:'รอตัวแทนส่งใหม่', completed:'เสร็จสิ้น',
   };
   const STATUS_KIND: Record<string,string> = {
     draft:'neutral', submitted:'warning', head_approved:'orange',
     head_rejected:'danger', rep_forwarded:'info',
-    checker_approved:'warning', checker_rejected:'danger', completed:'success',
+    checker_approved:'warning', checker_rejected:'warning', completed:'success',
   };
-  const isRejected = (s: string) => s === 'head_rejected' || s === 'checker_rejected';
+  const isRejected = (s: string) => s === 'head_rejected'; // checker_rejected → deptrep จัดการ ไม่ใช่ staff
   const isApproved = (s: string) => s === 'completed' || s === 'checker_approved';
 
   function loadRequests() {
