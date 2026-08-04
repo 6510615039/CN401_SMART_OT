@@ -262,7 +262,7 @@ export function CheckerDashboard({ onGo }: { onGo: () => void; onOtDetail?: (emp
         <KpiCard label="รอตรวจสอบ" value={String(groups.filter(g => g.pending.length > 0).length) + ' แผนก'} hint={`${totalPending} รายการ`} accent="orange" />
         <KpiCard label="รวมยอด OT รอตรวจ" value={`${fmtAmt(totalAmt)} บาท`} hint="ทุกแผนก" accent="red" />
         <KpiCard label="อนุมัติแล้ว" value={String(approvedDepts) + ' แผนก'} hint="เดือนนี้" accent="green" />
-        <KpiCard label="รายการทั้งหมด" value={String(groups.reduce((s, g) => s + g.pending.length + g.approved.length + g.rejected.length, 0))} hint="rep_forwarded+" accent="blue" />
+        <KpiCard label="รายการทั้งหมด" value={String(groups.reduce((s, g) => s + g.pending.length + g.approved.length + g.rejected.length, 0))} hint="รวมทุกสถานะ" accent="blue" />
       </div>
 
       {/* Success toast */}
