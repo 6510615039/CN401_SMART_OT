@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Upload, Users, Building2, Settings, History, ListChecks,
   Plus, AlertTriangle, CheckCircle2, Search, Pencil, Trash2,
@@ -74,7 +74,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <PageHeader title="Dashboard ผู้ดูแลระบบ" right={<span className="text-[var(--neutral-500)]">วันที่ {new Date().toLocaleDateString('th-TH', {day:'numeric',month:'long',year:'numeric'})}</span>} />
+      <PageHeader title="Dashboard แอดมิน" right={<span className="text-[var(--neutral-500)]">วันที่ {new Date().toLocaleDateString('th-TH', {day:'numeric',month:'long',year:'numeric'})}</span>} />
       {summaryError && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-[13px] text-red-700">
           ไม่สามารถโหลดข้อมูล dashboard ได้: <code>{summaryError}</code> — กรุณาตรวจสอบ Console
@@ -732,7 +732,7 @@ const ROLE_OPTIONS = [
   { role: 'deptrep',   label: 'ตัวแทนฝ่าย',   desc: 'ตัวแทนฝ่าย (1/แผนก)', color: 'bg-tu-yellow text-black'   },
   { role: 'checker',   label: 'ผู้ตรวจสอบ',   desc: 'ผู้ตรวจสอบกลาง',      color: 'bg-purple-600 text-white'  },
   { role: 'executive', label: 'ผู้บริหาร',    desc: 'ผู้บริหาร',            color: 'bg-success text-white'     },
-  { role: 'admin',     label: 'ผู้ดูแลระบบ',   desc: 'ผู้ดูแลระบบทั้งหมด',  color: 'bg-tu-red text-white'      },
+  { role: 'admin',     label: 'แอดมิน',   desc: 'แอดมินทั้งหมด',  color: 'bg-tu-red text-white'      },
 ];
 
 
@@ -760,7 +760,7 @@ const ROLE_COLOR_MAP: Record<string, string> = {
   executive: 'bg-success text-white',
 };
 const ROLE_LABEL: Record<string, string> = {
-  admin: 'ผู้ดูแลระบบ', staff: 'พนักงาน', depthead: 'หัวหน้างาน',
+  admin: 'แอดมิน', staff: 'พนักงาน', depthead: 'หัวหน้างาน',
   deptrep: 'ตัวแทนฝ่าย', checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร',
 };
 
@@ -2291,7 +2291,7 @@ const AUDIT_ROLE_OPTIONS = [
   { value: 'deptrep',  label: 'ตัวแทนฝ่าย' },
   { value: 'checker',  label: 'ผู้ตรวจสอบ' },
   { value: 'executive',label: 'ผู้บริหาร' },
-  { value: 'admin',    label: 'ผู้ดูแลระบบ' },
+  { value: 'admin',    label: 'แอดมิน' },
 ];
 
 export function AdminAudit() {

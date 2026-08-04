@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from 'react';
+﻿import { ReactNode, useState, useEffect } from 'react';
 import { Bell, ChevronDown, LogOut, User as UserIcon, CheckCheck, Check } from 'lucide-react';
 import { Role, ROLE_INFO, ROLE_BADGE, TUWordmark } from './shared';
 import { NotificationItem } from '../App';
@@ -65,7 +65,7 @@ const ROLE_LABELS: Record<Role, string> = {
   deptrep:   'ตัวแทนฝ่าย',
   checker:   'ผู้ตรวจสอบ',
   executive: 'ผู้บริหาร',
-  admin:     'ผู้ดูแลระบบ',
+  admin:     'แอดมิน',
 };
 
 export function AppShell({ role, availableRoles, nav, current, onNavigate, onLogout, onSwitchRole, breadcrumb, children, notifications = [], onMarkRead, onProfile }: Props) {

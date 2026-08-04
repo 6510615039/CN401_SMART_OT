@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Eye, EyeOff, KeyRound, User, Loader2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -174,7 +174,7 @@ export function Login({ onLogin, onForgot }: Props) {
             </Button>
 
             <p className="text-[12px] text-[var(--neutral-500)] text-center">
-              ระบบเชื่อมต่อกับ Django API • สิทธิ์การใช้งานถูกกำหนดโดยผู้ดูแลระบบ
+              ระบบเชื่อมต่อกับ Django API • สิทธิ์การใช้งานถูกกำหนดโดยแอดมิน
             </p>
           </div>
 

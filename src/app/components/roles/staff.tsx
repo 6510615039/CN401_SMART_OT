@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { smartDefaultDate } from '../../utils/smartDefault';
 import { otRate, OT_RATE_WEEKDAY } from '../../constants/otRate';
 
@@ -1164,7 +1164,7 @@ export function StaffProfile() {
                   {(() => {
                     const ROLE_TH: Record<string, string> = {
                       staff: 'พนักงาน', depthead: 'หัวหน้างาน', deptrep: 'ตัวแทนฝ่าย',
-                      checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร', admin: 'ผู้ดูแลระบบ',
+                      checker: 'ผู้ตรวจสอบ', executive: 'ผู้บริหาร', admin: 'แอดมิน',
                     };
                     const roles: string[] = Array.isArray(userInfo?.available_roles) && userInfo.available_roles.length > 0
                       ? userInfo.available_roles
