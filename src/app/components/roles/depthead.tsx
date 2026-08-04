@@ -784,7 +784,7 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
       )}
 
       {/* Deadline banner */}
-      {deadline && (() => {
+      {deadline ? (() => {
         const dlDate = new Date(deadline.deadline_date);
         const today = new Date(); today.setHours(0,0,0,0);
         const isPast = dlDate < today;
@@ -799,7 +799,12 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
             </p>
           </div>
         );
-      })()}
+      })() : (
+        <div className="flex items-center gap-3 p-3 mb-4 rounded-xl border text-[13px] bg-[var(--neutral-50)] border-[var(--neutral-200)] text-[var(--neutral-500)]">
+          <Clock className="size-4 shrink-0" />
+          <p><strong>เดดไลน์พนักงานยื่นคำร้อง OT:</strong> ยังไม่ได้กำหนด (แอดมินสามารถตั้งค่าได้ในหน้าตั้งค่าเดดไลน์)</p>
+        </div>
+      )}
 
       {/* Budget bar */}
       {budgetStatus && budgetStatus.budget > 0 && (() => {
