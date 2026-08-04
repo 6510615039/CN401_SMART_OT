@@ -106,8 +106,8 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [budget, setBudget]           = useState<number | null>(null);
   const [period, setPeriod]           = useState('month');
-  const [selThaiYear, setSelThaiYear] = useState(String(_curThaiYear));
-  const [selMonth, setSelMonth]       = useState(String(_curMon).padStart(2, '0'));
+  const [selThaiYear, setSelThaiYear] = useState(() => localStorage.getItem('head_dashboard_thai_year') || String(_curThaiYear));
+  const [selMonth, setSelMonth]       = useState(() => localStorage.getItem('head_dashboard_month') || String(_curMon).padStart(2, '0'));
   const [selQuarter, setSelQuarter]   = useState(_curQ);
   const [loading, setLoading]         = useState(true);
   const [noOtConfirm, setNoOtConfirm]     = useState(false);
@@ -346,13 +346,13 @@ export function HeadDashboard({ onGo, onBudgetRequest }: { onGo: () => void; onB
             <Input
               type="number"
               value={selThaiYear}
-              onChange={e => setSelThaiYear(e.target.value)}
+              onChange={e => { localStorage.setItem('head_dashboard_thai_year', e.target.value); setSelThaiYear(e.target.value); }}
               className="w-[90px] text-center"
               min={2560}
               max={2599}
             />
             {period === 'month' && (
-              <Select value={selMonth} onValueChange={setSelMonth}>
+              <Select value={selMonth} onValueChange={m => { localStorage.setItem('head_dashboard_month', m); setSelMonth(m); }}>
                 <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {THAI_MONTHS_FULL.map((m, i) => (
@@ -599,8 +599,8 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
     return { year: sd.year + 543, month: sd.month };
   })();
   const _curThaiYearPending = _initDate.year;
-  const [thaiYear, setThaiYear] = useState(String(_curThaiYearPending));
-  const [selMonth, setSelMonth] = useState(_initDate.month);
+  const [thaiYear, setThaiYear] = useState(() => localStorage.getItem('head_pending_thai_year') || String(_curThaiYearPending));
+  const [selMonth, setSelMonth] = useState(() => Number(localStorage.getItem('head_pending_month') || _initDate.month));
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number[]>([]);
@@ -761,12 +761,12 @@ export function HeadPending({ onDetail }: { onDetail: (id: number) => void }) {
             <Input
               type="number"
               value={thaiYear}
-              onChange={e => { setThaiYear(e.target.value); setSel([]); }}
+              onChange={e => { localStorage.setItem('head_pending_thai_year', e.target.value); setThaiYear(e.target.value); setSel([]); }}
               className="w-[90px] text-center"
               min={2560}
               max={2599}
             />
-            <Select value={String(selMonth)} onValueChange={v => { setSelMonth(Number(v)); setSel([]); }}>
+            <Select value={String(selMonth)} onValueChange={v => { localStorage.setItem('head_pending_month', v); setSelMonth(Number(v)); setSel([]); }}>
               <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {THAI_MONTHS_FULL.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
