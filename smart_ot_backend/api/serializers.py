@@ -141,7 +141,14 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    month = serializers.SerializerMethodField()
+
+    def get_month(self, obj):
+        if obj.ot_request and obj.ot_request.work_date:
+            return str(obj.ot_request.work_date)[:7]  # "YYYY-MM"
+        return None
+
     class Meta:
         model = Notification
-        fields = ['id', 'recipient', 'message', 'notif_type', 'ot_request', 'is_read', 'created_at']
+        fields = ['id', 'recipient', 'message', 'notif_type', 'ot_request', 'month', 'is_read', 'created_at']
         read_only_fields = ['created_at']

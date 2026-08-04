@@ -564,7 +564,8 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
   const [downloaded, setDownloaded] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [checkers, setCheckers] = useState<{ id: number; full_name: string; notify_email: string; email: string }[]>([]);
-  const [headNotified, setHeadNotified] = useState(false);
+  const [repReadyNotifs, setRepReadyNotifs] = useState<any[]>([]);
+  const headNotified = repReadyNotifs.some(n => n.month === month);
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -577,7 +578,7 @@ export function RepExportFlow({ onDone }: { onDone: () => void }) {
       .then(r => r.json())
       .then((d: any) => {
         const list: any[] = Array.isArray(d) ? d : (d.results || []);
-        setHeadNotified(list.some((n: any) => n.notif_type === 'ot_rep_action_needed'));
+        setRepReadyNotifs(list.filter((n: any) => n.notif_type === 'ot_rep_action_needed'));
       }).catch(() => {});
 
     // auto-detect เดือนที่มี head_approved request — ลองย้อนหลัง 12 เดือนแบบ parallel
