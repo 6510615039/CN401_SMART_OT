@@ -273,8 +273,10 @@ class Notification(models.Model):
         ('ot_head_rejected',     'หัวหน้าตีกลับ'),
         ('ot_rep_action_needed', 'ตัวแทนฝ่ายต้องดำเนินการ'),
         ('ot_rep_forwarded',     'ตัวแทนส่งต่อแล้ว'),
-        ('ot_checker_approved',  'ผู้ตรวจสอบอนุมัติ'),
-        ('ot_checker_rejected',  'ผู้ตรวจสอบตีกลับ'),
+        ('ot_checker_approved',       'ผู้ตรวจสอบอนุมัติ'),
+        ('ot_checker_rejected',       'ผู้ตรวจสอบตีกลับ'),
+        ('ot_checker_approved_dept',  'ผู้ตรวจสอบอนุมัติ (แผนก)'),
+        ('ot_checker_rejected_dept',  'ผู้ตรวจสอบตีกลับ (แผนก)'),
         ('no_ot_declared',       'แจ้งไม่มีโอทีประจำเดือน'),
         ('budget_set',           'ผู้ตรวจสอบตั้งงบประมาณ OT'),
     ]

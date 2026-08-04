@@ -29,25 +29,29 @@ interface Props {
 
 /** บทบาทที่ควร handle notif_type นั้น */
 function notifOwnerRole(type: string): Role | null {
-  if (type === 'ot_submitted')         return 'depthead';
-  if (type === 'ot_head_approved')     return 'staff';
-  if (type === 'ot_head_rejected')     return 'staff';
-  if (type === 'ot_rep_forwarded')     return 'checker';
-  if (type === 'ot_rep_action_needed') return 'deptrep';
-  if (type === 'ot_checker_approved')  return 'staff';
-  if (type === 'ot_checker_rejected')  return 'staff';
+  if (type === 'ot_submitted')              return 'depthead';
+  if (type === 'ot_head_approved')          return 'staff';
+  if (type === 'ot_head_rejected')          return 'staff';
+  if (type === 'ot_rep_forwarded')          return 'checker';
+  if (type === 'ot_rep_action_needed')      return 'deptrep';
+  if (type === 'ot_checker_approved')       return 'staff';
+  if (type === 'ot_checker_rejected')       return 'staff';
+  if (type === 'ot_checker_approved_dept')  return 'depthead';
+  if (type === 'ot_checker_rejected_dept')  return 'depthead';
   return null;
 }
 
 /** แปลง notif_type → page key ที่ควร navigate ไป */
 function notifTargetPage(type: string): string | null {
-  if (type === 'ot_submitted')         return 'pending';
-  if (type === 'ot_head_approved')     return 'status';
-  if (type === 'ot_head_rejected')     return 'status';
-  if (type === 'ot_rep_forwarded')     return 'dashboard';
-  if (type === 'ot_rep_action_needed') return 'export';
-  if (type === 'ot_checker_approved')  return 'status';
-  if (type === 'ot_checker_rejected')  return 'status';
+  if (type === 'ot_submitted')              return 'pending';
+  if (type === 'ot_head_approved')          return 'status';
+  if (type === 'ot_head_rejected')          return 'status';
+  if (type === 'ot_rep_forwarded')          return 'dashboard';
+  if (type === 'ot_rep_action_needed')      return 'export';
+  if (type === 'ot_checker_approved')       return 'status';
+  if (type === 'ot_checker_rejected')       return 'status';
+  if (type === 'ot_checker_approved_dept')  return 'history';
+  if (type === 'ot_checker_rejected_dept')  return 'history';
   return null;
 }
 

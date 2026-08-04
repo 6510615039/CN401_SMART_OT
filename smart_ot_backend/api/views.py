@@ -742,12 +742,12 @@ class OTRequestViewSet(viewsets.ModelViewSet):
                 f'ผู้ตรวจสอบ ({actor_name}) ตีกลับคำร้อง OT วันที่ {ot.work_date} ของคุณ{reason_text}')
             deptheads_r = list(User.objects.filter(role='depthead', department=ot.department, is_active=True))
             if deptheads_r:
-                _notify_ot(ot, 'ot_checker_rejected', deptheads_r,
+                _notify_ot(ot, 'ot_checker_rejected_dept', deptheads_r,
                     f'คำร้อง OT ของ {staff_name_r} วันที่ {ot.work_date} ถูกผู้ตรวจสอบตีกลับ{reason_text}')
             # แจ้ง deptrep ในแผนกเดียวกัน
             deptreps_r = list(User.objects.filter(role='deptrep', department=ot.department, is_active=True))
             if deptreps_r:
-                _notify_ot(ot, 'ot_checker_rejected', deptreps_r,
+                _notify_ot(ot, 'ot_checker_rejected_dept', deptreps_r,
                     f'ผู้ตรวจสอบ ({actor_name}) ตีกลับคำร้อง OT ของ {staff_name_r} วันที่ {ot.work_date}{reason_text}')
             return Response({'message': 'ตีกลับสำเร็จ'})
 
@@ -2214,9 +2214,9 @@ def bulk_approve_view(request):
                 f'ผู้ตรวจสอบ ({checker_name}) อนุมัติ OT ของคุณ {s_count} รายการ รวม {s_amt:,.0f} บาท ({period})')
 
         if deptheads:
-            _notify_ot(dept_ots[0], 'ot_checker_approved', deptheads, msg_depthead)
+            _notify_ot(dept_ots[0], 'ot_checker_approved_dept', deptheads, msg_depthead)
         if deptreps:
-            _notify_ot(dept_ots[0], 'ot_checker_approved', deptreps, msg_deptrep)
+            _notify_ot(dept_ots[0], 'ot_checker_approved_dept', deptreps, msg_deptrep)
 
     resp = {'approved': len(approved_list)}
     if budget_warnings:
@@ -2291,9 +2291,9 @@ def bulk_reject_view(request):
         deptheads = list(User.objects.filter(role='depthead', department_id=dept_id, is_active=True))
         deptreps  = list(User.objects.filter(role='deptrep',  department_id=dept_id, is_active=True))
         if deptheads:
-            _notify_ot(dept_ots[0], 'ot_checker_rejected', deptheads, msg)
+            _notify_ot(dept_ots[0], 'ot_checker_rejected_dept', deptheads, msg)
         if deptreps:
-            _notify_ot(dept_ots[0], 'ot_checker_rejected', deptreps, msg)
+            _notify_ot(dept_ots[0], 'ot_checker_rejected_dept', deptreps, msg)
 
     return Response({'rejected': len(rejected_list)})
 
@@ -2637,8 +2637,8 @@ def _check_ot_deadline(thai_month: str) -> 'str | None':
 
 NOTIF_TYPES_BY_ROLE = {
     'staff':     ['ot_head_approved', 'ot_head_rejected', 'ot_rep_forwarded', 'ot_checker_approved', 'ot_checker_rejected'],
-    'depthead':  ['ot_submitted', 'ot_checker_approved', 'ot_checker_rejected', 'budget_set'],
-    'deptrep':   ['ot_rep_action_needed', 'ot_checker_approved', 'ot_checker_rejected', 'no_ot_declared'],
+    'depthead':  ['ot_submitted', 'ot_checker_approved_dept', 'ot_checker_rejected_dept', 'budget_set'],
+    'deptrep':   ['ot_rep_action_needed', 'ot_checker_approved_dept', 'ot_checker_rejected_dept', 'no_ot_declared'],
     'checker':   ['ot_rep_forwarded', 'no_ot_declared'],
     'executive': [],
     'admin':     [],
