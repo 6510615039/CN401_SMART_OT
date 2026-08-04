@@ -27,15 +27,27 @@ interface Props {
   onProfile?: () => void;
 }
 
-/** แปลง notif_type → page key ที่ควร navigate ไป (ขึ้นอยู่กับ role) */
-function notifTargetPage(type: string, role: Role): string | null {
-  if (type === 'ot_submitted')         return role === 'depthead' ? 'pending'   : null;
-  if (type === 'ot_head_approved')     return role === 'staff'    ? 'status'    : null;
-  if (type === 'ot_head_rejected')     return role === 'staff'    ? 'status'    : null;
-  if (type === 'ot_rep_forwarded')     return role === 'checker'  ? 'dashboard' : role === 'staff' ? 'status' : null;
-  if (type === 'ot_rep_action_needed') return role === 'deptrep'  ? 'export'    : null;
-  if (type === 'ot_checker_approved')  return role === 'staff'    ? 'status'    : role === 'depthead' ? 'history' : role === 'deptrep' ? 'history' : null;
-  if (type === 'ot_checker_rejected')  return role === 'staff'    ? 'status'    : role === 'deptrep' ? 'history' : null;
+/** บทบาทที่ควร handle notif_type นั้น */
+function notifOwnerRole(type: string): Role | null {
+  if (type === 'ot_submitted')         return 'depthead';
+  if (type === 'ot_head_approved')     return 'staff';
+  if (type === 'ot_head_rejected')     return 'staff';
+  if (type === 'ot_rep_forwarded')     return 'checker';
+  if (type === 'ot_rep_action_needed') return 'deptrep';
+  if (type === 'ot_checker_approved')  return 'staff';
+  if (type === 'ot_checker_rejected')  return 'staff';
+  return null;
+}
+
+/** แปลง notif_type → page key ที่ควร navigate ไป */
+function notifTargetPage(type: string): string | null {
+  if (type === 'ot_submitted')         return 'pending';
+  if (type === 'ot_head_approved')     return 'status';
+  if (type === 'ot_head_rejected')     return 'status';
+  if (type === 'ot_rep_forwarded')     return 'dashboard';
+  if (type === 'ot_rep_action_needed') return 'export';
+  if (type === 'ot_checker_approved')  return 'status';
+  if (type === 'ot_checker_rejected')  return 'status';
   return null;
 }
 
@@ -173,7 +185,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                       count: submitted.length,
                       anyUnread: submitted.some(n => !n.is_read),
                       latest_at: submitted[0].created_at,
-                      targetPage: notifTargetPage('ot_submitted', role),
+                      targetPage: notifTargetPage('ot_submitted'),
                     } as any);
                   }
                   items.push(...others);
@@ -219,7 +231,9 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                         </button>
                       );
                     }
-                    const targetPage = notifTargetPage(n.notif_type, role);
+                    const targetPage = notifTargetPage(n.notif_type);
+                    const ownerRole  = notifOwnerRole(n.notif_type);
+                    const needSwitch = ownerRole && ownerRole !== role && availableRoles?.includes(ownerRole);
                     return (
                     <button
                       key={n.id}
@@ -234,6 +248,7 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                               window.dispatchEvent(new CustomEvent('notif_nav_month_change'));
                             }
                           }
+                          if (needSwitch) onSwitchRole?.(ownerRole!);
                           onNavigate(targetPage);
                         }
                       }}
@@ -247,6 +262,11 @@ export function AppShell({ role, availableRoles, nav, current, onNavigate, onLog
                         <Bell className="size-4" />
                       </div>
                       <div className="flex-1 min-w-0">
+                        {ownerRole && availableRoles && availableRoles.length > 1 && (
+                          <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--neutral-200)] text-[var(--neutral-600)] mb-1 mr-1">
+                            {ROLE_LABELS[ownerRole]}
+                          </span>
+                        )}
                         <p className="text-[13px] text-[var(--neutral-black)] leading-snug">{n.message}</p>
                         {n.ot_request_date && (
                           <p className="text-[11px] text-[var(--neutral-500)] mt-0.5">วันที่ทำ OT: {n.ot_request_date}</p>
