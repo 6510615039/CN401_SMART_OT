@@ -28,6 +28,9 @@ export default defineConfig({
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  optimizeDeps: {
+    include: ['fflate'],
+  },
 
   // Proxy API + WebSocket to Django backend (Daphne/Channels)
   server: {

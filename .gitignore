@@ -42,3 +42,7 @@ logs/
 *.zip
 *.tar.gz
 *.rar
+
+# ───── Raw data (ข้อมูลส่วนตัวพนักงาน) ──
+raw_data/*.xlsx
+raw_data/*.xls
