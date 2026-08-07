@@ -3,8 +3,8 @@
 # ใช้: cd smart_ot_backend && bash setup_prod.sh
 set -e
 
-MAPPING_FILE="../raw_data/07.employee_id_email_mapping.xlsx"
-ROLES_FILE="../raw_data/08.รายชื่อจากพี่ขวัญ.xlsx"
+MAPPING_FILE="/raw_data/07.employee_id_email_mapping.xlsx"
+ROLES_FILE="/raw_data/08.รายชื่อจากพี่ขวัญ.xlsx"
 
 echo "========================================"
 echo "[1/5] Running migrations..."
