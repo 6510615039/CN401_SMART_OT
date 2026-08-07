@@ -2,7 +2,6 @@ import { useState, useEffect, Fragment } from 'react';
 import { smartDefaultDate } from '../../utils/smartDefault';
 import { otRate } from '../../constants/otRate';
 import * as XLSX from 'xlsx-js-style';
-import * as fflate from 'fflate';
 import { saveAs } from 'file-saver';
 import {
   LayoutDashboard, FileSpreadsheet, History, Users, Download, CheckCircle2,
@@ -103,101 +102,6 @@ function thaiAmountText(n: number): string {
   return chunk(n)+'บาทถ้วน';
 }
 
-
-// ── inject <sheetPr><pageSetUp fitToPage="1"/> into XLSX via surgical ZIP patch ──
-function injectPageSetup(rawBuf: number[]): Uint8Array {
-  try {
-    const u8 = new Uint8Array(rawBuf);
-
-    // CRC32
-    const T = new Uint32Array(256);
-    for (let i = 0; i < 256; i++) { let c = i; for (let j = 0; j < 8; j++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; T[i] = c; }
-    const crc32 = (b: Uint8Array) => { let v = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) v = T[(v ^ b[i]) & 0xFF] ^ (v >>> 8); return (v ^ 0xFFFFFFFF) >>> 0; };
-    const r32 = (b: Uint8Array, o: number) => (b[o] | b[o+1]<<8 | b[o+2]<<16 | b[o+3]<<24) >>> 0;
-    const w32 = (b: Uint8Array, o: number, v: number) => { b[o]=v&0xFF; b[o+1]=(v>>>8)&0xFF; b[o+2]=(v>>>16)&0xFF; b[o+3]=(v>>>24)&0xFF; };
-
-    // Find EOCD
-    let eocdOff = -1;
-    for (let i = u8.length - 22; i >= 0; i--) {
-      if (u8[i]===0x50&&u8[i+1]===0x4B&&u8[i+2]===0x05&&u8[i+3]===0x06) {
-        if (i + 22 + (u8[i+20]|(u8[i+21]<<8)) === u8.length) { eocdOff = i; break; }
-      }
-    }
-    if (eocdOff < 0) return u8;
-
-    const cdOffset = r32(u8, eocdOff+16);
-    const cdCount  = u8[eocdOff+8] | (u8[eocdOff+9]<<8);
-
-    // Find sheet1.xml in central directory
-    const target = new TextEncoder().encode('xl/worksheets/sheet1.xml');
-    let cdEntryOff = -1, localHdrOff = 0, oldCsize = 0, oldUsize = 0;
-    let p = cdOffset;
-    for (let e = 0; e < cdCount; e++) {
-      if (u8[p]!==0x50||u8[p+1]!==0x4B||u8[p+2]!==0x01||u8[p+3]!==0x02) break;
-      const fnl = u8[p+28]|(u8[p+29]<<8), exl = u8[p+30]|(u8[p+31]<<8), cml = u8[p+32]|(u8[p+33]<<8);
-      let ok = fnl === target.length;
-      if (ok) for (let j = 0; j < fnl; j++) if (u8[p+46+j] !== target[j]) { ok = false; break; }
-      if (ok) { cdEntryOff = p; oldCsize = r32(u8,p+20); oldUsize = r32(u8,p+24); localHdrOff = r32(u8,p+42); break; }
-      p += 46 + fnl + exl + cml;
-    }
-    if (cdEntryOff < 0) return u8;
-
-    const method = u8[localHdrOff+8]|(u8[localHdrOff+9]<<8);
-    const fnl2   = u8[localHdrOff+26]|(u8[localHdrOff+27]<<8);
-    const exl2   = u8[localHdrOff+28]|(u8[localHdrOff+29]<<8);
-    const dataOff = localHdrOff + 30 + fnl2 + exl2;
-
-    const xmlBytes = method === 8 ? fflate.inflateSync(u8.slice(dataOff, dataOff + oldCsize)) : u8.slice(dataOff, dataOff + oldCsize);
-
-    let xml = new TextDecoder().decode(xmlBytes);
-    if (/<pageSetUp/.test(xml)) return u8;
-    if (/<sheetPr\s*\/>/.test(xml))      xml = xml.replace(/<sheetPr\s*\/>/, '<sheetPr><pageSetUp fitToPage="1"/></sheetPr>');
-    else if (/<sheetPr/.test(xml))        xml = xml.replace(/<sheetPr([^>]*)>/, '<sheetPr$1><pageSetUp fitToPage="1"/>');
-    else                                  xml = xml.replace('<sheetData', '<sheetPr><pageSetUp fitToPage="1"/></sheetPr><sheetData');
-
-    const newXml  = new TextEncoder().encode(xml);
-    const newComp = method === 8 ? fflate.deflateSync(newXml) : newXml;
-    const newCrc  = crc32(newXml);
-    const newCsz  = newComp.length;
-    const newUsz  = newXml.length;
-    const diff    = newCsz - oldCsize;
-
-    // Build new buffer: before + newCompressed + after
-    const out = new Uint8Array(u8.length + diff);
-    out.set(u8.slice(0, dataOff));
-    out.set(newComp, dataOff);
-    out.set(u8.slice(dataOff + oldCsize), dataOff + newCsz);
-
-    // Patch local file header
-    w32(out, localHdrOff+14, newCrc); w32(out, localHdrOff+18, newCsz); w32(out, localHdrOff+22, newUsz);
-
-    // Patch data descriptor if present (bit 3 of flags)
-    if (u8[localHdrOff+6] & 8) {
-      const ddOff = dataOff + newCsz;
-      const hasSig = out[ddOff]===0x50&&out[ddOff+1]===0x4B&&out[ddOff+2]===0x07&&out[ddOff+3]===0x08;
-      const base = ddOff + (hasSig ? 4 : 0);
-      w32(out, base, newCrc); w32(out, base+4, newCsz); w32(out, base+8, newUsz);
-    }
-
-    // Update central directory entries (all offsets after our entry shift by diff)
-    const newCdOff = cdOffset + diff;
-    let np = newCdOff;
-    for (let e = 0; e < cdCount; e++) {
-      if (out[np]!==0x50||out[np+1]!==0x4B||out[np+2]!==0x01||out[np+3]!==0x02) break;
-      const fnl = out[np+28]|(out[np+29]<<8), exl = out[np+30]|(out[np+31]<<8), cml = out[np+32]|(out[np+33]<<8);
-      const lh = r32(out, np+42);
-      if (lh === localHdrOff) { w32(out,np+16,newCrc); w32(out,np+20,newCsz); w32(out,np+24,newUsz); }
-      else if (lh > localHdrOff) w32(out, np+42, lh + diff);
-      np += 46 + fnl + exl + cml;
-    }
-
-    // Update EOCD
-    const newEocd = eocdOff + diff;
-    w32(out, newEocd+16, newCdOff);
-
-    return out;
-  } catch { return new Uint8Array(rawBuf); }
-}
 
 // ── Excel generation helpers ────────────────────────────────────────────────
 function parseOTHours(timeStr: string): number {
@@ -445,8 +349,8 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
   ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 };
   ws['!margins'] = { left: 0.39, right: 0.39, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
-  const rawBuf: number[] = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
-  const blob = new Blob([injectPageSetup(rawBuf)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const buf: number[] = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+  const blob = new Blob([new Uint8Array(buf)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
