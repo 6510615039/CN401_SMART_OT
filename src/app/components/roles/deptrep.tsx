@@ -346,7 +346,7 @@ function generateXlsx(employees: OTEmployee[], month: string, deptName = 'สำ
     ws[addr].s = { ...ws[addr].s, border: hairTop };
   });
 
-  ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 };
+  ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', scale: 65 };
   ws['!margins'] = { left: 0.39, right: 0.39, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
   XLSX.utils.book_append_sheet(wb, ws, 'OT Report');
   const buf: number[] = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
